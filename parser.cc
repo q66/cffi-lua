@@ -7,6 +7,7 @@
 #include <stdexcept>
 
 #include "parser.hh"
+#include "state.hh"
 
 namespace parser {
 
@@ -381,16 +382,16 @@ static c_type parse_type(lex_state &ls) {
     return std::move(tp);
 }
 
-static void parse_decl(lex_state &ls, state &p) {
+static void parse_decl(lex_state &ls) {
     switch (ls.t.kw) {
         case KW_typedef:
-            //parse_typedef(ls, p);
+            //parse_typedef(ls);
             return;
         case KW_struct:
-            //parse_struct(ls, p);
+            //parse_struct(ls);
             return;
         case KW_enum:
-            //parse_enum(ls, p);
+            //parse_enum(ls);
             return;
         case KW_extern:
             /* may precede any declaration without changing its behavior */
@@ -398,27 +399,29 @@ static void parse_decl(lex_state &ls, state &p) {
             break;
     }
 
-    parse_type(ls);
+    auto tp = parse_type(ls);
+    std::string dname;
 
     if (ls.t.token != TOK_NAME) {
+        dname = ls.t.value_s;
         ls.syntax_error("name expected");
     }
     ls.get();
 
     if (ls.t.token == ';') {
-        printf("variable decl");
+        state::add_decl(new c_variable{std::move(dname), std::move(tp)});
         return;
     } else if (ls.t.token != '(') {
         ls.syntax_error("';' expected");
         return;
-    } else {
-        printf("function decl\n");
     }
 
     ls.get();
 
+    std::vector<c_param> params;
+
     for (;;) {
-        parse_type(ls);
+        auto pt = parse_type(ls);
         if (ls.t.token == ',') {
             /* unnamed param */
             ls.get();
@@ -427,6 +430,7 @@ static void parse_decl(lex_state &ls, state &p) {
         if (ls.t.token != TOK_NAME) {
             ls.syntax_error("parameter name expected");
         }
+        params.emplace_back(ls.t.value_s, std::move(pt));
         ls.get();
         if (ls.t.token == ')') {
             ls.get();
@@ -438,14 +442,14 @@ static void parse_decl(lex_state &ls, state &p) {
     }
 }
 
-static void parse_decls(lex_state &ls, state &p) {
+static void parse_decls(lex_state &ls) {
     while (ls.t.token >= 0) {
         if (ls.t.token == ';') {
             /* empty statement */
             ls.get();
             continue;
         }
-        parse_decl(ls, p);
+        parse_decl(ls);
         if (!ls.t.token) {
             break;
         }
@@ -456,16 +460,13 @@ static void parse_decls(lex_state &ls, state &p) {
     }
 }
 
-state parse(std::string const &input) {
-    state p;
+void parse(std::string const &input) {
     lex_state ls{input.c_str(), input.c_str() + input.size()};
 
     /* read first token */
     ls.get();
 
-    parse_decls(ls, p);
-
-    return std::move(p);
+    parse_decls(ls);
 }
 
 } /* namespace parser */

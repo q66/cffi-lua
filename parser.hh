@@ -1,3 +1,6 @@
+#ifndef PARSER_HH
+#define PARSER_HH
+
 #include <cstdint>
 
 #include <string>
@@ -5,9 +8,6 @@
 #include <memory>
 
 namespace parser {
-
-struct state {
-};
 
 enum c_builtin {
     C_BUILTIN_INVALID = 0,
@@ -50,6 +50,7 @@ enum c_cv {
 enum class c_object_type {
     INVALID = 0,
     FUNCTION,
+    VARIABLE,
     TYPEDEF,
     STRUCT,
     ENUM,
@@ -102,16 +103,45 @@ private:
     uint32_t p_type;
 };
 
-struct c_param: c_type {
+struct c_param: c_object {
+    c_param(std::string pname, c_type type):
+        c_object{std::move(pname)}, p_type{std::move(type)}
+    {}
+
     c_object_type obj_type() const {
         return c_object_type::PARAM;
     }
+
+private:
+    c_type p_type;
 };
 
 struct c_function: c_object {
+    c_function(std::string fname, c_type result, std::vector<c_param> params):
+        c_object{std::move(fname)}, p_result{std::move(result)},
+        p_params{std::move(params)}
+    {}
+
     c_object_type obj_type() const {
         return c_object_type::FUNCTION;
     }
+
+private:
+    c_type p_result;
+    std::vector<c_param> p_params;
+};
+
+struct c_variable: c_object {
+    c_variable(std::string vname, c_type vtype):
+        c_object{std::move(vname)}, p_type{std::move(vtype)}
+    {}
+
+    c_object_type obj_type() const {
+        return c_object_type::VARIABLE;
+    }
+
+private:
+    c_type p_type;
 };
 
 struct c_typedecl: c_object {
@@ -135,6 +165,8 @@ struct c_enum: c_typedecl {
     }
 };
 
-state parse(std::string const &input);
+void parse(std::string const &input);
 
 }; /* namespace parser */
+
+#endif /* PARSER_HH */
