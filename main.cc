@@ -26,7 +26,6 @@ struct cffi_cdata {
     ffi_cif cif;
     void (*sym)();
     parser::c_object *decl;
-    ffi_arg rval;
 };
 
 static int cffi_func_call(lua_State *L) {
@@ -35,20 +34,20 @@ static int cffi_func_call(lua_State *L) {
     auto &func = *static_cast<parser::c_function *>(fud->decl);
     auto &pdecls = func.params();
     auto &rdecl = func.result();
+    auto &pvals = func.pvals();
 
     void **args = reinterpret_cast<void **>(func.ffi_data());
-    void **valps = reinterpret_cast<void **>(&args[pdecls.size()]);
-    void **vals = reinterpret_cast<void **>(&args[pdecls.size() * 2]);
+    void **vals = reinterpret_cast<void **>(&args[pdecls.size()]);
 
+    parser::c_value *valps = &pvals[0];
     for (size_t i = 0; i < pdecls.size(); ++i) {
-        void **stor = &valps[i];
-        /* 1 is the userdata */
-        ffi::lua_check_cdata(L, pdecls[i].type(), stor, i + 2);
-        vals[i] = stor;
+        vals[i] = ffi::lua_check_cdata(
+            L, pdecls[i].type(), &valps[i + 1], i + 2
+        );
     }
 
-    ffi_call(&fud->cif, fud->sym, &fud->rval, vals);
-    ffi::lua_push_cdata(L, rdecl, fud->rval);
+    ffi_call(&fud->cif, fud->sym, valps, vals);
+    ffi::lua_push_cdata(L, rdecl, valps);
     return 1;
 }
 
@@ -82,7 +81,7 @@ static int cffi_handle_index(lua_State *L) {
     fud->sym = reinterpret_cast<void (*)()>(funp);
     fud->decl = fdecl;
     void *args = reinterpret_cast<void *>(
-        new unsigned char[3 * nargs * sizeof(void *)]
+        new unsigned char[2 * nargs * sizeof(void *)]
     );
     /* give ownership to declaration handle asap */
     func.ffi_data(args);

@@ -1,6 +1,8 @@
 #ifndef PARSER_HH
 #define PARSER_HH
 
+#include <lua.hpp>
+
 #include <cstdint>
 
 #include <string>
@@ -56,6 +58,45 @@ enum class c_object_type {
     ENUM,
     TYPE,
     PARAM,
+};
+
+/* this is a universal union to store C values converted from
+ * Lua values before they're passed to the function itself
+ *
+ * non-primitive Lua values are always boxed, so we know the max size
+ */
+union c_value {
+    /* fp primitives, unknown size */
+    long double ld;
+    double d;
+    float f;
+    /* signed int primitives, unknown size */
+    long long ll;
+    long l;
+    int i;
+    short s;
+    char c;
+    /* unsigned int primitives, unknown size */
+    unsigned long long ull;
+    unsigned long ul;
+    unsigned int u;
+    unsigned short us;
+    unsigned char uc;
+    /* signed int primitives, fixed size */
+    int64_t i64;
+    int32_t i32;
+    int16_t i16;
+    int8_t i8;
+    /* unsigned int primitives, fixed size */
+    uint64_t u64;
+    uint32_t u32;
+    uint16_t u16;
+    uint8_t u8;
+    /* booleans */
+    bool b;
+    /* pointer types */
+    char const *str;
+    void *ptr;
 };
 
 struct c_object {
@@ -165,7 +206,10 @@ struct c_function: c_object {
     c_function(std::string fname, c_type result, std::vector<c_param> params):
         c_object{std::move(fname)}, p_result{std::move(result)},
         p_params{std::move(params)}
-    {}
+    {
+        /* allocate enough memory to store args + return */
+        p_pvals.reserve(p_params.size() + 1);
+    }
 
     c_object_type obj_type() const {
         return c_object_type::FUNCTION;
@@ -177,6 +221,10 @@ struct c_function: c_object {
 
     std::vector<c_param> const &params() const {
         return p_params;
+    }
+
+    std::vector<c_value> &pvals() {
+        return p_pvals;
     }
 
     void *ffi_data() {
@@ -193,6 +241,7 @@ struct c_function: c_object {
 private:
     c_type p_result;
     std::vector<c_param> p_params;
+    std::vector<c_value> p_pvals;
     std::unique_ptr<unsigned char[]> p_ffi_data;
 };
 

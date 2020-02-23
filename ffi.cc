@@ -103,77 +103,97 @@ ffi_type *get_ffi_type(parser::c_type const &tp) {
     return &ffi_type_sint;
 }
 
-void lua_push_cdata(lua_State *L, parser::c_type const &tp, ffi_arg value) {
+/* FIXME: the retval casting stuff does not follow union semantics
+ * and treats it as raw memory... easier for now, but fix later
+ * (will need refactoring anyway to handle large types...)
+ */
+
+template<typename T>
+static inline void push_int(lua_State *L, int cv, void *value) {
+    if (use_ffi_signed<T>(cv)) {
+        using U = typename std::make_signed<T>::type;
+        lua_pushinteger(L, lua_Integer(
+            *reinterpret_cast<U *>(value)
+        ));
+    } else {
+        using U = typename std::make_unsigned<T>::type;
+        lua_pushinteger(L, lua_Integer(
+            *reinterpret_cast<U *>(value)
+        ));
+    }
+}
+
+void lua_push_cdata(lua_State *L, parser::c_type const &tp, void *value) {
     switch (tp.type()) {
         /* convert to lua boolean */
         case parser::C_BUILTIN_BOOL:
-            lua_pushboolean(L, int(value));
+            lua_pushboolean(L, *reinterpret_cast<unsigned char *>(value));
             return;
         /* convert to lua number */
         case parser::C_BUILTIN_FLOAT:
+            lua_pushnumber(L, lua_Number(*reinterpret_cast<float *>(value)));
+            return;
         case parser::C_BUILTIN_DOUBLE:
-            lua_pushnumber(L, *reinterpret_cast<double *>(&value));
+            lua_pushnumber(L, lua_Number(*reinterpret_cast<double *>(value)));
             return;
         case parser::C_BUILTIN_LDOUBLE:
-            lua_pushstring(L, "NYI");
+            lua_pushnumber(L, lua_Number(
+                *reinterpret_cast<long double *>(value)
+            ));
             return;
         case parser::C_BUILTIN_CHAR:
-            if (use_ffi_signed<char>(tp.cv())) {
-                lua_pushinteger(L, lua_Integer(
-                    *reinterpret_cast<ffi_sarg *>(&value)
-                ));
-            } else {
-                lua_pushinteger(L, lua_Integer(value));
-            }
+            push_int<char>(L, tp.cv(), value);
             return;
         case parser::C_BUILTIN_SHORT:
+            push_int<short>(L, tp.cv(), value);
+            return;
         case parser::C_BUILTIN_INT:
+            push_int<int>(L, tp.cv(), value);
+            return;
         case parser::C_BUILTIN_INT8:
+            push_int<int8_t>(L, tp.cv(), value);
+            return;
         case parser::C_BUILTIN_INT16:
+            push_int<int16_t>(L, tp.cv(), value);
+            return;
         case parser::C_BUILTIN_INT32:
-            if (use_ffi_signed<int>(tp.cv())) {
-                lua_pushinteger(L, lua_Integer(
-                    *reinterpret_cast<ffi_sarg *>(&value)
-                ));
-            } else {
-                lua_pushinteger(L, lua_Integer(value));
-            }
+            push_int<int32_t>(L, tp.cv(), value);
             return;
         case parser::C_BUILTIN_LONG:
         case parser::C_BUILTIN_INT64:
         case parser::C_BUILTIN_SIZE:
         case parser::C_BUILTIN_INTPTR:
         case parser::C_BUILTIN_TIME:
-            lua_pushstring(L, "NYI");
+            luaL_error(L, "NYI");
             return;
         default:
             /* FIXME */
-            lua_pushstring(L, "value too big");
+            luaL_error(L, "value too big");
             return;
     }
 }
 
 template<typename T>
-static inline void write_int(lua_State *L, int index, int cv, void **stor) {
+static inline void write_int(lua_State *L, int index, int cv, void *stor) {
     lua_Integer v = lua_tointeger(L, index);
     if (use_ffi_signed<T>(cv)) {
         using U = typename std::make_signed<T>::type;
-        *reinterpret_cast<U *>(stor) = U(v);
+        *static_cast<U *>(stor) = U(v);
     } else {
         using U = typename std::make_unsigned<T>::type;
-        *reinterpret_cast<U *>(stor) = U(v);
+        *static_cast<U *>(stor) = U(v);
     }
 }
 
-void lua_check_cdata(
-    lua_State *L, parser::c_type const &tp, void **stor, int index
+void *lua_check_cdata(
+    lua_State *L, parser::c_type const &tp, parser::c_value *stor, int index
 ) {
     switch (lua_type(L, index)) {
         case LUA_TNIL:
             switch (tp.type()) {
                 case parser::C_BUILTIN_PTR:
-                    *stor = nullptr;
-                    break;
+                    stor->ptr = nullptr;
+                    return &stor->ptr;
                 default:
                     luaL_error(
                         L, "cannot convert 'nil' to '%s'",
@@ -185,8 +205,8 @@ void lua_check_cdata(
         case LUA_TBOOLEAN:
             switch (tp.type()) {
                 case parser::C_BUILTIN_BOOL:
-                    *reinterpret_cast<bool *>(stor) = lua_toboolean(L, index);
-                    break;
+                    stor->b = lua_toboolean(L, index);
+                    return &stor->b;
                 default:
                     luaL_error(
                         L, "cannot convert 'boolean' to '%s'",
@@ -198,40 +218,38 @@ void lua_check_cdata(
         case LUA_TNUMBER:
             switch (tp.type()) {
                 case parser::C_BUILTIN_FLOAT:
-                    *reinterpret_cast<float *>(stor) =
-                        float(lua_tonumber(L, index));
-                    break;
+                    stor->f = float(lua_tonumber(L, index));
+                    return &stor->f;
                 case parser::C_BUILTIN_DOUBLE:
-                    *reinterpret_cast<double *>(stor) =
-                        double(lua_tonumber(L, index));
-                    break;
+                    stor->d = double(lua_tonumber(L, index));
+                    return &stor->d;
                 case parser::C_BUILTIN_CHAR:
-                    write_int<char>(L, index, tp.cv(), stor);
-                    break;
+                    write_int<char>(L, index, tp.cv(), &stor->c);
+                    return &stor->c;
                 case parser::C_BUILTIN_SHORT:
-                    write_int<short>(L, index, tp.cv(), stor);
-                    break;
+                    write_int<short>(L, index, tp.cv(), &stor->s);
+                    return &stor->s;
                 case parser::C_BUILTIN_INT:
-                    write_int<int>(L, index, tp.cv(), stor);
-                    break;
+                    write_int<int>(L, index, tp.cv(), &stor->i);
+                    return &stor->i;
                 case parser::C_BUILTIN_LONG:
-                    write_int<long>(L, index, tp.cv(), stor);
-                    break;
+                    write_int<long>(L, index, tp.cv(), &stor->l);
+                    return &stor->l;
                 case parser::C_BUILTIN_LLONG:
-                    write_int<long long>(L, index, tp.cv(), stor);
-                    break;
+                    write_int<long long>(L, index, tp.cv(), &stor->ll);
+                    return &stor->ll;
                 case parser::C_BUILTIN_INT8:
-                    write_int<int8_t>(L, index, tp.cv(), stor);
-                    break;
+                    write_int<int8_t>(L, index, tp.cv(), &stor->i8);
+                    return &stor->i8;
                 case parser::C_BUILTIN_INT16:
-                    write_int<int16_t>(L, index, tp.cv(), stor);
-                    break;
+                    write_int<int16_t>(L, index, tp.cv(), &stor->i16);
+                    return &stor->i16;
                 case parser::C_BUILTIN_INT32:
-                    write_int<int32_t>(L, index, tp.cv(), stor);
-                    break;
+                    write_int<int32_t>(L, index, tp.cv(), &stor->i32);
+                    return &stor->i32;
                 case parser::C_BUILTIN_INT64:
-                    write_int<int64_t>(L, index, tp.cv(), stor);
-                    break;
+                    write_int<int64_t>(L, index, tp.cv(), &stor->i64);
+                    return &stor->i64;
                 default:
                     luaL_error(
                         L, "cannot convert 'number' to '%s'",
@@ -243,10 +261,8 @@ void lua_check_cdata(
         case LUA_TSTRING:
             switch (tp.type()) {
                 case parser::C_BUILTIN_PTR:
-                    *reinterpret_cast<char const **>(
-                        const_cast<void const **>(stor)
-                    ) = lua_tostring(L, index);
-                    break;
+                    stor->str = lua_tostring(L, index);
+                    return &stor->str;
                 default:
                     luaL_error(
                         L, "cannot convert 'string' to '%s'",
@@ -257,8 +273,8 @@ void lua_check_cdata(
             break;
         case LUA_TUSERDATA:
         case LUA_TLIGHTUSERDATA:
-            *stor = lua_touserdata(L, index);
-            break;
+            stor->ptr = lua_touserdata(L, index);
+            return &stor->ptr;
         case LUA_TTABLE:
             luaL_error(L, "table initializers not yet implemented");
             break;
@@ -272,6 +288,7 @@ void lua_check_cdata(
             );
             break;
     }
+    return nullptr;
 }
 
 } /* namespace ffi */
