@@ -19,35 +19,25 @@ static const luaL_Reg cffi_lib[] = {
     {NULL, NULL}
 };
 
-/* FIXME: proof-of-concept for now, will not unwind stack, etc */
+/* FIXME: proof-of-concept for now */
 
 struct cffi_cdata {
+    ffi_cif cif;
     void (*sym)();
-    parser::c_object const *decl;
+    parser::c_object *decl;
+    ffi_arg rval;
 };
 
 static int cffi_func_call(lua_State *L) {
     cffi_cdata *fud = static_cast<cffi_cdata *>(lua_touserdata(L, 1));
 
-    ffi_cif cif;
-    ffi_arg rval;
-
-    auto &func = *static_cast<parser::c_function const *>(fud->decl);
+    auto &func = *static_cast<parser::c_function *>(fud->decl);
     auto &pdecls = func.params();
     auto &rdecl = func.result();
 
-    std::vector<void *> argsv;
-    argsv.reserve(pdecls.size() * 3);
-
-    ffi_type **args = reinterpret_cast<ffi_type **>(&argsv[0]);
-    void **valps = &argsv[pdecls.size()];
-    void **vals = &argsv[pdecls.size() * 2];
-
-    if (ffi_prep_cif(
-        &cif, FFI_DEFAULT_ABI, pdecls.size(), &ffi_type_sint, args
-    ) != FFI_OK) {
-        luaL_error(L, "unexpected failure calling '%s'", func.name.c_str());
-    }
+    ffi_type **args = reinterpret_cast<ffi_type **>(func.ffi_data());
+    void **valps = reinterpret_cast<void **>(&args[pdecls.size()]);
+    void **vals = reinterpret_cast<void **>(&args[pdecls.size() * 2]);
 
     for (size_t i = 0; i < pdecls.size(); ++i) {
         args[i] = &ffi_type_pointer;
@@ -59,8 +49,8 @@ static int cffi_func_call(lua_State *L) {
         vals[i] = s;
     }
 
-    ffi_call(&cif, fud->sym, &rval, vals);
-    lua_pushinteger(L, int(rval));
+    ffi_call(&fud->cif, fud->sym, &fud->rval, vals);
+    lua_pushinteger(L, int(fud->rval));
     return 1;
 }
 
@@ -78,6 +68,9 @@ static int cffi_handle_index(lua_State *L) {
         luaL_error(L, "missing declaration for symbol '%s'", fname);
     }
 
+    auto &func = *static_cast<parser::c_function *>(fdecl);
+    size_t nargs = func.params().size();
+
     void *funp = dlsym(dl, fname);
     if (!funp) {
         luaL_error(L, "undefined symbol: %s", fname);
@@ -90,6 +83,18 @@ static int cffi_handle_index(lua_State *L) {
 
     fud->sym = reinterpret_cast<void (*)()>(funp);
     fud->decl = fdecl;
+    void *args = reinterpret_cast<void *>(
+        new unsigned char[3 * nargs * sizeof(void *)]
+    );
+    /* give ownership to declaration handle asap */
+    func.ffi_data(args);
+
+    if (ffi_prep_cif(
+        &fud->cif, FFI_DEFAULT_ABI, nargs, &ffi_type_sint,
+        reinterpret_cast<ffi_type **>(args)
+    ) != FFI_OK) {
+        luaL_error(L, "unexpected failure calling '%s'", func.name.c_str());
+    }
 
     return 1;
 }

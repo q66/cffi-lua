@@ -12,7 +12,7 @@ namespace state {
 /* takes unique ownership of the pointer */
 void add_decl(parser::c_object *decl);
 
-parser::c_object const *lookup_decl(std::string const &name);
+parser::c_object *lookup_decl(std::string const &name);
 
 } /* namespace state */
 

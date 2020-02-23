@@ -18,12 +18,12 @@ void add_decl(parser::c_object *decl) {
     decl_map.emplace(d.name, &d);
 }
 
-parser::c_object const *lookup_decl(std::string const &name) {
+parser::c_object *lookup_decl(std::string const &name) {
     auto it = decl_map.find(name);
     if (it == decl_map.end()) {
         return nullptr;
     }
-    return it->second;
+    return const_cast<parser::c_object *>(it->second);
 }
 
 } /* namespace state */
