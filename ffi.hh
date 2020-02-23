@@ -11,6 +11,17 @@
 
 namespace ffi {
 
+template<typename T>
+struct cffi_cdata {
+    parser::c_object *decl;
+    T val;
+};
+
+struct cffi_fdata {
+    void (*sym)();
+    ffi_cif cif;
+};
+
 ffi_type *get_ffi_type(parser::c_type const &tp);
 
 void lua_push_cdata(lua_State *L, parser::c_type const &tp, void *value);

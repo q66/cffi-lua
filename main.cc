@@ -14,22 +14,33 @@ static int cffi_cdef(lua_State *L) {
     return 0;
 }
 
+static int cffi_new(lua_State *L) {
+    return 0;
+}
+
+static int cffi_string(lua_State *L) {
+    return 0;
+}
+
 static const luaL_Reg cffi_lib[] = {
+    /* core */
     {"cdef", cffi_cdef},
+
+    /* data handling */
+    {"new", cffi_new},
+
+    /* utilities */
+    {"string", cffi_string},
 
     {NULL, NULL}
 };
 
 /* FIXME: proof-of-concept for now */
 
-struct cffi_cdata {
-    ffi_cif cif;
-    void (*sym)();
-    parser::c_object *decl;
-};
+using fdata_t = ffi::cffi_cdata<ffi::cffi_fdata>;
 
 static int cffi_func_call(lua_State *L) {
-    cffi_cdata *fud = static_cast<cffi_cdata *>(lua_touserdata(L, 1));
+    fdata_t *fud = static_cast<fdata_t *>(lua_touserdata(L, 1));
 
     auto &func = *static_cast<parser::c_function *>(fud->decl);
     auto &pdecls = func.params();
@@ -39,21 +50,23 @@ static int cffi_func_call(lua_State *L) {
     void **args = reinterpret_cast<void **>(func.ffi_data());
     void **vals = reinterpret_cast<void **>(&args[pdecls.size()]);
 
-    parser::c_value *valps = &pvals[0];
     for (size_t i = 0; i < pdecls.size(); ++i) {
         vals[i] = ffi::lua_check_cdata(
-            L, pdecls[i].type(), &valps[i + 1], i + 2
+            L, pdecls[i].type(), &pvals[i + 1], i + 2
         );
     }
 
-    ffi_call(&fud->cif, fud->sym, valps, vals);
-    ffi::lua_push_cdata(L, rdecl, valps);
+    ffi_call(&fud->val.cif, fud->val.sym, &pvals[0], vals);
+    ffi::lua_push_cdata(L, rdecl, &pvals[0]);
     return 1;
 }
 
 static void cffi_setup_func_handle_meta(lua_State *L) {
     lua_pushcfunction(L, cffi_func_call);
     lua_setfield(L, -2, "__call");
+}
+
+static void cffi_setup_data_handle_meta(lua_State *L) {
 }
 
 static int cffi_handle_index(lua_State *L) {
@@ -73,13 +86,13 @@ static int cffi_handle_index(lua_State *L) {
         luaL_error(L, "undefined symbol: %s", fname);
     }
 
-    auto *fud = static_cast<cffi_cdata *>(
-        lua_newuserdata(L, sizeof(cffi_cdata))
+    auto *fud = static_cast<fdata_t *>(
+        lua_newuserdata(L, sizeof(fdata_t))
     );
     luaL_setmetatable(L, "cffi_func_handle");
 
-    fud->sym = reinterpret_cast<void (*)()>(funp);
     fud->decl = fdecl;
+    fud->val.sym = reinterpret_cast<void (*)()>(funp);
     void *args = reinterpret_cast<void *>(
         new unsigned char[2 * nargs * sizeof(void *)]
     );
@@ -93,7 +106,7 @@ static int cffi_handle_index(lua_State *L) {
     }
 
     if (ffi_prep_cif(
-        &fud->cif, FFI_DEFAULT_ABI, nargs,
+        &fud->val.cif, FFI_DEFAULT_ABI, nargs,
         ffi::get_ffi_type(func.result()), targs
     ) != FFI_OK) {
         luaL_error(L, "unexpected failure calling '%s'", func.name.c_str());
@@ -131,6 +144,11 @@ extern "C" int luaopen_cffi(lua_State *L) {
 
     if (luaL_newmetatable(L, "cffi_func_handle")) {
         cffi_setup_func_handle_meta(L);
+    }
+    lua_pop(L, 1);
+
+    if (luaL_newmetatable(L, "cffi_data_handle")) {
+        cffi_setup_data_handle_meta(L);
     }
     lua_pop(L, 1);
 
