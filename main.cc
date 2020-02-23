@@ -1,5 +1,4 @@
 #include <cstdlib>
-#include <dlfcn.h>
 
 #include <lua.hpp>
 
@@ -7,6 +6,7 @@
 
 #include "parser.hh"
 #include "state.hh"
+#include "lib.hh"
 
 static int cffi_cdef(lua_State *L) {
     parser::parse(luaL_checkstring(L, 1));
@@ -59,7 +59,7 @@ static void cffi_setup_func_handle_meta(lua_State *L) {
 }
 
 static int cffi_handle_index(lua_State *L) {
-    void *dl = *static_cast<void **>(lua_touserdata(L, 1));
+    auto dl = *static_cast<lib::handle *>(lua_touserdata(L, 1));
     char const *fname = luaL_checkstring(L, 2);
 
     auto *fdecl = state::lookup_decl(fname);
@@ -70,7 +70,7 @@ static int cffi_handle_index(lua_State *L) {
     auto &func = *static_cast<parser::c_function *>(fdecl);
     size_t nargs = func.params().size();
 
-    void *funp = dlsym(dl, fname);
+    auto funp = lib::get_func(dl, fname);
     if (!funp) {
         luaL_error(L, "undefined symbol: %s", fname);
     }
@@ -104,8 +104,8 @@ static int cffi_handle_index(lua_State *L) {
 }
 
 static int cffi_free_handle(lua_State *L) {
-    void **c_ud = static_cast<void **>(lua_touserdata(L, 1));
-    dlclose(*c_ud);
+    auto *c_ud = static_cast<lib::handle *>(lua_touserdata(L, 1));
+    lib::close(*c_ud);
     return 0;
 }
 
@@ -120,8 +120,10 @@ static void cffi_setup_lib_handle_meta(lua_State *L) {
 extern "C" int luaopen_cffi(lua_State *L) {
     luaL_newlib(L, cffi_lib);
 
-    void **c_ud = static_cast<void **>(lua_newuserdata(L, sizeof(void *)));
-    *c_ud = dlopen(nullptr, RTLD_NOW);
+    auto *c_ud = static_cast<lib::handle *>(
+        lua_newuserdata(L, sizeof(void *))
+    );
+    *c_ud = lib::open();
     if (luaL_newmetatable(L, "cffi_lib_handle")) {
         cffi_setup_lib_handle_meta(L);
     }

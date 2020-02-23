@@ -23,7 +23,7 @@ TODO:
 - [ ] Variadic functions
 - [ ] Allocation API
 - [ ] Library loading API
-- [ ] Abstract away `dlopen` and friends
+- [x] Abstract away `dlopen` and friends
 - [ ] Abstract away libffi code
 - [ ] Lua 5.1 and LuaJIT support
 - [ ] Windows support
