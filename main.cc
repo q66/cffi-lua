@@ -35,16 +35,15 @@ static int cffi_func_call(lua_State *L) {
     auto &pdecls = func.params();
     auto &rdecl = func.result();
 
-    ffi_type **args = reinterpret_cast<ffi_type **>(func.ffi_data());
+    void **args = reinterpret_cast<void **>(func.ffi_data());
     void **valps = reinterpret_cast<void **>(&args[pdecls.size()]);
     void **vals = reinterpret_cast<void **>(&args[pdecls.size() * 2]);
 
     for (size_t i = 0; i < pdecls.size(); ++i) {
-        args[i] = &ffi_type_pointer;
-        /* 1 is the userdata */
         char const **s = reinterpret_cast<char const **>(
             const_cast<void const **>(&valps[i])
         );
+        /* 1 is the userdata */
         *s = luaL_checkstring(L, i + 2);
         vals[i] = s;
     }
@@ -89,9 +88,14 @@ static int cffi_handle_index(lua_State *L) {
     /* give ownership to declaration handle asap */
     func.ffi_data(args);
 
+    /* args needs to be prepared with libffi types beforehand */
+    ffi_type **targs = static_cast<ffi_type **>(args);
+    for (size_t i = 0; i < nargs; ++i) {
+        targs[i] = &ffi_type_pointer;
+    }
+
     if (ffi_prep_cif(
-        &fud->cif, FFI_DEFAULT_ABI, nargs, &ffi_type_sint,
-        reinterpret_cast<ffi_type **>(args)
+        &fud->cif, FFI_DEFAULT_ABI, nargs, &ffi_type_sint, targs
     ) != FFI_OK) {
         luaL_error(L, "unexpected failure calling '%s'", func.name.c_str());
     }

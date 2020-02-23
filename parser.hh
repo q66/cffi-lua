@@ -60,6 +60,7 @@ enum class c_object_type {
 
 struct c_object {
     c_object(std::string oname = std::string{}): name{std::move(oname)} {}
+    virtual ~c_object() {}
 
     std::string name;
 
