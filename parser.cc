@@ -276,8 +276,13 @@ static c_type parse_type(lex_state &ls) {
             case KW_char:
             case KW_short:
             case KW_int:
-            case KW_long:
                 /* restrict what can follow signed/unsigned */
+                break;
+            case KW_long:
+                ls.lookahead();
+                if (ls.lahead.kw == KW_double) {
+                    ls.syntax_error("builtin integer type expected");
+                }
                 break;
             default:
                 ls.syntax_error("builtin integer type expected");
@@ -328,6 +333,7 @@ static c_type parse_type(lex_state &ls) {
             goto btype;
         case KW_intptr_t:
             cbt = C_BUILTIN_INTPTR;
+            quals |= C_CV_SIGNED;
             goto btype;
         case KW_ptrdiff_t:
             cbt = C_BUILTIN_PTRDIFF;
@@ -336,7 +342,10 @@ static c_type parse_type(lex_state &ls) {
             cbt = C_BUILTIN_SIZE;
             quals |= C_CV_SIGNED;
             goto btype;
-        case KW_size_t: cbt = C_BUILTIN_SIZE; goto btype;
+        case KW_size_t:
+            cbt = C_BUILTIN_SIZE;
+            quals |= C_CV_UNSIGNED;
+            goto btype;
         case KW_time_t: cbt = C_BUILTIN_TIME; goto btype;
         case KW_float:  cbt = C_BUILTIN_FLOAT; goto btype;
         case KW_double: cbt = C_BUILTIN_DOUBLE; goto btype;
@@ -351,12 +360,19 @@ static c_type parse_type(lex_state &ls) {
         case KW_long:
             ls.get();
             if (ls.t.kw == KW_long) {
+                cbt = C_BUILTIN_LLONG;
                 tname = "long long";
                 ls.get();
             } else if (ls.t.kw == KW_int) {
+                cbt = C_BUILTIN_LONG;
                 tname = "long";
                 ls.get();
+            } else if (ls.t.kw == KW_double) {
+                cbt = C_BUILTIN_LDOUBLE;
+                tname = "long double";
+                ls.get();
             } else {
+                cbt = C_BUILTIN_LONG;
                 tname = "long";
             }
             break;

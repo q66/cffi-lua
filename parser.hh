@@ -26,7 +26,6 @@ enum c_builtin {
     C_BUILTIN_INT16,
     C_BUILTIN_INT32,
     C_BUILTIN_INT64,
-    C_BUILTIN_INT128,
 
     C_BUILTIN_SIZE,
     C_BUILTIN_INTPTR,
@@ -36,6 +35,7 @@ enum c_builtin {
 
     C_BUILTIN_FLOAT,
     C_BUILTIN_DOUBLE,
+    C_BUILTIN_LDOUBLE,
 
     C_BUILTIN_BOOL,
 };
@@ -75,7 +75,7 @@ struct c_type: c_object {
 
     c_type(c_type tp, int qual):
         c_object{}, p_ptr{std::make_unique<c_type>(std::move(tp))},
-        p_type{uint32_t(qual) << 8}
+        p_type{C_BUILTIN_PTR | (uint32_t(qual) << 8)}
     {}
 
     c_object_type obj_type() const {

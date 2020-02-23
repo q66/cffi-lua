@@ -20,6 +20,7 @@ TODO:
 - [ ] Type conversions
 - [ ] User defined C types, typedefs
 - [ ] Enums
+- [ ] Complex types
 - [ ] Variadic functions
 - [ ] Allocation API
 - [ ] Library loading API

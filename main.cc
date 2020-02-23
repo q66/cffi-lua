@@ -7,6 +7,7 @@
 #include "parser.hh"
 #include "state.hh"
 #include "lib.hh"
+#include "ffi.hh"
 
 static int cffi_cdef(lua_State *L) {
     parser::parse(luaL_checkstring(L, 1));
@@ -49,7 +50,7 @@ static int cffi_func_call(lua_State *L) {
     }
 
     ffi_call(&fud->cif, fud->sym, &fud->rval, vals);
-    lua_pushinteger(L, int(fud->rval));
+    lua_pushinteger(L, lua_Integer(fud->rval));
     return 1;
 }
 
@@ -91,11 +92,12 @@ static int cffi_handle_index(lua_State *L) {
     /* args needs to be prepared with libffi types beforehand */
     ffi_type **targs = static_cast<ffi_type **>(args);
     for (size_t i = 0; i < nargs; ++i) {
-        targs[i] = &ffi_type_pointer;
+        targs[i] = ffi::get_ffi_type(func.params()[i].type());
     }
 
     if (ffi_prep_cif(
-        &fud->cif, FFI_DEFAULT_ABI, nargs, &ffi_type_sint, targs
+        &fud->cif, FFI_DEFAULT_ABI, nargs,
+        ffi::get_ffi_type(func.result()), targs
     ) != FFI_OK) {
         luaL_error(L, "unexpected failure calling '%s'", func.name.c_str());
     }

@@ -1,7 +1,7 @@
 local ffi = require("cffi")
 
 ffi.cdef [[
-    //long int strtol(const char *str, char **endptr, int base);
+    long int strtol(const char *str, char **endptr, int base);
     int puts(char const *str);
 ]]
 

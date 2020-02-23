@@ -18,7 +18,8 @@ cffi_src = [
     'main.cc',
     'parser.cc',
     'state.cc',
-    'lib.cc'
+    'lib.cc',
+    'ffi.cc'
 ]
 
 cffi_lib = shared_module('cffi',
