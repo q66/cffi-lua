@@ -70,12 +70,12 @@ struct c_object {
 struct c_type: c_object {
     c_type(std::string tname, int cbt, int qual):
         c_object{std::move(tname)}, p_ptr{nullptr},
-        p_type{uint32_t(cbt) | (uint32_t(qual) << 8)}
+        p_type{uint32_t(cbt) | uint32_t(qual)}
     {}
 
     c_type(c_type tp, int qual):
         c_object{}, p_ptr{std::make_unique<c_type>(std::move(tp))},
-        p_type{C_BUILTIN_PTR | (uint32_t(qual) << 8)}
+        p_type{C_BUILTIN_PTR | uint32_t(qual)}
     {}
 
     c_object_type obj_type() const {
@@ -87,11 +87,51 @@ struct c_type: c_object {
     }
 
     int cv() const {
-        return int((p_type >> 8) & 0xFF);
+        return int(p_type & (0xFF << 8));
     }
 
     void cv(int qual) {
-        p_type |= uint32_t(qual) << 8;
+        p_type |= uint32_t(qual);
+    }
+
+    void serialize(std::string &o) const {
+        int tcv = cv();
+        if (p_ptr) {
+            p_ptr->serialize(o);
+            if (o.back() != '*') {
+                o += ' ';
+            }
+            o += '*';
+        } else {
+            o.clear();
+            switch (type()) {
+                case C_BUILTIN_CHAR:
+                case C_BUILTIN_SHORT:
+                case C_BUILTIN_LONG:
+                case C_BUILTIN_LLONG:
+                    if (tcv & C_CV_UNSIGNED) {
+                        o += "unsigned ";
+                    } else if (tcv & C_CV_SIGNED) {
+                        o += "signed ";
+                    }
+                    break;
+                default:
+                    break;
+            }
+            o += this->name;
+        }
+        if (tcv & C_CV_CONST) {
+            o += " const";
+        }
+        if (tcv & C_CV_VOLATILE) {
+            o += " volatile";
+        }
+    }
+
+    std::string serialize() const {
+        std::string out;
+        serialize(out);
+        return out;
     }
 
 private:

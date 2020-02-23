@@ -175,7 +175,10 @@ void lua_check_cdata(
                     *stor = nullptr;
                     break;
                 default:
-                    luaL_error(L, "bad conversion");
+                    luaL_error(
+                        L, "cannot convert 'nil' to '%s'",
+                        tp.serialize().c_str()
+                    );
                     break;
             }
             break;
@@ -185,7 +188,10 @@ void lua_check_cdata(
                     *reinterpret_cast<bool *>(stor) = lua_toboolean(L, index);
                     break;
                 default:
-                    luaL_error(L, "bad conversion");
+                    luaL_error(
+                        L, "cannot convert 'boolean' to '%s'",
+                        tp.serialize().c_str()
+                    );
                     break;
             }
             break;
@@ -227,7 +233,10 @@ void lua_check_cdata(
                     write_int<int64_t>(L, index, tp.cv(), stor);
                     break;
                 default:
-                    luaL_error(L, "bad conversion");
+                    luaL_error(
+                        L, "cannot convert 'number' to '%s'",
+                        tp.serialize().c_str()
+                    );
                     break;
             }
             break;
@@ -239,16 +248,16 @@ void lua_check_cdata(
                     ) = lua_tostring(L, index);
                     break;
                 default:
-                    luaL_error(L, "bad conversion");
+                    luaL_error(
+                        L, "cannot convert 'string' to '%s'",
+                        tp.serialize().c_str()
+                    );
                     break;
             }
             break;
         case LUA_TUSERDATA:
         case LUA_TLIGHTUSERDATA:
             *stor = lua_touserdata(L, index);
-            break;
-        case LUA_TTHREAD:
-            luaL_error(L, "bad conversion");
             break;
         case LUA_TTABLE:
             luaL_error(L, "table initializers not yet implemented");
