@@ -112,6 +112,10 @@ struct c_param: c_object {
         return c_object_type::PARAM;
     }
 
+    c_type const &type() const {
+        return p_type;
+    }
+
 private:
     c_type p_type;
 };
@@ -124,6 +128,14 @@ struct c_function: c_object {
 
     c_object_type obj_type() const {
         return c_object_type::FUNCTION;
+    }
+
+    c_type const &result() const {
+        return p_result;
+    }
+
+    std::vector<c_param> const &params() const {
+        return p_params;
     }
 
 private:

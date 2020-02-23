@@ -403,9 +403,9 @@ static void parse_decl(lex_state &ls) {
     std::string dname;
 
     if (ls.t.token != TOK_NAME) {
-        dname = ls.t.value_s;
         ls.syntax_error("name expected");
     }
+    dname = ls.t.value_s;
     ls.get();
 
     if (ls.t.token == ';') {
@@ -440,6 +440,10 @@ static void parse_decl(lex_state &ls) {
         }
         ls.get();
     }
+
+    state::add_decl(new c_function{
+        std::move(dname), std::move(tp), std::move(params)
+    });
 }
 
 static void parse_decls(lex_state &ls) {
