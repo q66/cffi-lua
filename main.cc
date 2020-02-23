@@ -41,16 +41,14 @@ static int cffi_func_call(lua_State *L) {
     void **vals = reinterpret_cast<void **>(&args[pdecls.size() * 2]);
 
     for (size_t i = 0; i < pdecls.size(); ++i) {
-        char const **s = reinterpret_cast<char const **>(
-            const_cast<void const **>(&valps[i])
-        );
+        void **stor = &valps[i];
         /* 1 is the userdata */
-        *s = luaL_checkstring(L, i + 2);
-        vals[i] = s;
+        ffi::lua_check_cdata(L, pdecls[i].type(), stor, i + 2);
+        vals[i] = stor;
     }
 
     ffi_call(&fud->cif, fud->sym, &fud->rval, vals);
-    lua_pushinteger(L, lua_Integer(fud->rval));
+    ffi::lua_push_cdata(L, rdecl, fud->rval);
     return 1;
 }
 

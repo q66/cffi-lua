@@ -56,7 +56,6 @@ ffi_type *get_ffi_type(parser::c_type const &tp) {
 
     switch (tp.type()) {
         case parser::C_BUILTIN_PTR:
-            printf("pointer\n");
             return &ffi_type_pointer;
 
         INT_CASE(CHAR, char, char)
@@ -101,6 +100,125 @@ ffi_type *get_ffi_type(parser::c_type const &tp) {
 
     /* TODO: custom types */
     return &ffi_type_sint;
+}
+
+void lua_push_cdata(lua_State *L, parser::c_type const &tp, ffi_arg value) {
+    switch (tp.type()) {
+        /* convert to lua boolean */
+        case parser::C_BUILTIN_BOOL:
+            lua_pushboolean(L, int(value));
+            return;
+        /* convert to lua number */
+        case parser::C_BUILTIN_FLOAT:
+        case parser::C_BUILTIN_DOUBLE:
+            lua_pushnumber(L, *reinterpret_cast<double *>(&value));
+            return;
+        case parser::C_BUILTIN_LDOUBLE:
+            lua_pushstring(L, "NYI");
+            return;
+        case parser::C_BUILTIN_CHAR:
+            if (use_ffi_signed<char>(tp.cv())) {
+                lua_pushinteger(L, lua_Integer(
+                    *reinterpret_cast<ffi_sarg *>(&value)
+                ));
+            } else {
+                lua_pushinteger(L, lua_Integer(value));
+            }
+            return;
+        case parser::C_BUILTIN_SHORT:
+        case parser::C_BUILTIN_INT:
+        case parser::C_BUILTIN_INT8:
+        case parser::C_BUILTIN_INT16:
+        case parser::C_BUILTIN_INT32:
+            if (use_ffi_signed<int>(tp.cv())) {
+                lua_pushinteger(L, lua_Integer(
+                    *reinterpret_cast<ffi_sarg *>(&value)
+                ));
+            } else {
+                lua_pushinteger(L, lua_Integer(value));
+            }
+            return;
+        case parser::C_BUILTIN_LONG:
+        case parser::C_BUILTIN_INT64:
+        case parser::C_BUILTIN_SIZE:
+        case parser::C_BUILTIN_INTPTR:
+        case parser::C_BUILTIN_TIME:
+            lua_pushstring(L, "NYI");
+            return;
+        default:
+            /* FIXME */
+            lua_pushstring(L, "value too big");
+            return;
+    }
+}
+
+void lua_check_cdata(
+    lua_State *L, parser::c_type const &tp, void **stor, int index
+) {
+    switch (lua_type(L, index)) {
+        case LUA_TNIL:
+            switch (tp.type()) {
+                case parser::C_BUILTIN_PTR:
+                    *stor = nullptr;
+                    break;
+                default:
+                    luaL_error(L, "bad conversion");
+                    break;
+            }
+            break;
+        case LUA_TBOOLEAN:
+            switch (tp.type()) {
+                case parser::C_BUILTIN_BOOL:
+                    *reinterpret_cast<bool *>(stor) = lua_toboolean(L, index);
+                    break;
+                default:
+                    luaL_error(L, "bad conversion");
+                    break;
+            }
+            break;
+        case LUA_TNUMBER:
+            switch (tp.type()) {
+                case parser::C_BUILTIN_FLOAT:
+                    *reinterpret_cast<float *>(stor) = lua_toboolean(L, index);
+                    break;
+                case parser::C_BUILTIN_DOUBLE:
+                    *reinterpret_cast<double *>(stor) = lua_toboolean(L, index);
+                    break;
+                case parser::C_BUILTIN_CHAR:
+                case parser::C_BUILTIN_SHORT:
+                case parser::C_BUILTIN_INT:
+                case parser::C_BUILTIN_LONG:
+                case parser::C_BUILTIN_LLONG:
+                case parser::C_BUILTIN_INT8:
+                case parser::C_BUILTIN_INT16:
+                case parser::C_BUILTIN_INT32:
+                case parser::C_BUILTIN_INT64:
+                default:
+                    luaL_error(L, "bad conversion");
+                    break;
+            }
+            break;
+        case LUA_TSTRING:
+            switch (tp.type()) {
+                case parser::C_BUILTIN_PTR:
+                    *reinterpret_cast<char const **>(
+                        const_cast<void const **>(stor)
+                    ) = lua_tostring(L, index);
+                    break;
+                default:
+                    luaL_error(L, "bad conversion");
+                    break;
+            }
+            break;
+        case LUA_TTABLE:
+        case LUA_TFUNCTION:
+        case LUA_TUSERDATA:
+        case LUA_TTHREAD:
+        case LUA_TLIGHTUSERDATA:
+        default:
+            luaL_error(L, "bad lua type");
+            break;
+    }
 }
 
 } /* namespace ffi */

@@ -1,11 +1,14 @@
 local ffi = require("cffi")
 
 ffi.cdef [[
-    long int strtol(const char *str, char **endptr, int base);
+    double strtod(const char *str, char **endptr);
     int puts(char const *str);
 ]]
 
 print(ffi.C)
 
 ret = ffi.C.puts("hello world")
-print("end test, ret:", ret);
+print("end test, ret:" .. tostring(ret))
+
+test = ffi.C.strtod(tostring(22 / 7), nil)
+print("strtod (tostring(22 / 7)) == " .. tostring(test))
