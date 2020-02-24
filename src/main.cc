@@ -96,6 +96,7 @@ pop:
     }
 };
 
+/* the ffi module itself */
 struct ffi_module {
     static int cdef_f(lua_State *L) {
         parser::parse(luaL_checkstring(L, 1));
@@ -125,18 +126,20 @@ struct ffi_module {
         };
         luaL_newlib(L, lib_def);
     }
+
+    static void open(lua_State *L) {
+        setup(L); /* push table to stack */
+
+        auto *c_ud = lua::newuserdata<lib::handle>(L);
+        *c_ud = lib::open();
+
+        lib_meta::setup(L);
+        func_meta::setup(L);
+        data_meta::setup(L);
+    }
 };
 
-/* module entry point */
 extern "C" int luaopen_cffi(lua_State *L) {
-    ffi_module::setup(L); /* pushes module table to stack */
-
-    auto *c_ud = lua::newuserdata<lib::handle>(L);
-    *c_ud = lib::open();
-
-    lib_meta::setup(L);
-    func_meta::setup(L);
-    data_meta::setup(L);
-
+    ffi_module::open(L);
     return 1;
 }
