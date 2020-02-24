@@ -7,7 +7,7 @@ namespace lua {
 
 template<typename T>
 static T *newuserdata(lua_State *L, size_t extra = 0) {
-    return reinterpret_cast<T *>(lua_newuserdata(L, sizeof(T) + extra));
+    return static_cast<T *>(lua_newuserdata(L, sizeof(T) + extra));
 }
 
 template<typename T>

@@ -39,7 +39,7 @@ using funcdata_t = ffi::cdata<ffi::fdata>;
 static int cffi_func_call(lua_State *L) {
     auto *fud = lua::touserdata<funcdata_t>(L, 1);
 
-    auto &func = *static_cast<ast::c_function *>(fud->decl);
+    auto &func = fud->decl->as<ast::c_function>();
     auto &pdecls = func.params();
     auto &rdecl = func.result();
     auto &pvals = func.pvals();
@@ -75,7 +75,7 @@ static int cffi_handle_index(lua_State *L) {
         luaL_error(L, "missing declaration for symbol '%s'", fname);
     }
 
-    auto &func = *static_cast<ast::c_function *>(fdecl);
+    auto &func = fdecl->as<ast::c_function>();
     size_t nargs = func.params().size();
 
     auto funp = lib::get_func(dl, fname);
@@ -87,7 +87,7 @@ static int cffi_handle_index(lua_State *L) {
     luaL_setmetatable(L, "cffi_func_handle");
 
     fud->decl = fdecl;
-    fud->val.sym = reinterpret_cast<void (*)()>(funp);
+    fud->val.sym = funp;
 
     /* args needs to be prepared with libffi types beforehand */
     ffi_type **targs = reinterpret_cast<ffi_type **>(fud->val.args);

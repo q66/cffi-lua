@@ -102,6 +102,16 @@ struct c_object {
     std::string name;
 
     virtual c_object_type obj_type() const = 0;
+
+    template<typename T>
+    T &as() {
+        return *static_cast<T *>(this);
+    }
+
+    template<typename T>
+    T const &as() const {
+        return *static_cast<T const *>(this);
+    }
 };
 
 struct c_type: c_object {

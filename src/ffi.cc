@@ -107,15 +107,11 @@ ffi_type *get_ffi_type(ast::c_type const &tp) {
 template<typename T>
 static inline void push_int(lua_State *L, int cv, void *value) {
     if (use_ffi_signed<T>(cv)) {
-        using U = typename std::make_signed<T>::type;
-        lua_pushinteger(L, lua_Integer(
-            *reinterpret_cast<U *>(value)
-        ));
+        using U = typename std::make_signed<T>::type *;
+        lua_pushinteger(L, lua_Integer(*U(value)));
     } else {
-        using U = typename std::make_unsigned<T>::type;
-        lua_pushinteger(L, lua_Integer(
-            *reinterpret_cast<U *>(value)
-        ));
+        using U = typename std::make_unsigned<T>::type *;
+        lua_pushinteger(L, lua_Integer(*U(value)));
     }
 }
 
@@ -123,19 +119,17 @@ void lua_push_cdata(lua_State *L, ast::c_type const &tp, void *value) {
     switch (tp.type()) {
         /* convert to lua boolean */
         case ast::C_BUILTIN_BOOL:
-            lua_pushboolean(L, *reinterpret_cast<unsigned char *>(value));
+            lua_pushboolean(L, *static_cast<unsigned char *>(value));
             return;
         /* convert to lua number */
         case ast::C_BUILTIN_FLOAT:
-            lua_pushnumber(L, lua_Number(*reinterpret_cast<float *>(value)));
+            lua_pushnumber(L, lua_Number(*static_cast<float *>(value)));
             return;
         case ast::C_BUILTIN_DOUBLE:
-            lua_pushnumber(L, lua_Number(*reinterpret_cast<double *>(value)));
+            lua_pushnumber(L, lua_Number(*static_cast<double *>(value)));
             return;
         case ast::C_BUILTIN_LDOUBLE:
-            lua_pushnumber(L, lua_Number(
-                *reinterpret_cast<long double *>(value)
-            ));
+            lua_pushnumber(L, lua_Number(*static_cast<long double *>(value)));
             return;
         case ast::C_BUILTIN_CHAR:
             push_int<char>(L, tp.cv(), value); return;
