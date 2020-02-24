@@ -96,35 +96,40 @@ pop:
     }
 };
 
-static int cffi_cdef(lua_State *L) {
-    parser::parse(luaL_checkstring(L, 1));
-    return 0;
-}
+struct ffi_module {
+    static int cdef_f(lua_State *L) {
+        parser::parse(luaL_checkstring(L, 1));
+        return 0;
+    }
 
-static int cffi_new(lua_State *L) {
-    return 0;
-}
+    static int new_f(lua_State *L) {
+        return 0;
+    }
 
-static int cffi_string(lua_State *L) {
-    return 0;
-}
+    static int string_f(lua_State *L) {
+        return 0;
+    }
 
-static const luaL_Reg cffi_lib[] = {
-    /* core */
-    {"cdef", cffi_cdef},
+    static void setup(lua_State *L) {
+        static const luaL_Reg lib_def[] = {
+            /* core */
+            {"cdef", cdef_f},
 
-    /* data handling */
-    {"new", cffi_new},
+            /* data handling */
+            {"new", new_f},
 
-    /* utilities */
-    {"string", cffi_string},
+            /* utilities */
+            {"string", string_f},
 
-    {NULL, NULL}
+            {NULL, NULL}
+        };
+        luaL_newlib(L, lib_def);
+    }
 };
 
 /* module entry point */
 extern "C" int luaopen_cffi(lua_State *L) {
-    luaL_newlib(L, cffi_lib);
+    ffi_module::setup(L); /* pushes module table to stack */
 
     auto *c_ud = lua::newuserdata<lib::handle>(L);
     *c_ud = lib::open();
