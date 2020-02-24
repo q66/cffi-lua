@@ -27,20 +27,22 @@ bool prepare_cif(cdata<fdata> &fud) {
 void call_cif(cdata<fdata> &fud, lua_State *L) {
     auto &func = fud.decl->as<ast::c_function>();
     auto &pdecls = func.params();
-    auto &pvals = func.pvals();
+
+    size_t nargs = pdecls.size();
 
     void **args = fud.val.args;
-    void **vals = &args[pdecls.size()];
+    void **vals = &args[nargs];
+    auto *pvals = reinterpret_cast<ast::c_value *>(&args[2 * nargs]);
 
     for (size_t i = 0; i < pdecls.size(); ++i) {
         /* pvals[0] is retval */
         vals[i] = lua_check_cdata(
-            L, pdecls[i].type(), &pvals[i + 1], i + 2
+            L, pdecls[i].type(), pvals + i + 1, i + 2
         );
     }
 
-    ffi_call(&fud.val.cif, fud.val.sym, &pvals[0], vals);
-    lua_push_cdata(L, func.result(), &pvals[0]);
+    ffi_call(&fud.val.cif, fud.val.sym, pvals, vals);
+    lua_push_cdata(L, func.result(), pvals);
 }
 
 template<typename T>

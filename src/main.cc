@@ -33,8 +33,28 @@ struct lib_meta {
             luaL_error(L, "undefined symbol: %s", fname);
         }
 
+        /* MEMORY LAYOUT:
+         * struct cdata {
+         *     <cdata header>
+         *     struct fdata {
+         *         <fdata header>
+         *         ffi_type *arg1; // type
+         *         ffi_type *arg2; // type
+         *         ffi_type *argN; // type
+         *         void *valp1;    // &val1
+         *         void *valpN;    // &val2
+         *         void *valpN;    // &valN
+         *         ast::c_value val0; // lua ret
+         *         ast::c_value val1; // lua arg1
+         *         ast::c_value val2; // lua arg2
+         *         ast::c_value valN; // lua argN
+         *     } val;
+         * }
+         */
         auto *fud = lua::newuserdata<ffi::cdata<ffi::fdata>>(
-            L, sizeof(void *[nargs * 2])
+            L, sizeof(void *[nargs * 2 + (
+                (nargs + 1) * sizeof(ast::c_value) + sizeof(void *) - 1
+            ) / sizeof(void *)])
         );
         luaL_setmetatable(L, "cffi_func_handle");
 

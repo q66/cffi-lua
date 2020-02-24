@@ -209,10 +209,7 @@ struct c_function: c_object {
     c_function(std::string fname, c_type result, std::vector<c_param> params):
         c_object{std::move(fname)}, p_result{std::move(result)},
         p_params{std::move(params)}
-    {
-        /* allocate enough memory to store args + return */
-        p_pvals.reserve(p_params.size() + 1);
-    }
+    {}
 
     c_object_type obj_type() const {
         return c_object_type::FUNCTION;
@@ -232,14 +229,9 @@ struct c_function: c_object {
         return p_params;
     }
 
-    std::vector<c_value> &pvals() {
-        return p_pvals;
-    }
-
 private:
     c_type p_result;
     std::vector<c_param> p_params;
-    std::vector<c_value> p_pvals;
 };
 
 struct c_variable: c_object {
