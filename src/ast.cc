@@ -46,8 +46,8 @@ void c_function::do_serialize_full(std::string &o, bool fptr, int cv) const {
     o += ')';
 }
 
-c_type::c_type(c_function tp, int qual):
-    c_object{}, p_type{C_BUILTIN_FPTR | uint32_t(qual)}
+c_type::c_type(c_function tp, int qual, int cbt):
+    c_object{}, p_type{cbt | uint32_t(qual)}
 {
     new (&p_ptr.fptr) std::unique_ptr<c_function>{
         std::make_unique<c_function>(std::move(tp))
@@ -55,18 +55,32 @@ c_type::c_type(c_function tp, int qual):
 }
 
 c_type::~c_type() {
-    if (type() == C_BUILTIN_FPTR) {
+    int tp = type();
+    if ((tp == C_BUILTIN_FPTR) || (tp == C_BUILTIN_FUNC)) {
         using T = std::unique_ptr<c_function>;
         p_ptr.fptr.~T();
-    } else if (type() == C_BUILTIN_PTR) {
+    } else if (tp == C_BUILTIN_PTR) {
         using T = std::unique_ptr<c_type>;
         p_ptr.ptr.~T();
     }
 }
 
-c_type::c_type(c_type &&v): p_type{v.p_type} {
+c_type::c_type(c_type const &v): c_object{v.name}, p_type{v.p_type} {
     int tp = type();
-    if (tp == C_BUILTIN_FPTR) {
+    if ((tp == C_BUILTIN_FPTR) || (tp == C_BUILTIN_FUNC)) {
+        new (&p_ptr.fptr) std::unique_ptr<c_function>{
+            std::make_unique<c_function>(*v.p_ptr.fptr)
+        };
+    } else if (tp == C_BUILTIN_PTR) {
+        new (&p_ptr.ptr) std::unique_ptr<c_type>{
+            std::make_unique<c_type>(*v.p_ptr.ptr)
+        };
+    }
+}
+
+c_type::c_type(c_type &&v): c_object{std::move(v.name)}, p_type{v.p_type} {
+    int tp = type();
+    if ((tp == C_BUILTIN_FPTR) || (tp == C_BUILTIN_FUNC)) {
         new (&p_ptr.fptr) std::unique_ptr<c_function>{
             std::move(v.p_ptr.fptr)
         };
@@ -78,22 +92,49 @@ c_type::c_type(c_type &&v): p_type{v.p_type} {
 }
 
 c_type &c_type::operator=(c_type &&v) {
-    if (type() == C_BUILTIN_FPTR) {
+    int tp = type();
+    if ((tp == C_BUILTIN_FPTR) || (tp == C_BUILTIN_FUNC)) {
         using T = std::unique_ptr<c_function>;
         p_ptr.fptr.~T();
-    } else if (type() == C_BUILTIN_PTR) {
+    } else if (tp == C_BUILTIN_PTR) {
         using T = std::unique_ptr<c_type>;
         p_ptr.ptr.~T();
     }
 
     p_type = v.p_type;
-    if (type() == C_BUILTIN_FPTR) {
+    tp = type();
+    if ((tp == C_BUILTIN_FPTR) || (tp == C_BUILTIN_FUNC)) {
         new (&p_ptr.fptr) std::unique_ptr<c_function>{
             std::move(v.p_ptr.fptr)
         };
-    } else if (type() == C_BUILTIN_PTR) {
+    } else if (tp == C_BUILTIN_PTR) {
         new (&p_ptr.ptr) std::unique_ptr<c_type>{
             std::move(v.p_ptr.ptr)
+        };
+    }
+
+    return *this;
+}
+
+c_type &c_type::operator=(c_type const &v) {
+    int tp = type();
+    if ((tp == C_BUILTIN_FPTR) || (tp == C_BUILTIN_FUNC)) {
+        using T = std::unique_ptr<c_function>;
+        p_ptr.fptr.~T();
+    } else if (tp == C_BUILTIN_PTR) {
+        using T = std::unique_ptr<c_type>;
+        p_ptr.ptr.~T();
+    }
+
+    p_type = v.p_type;
+    tp = type();
+    if ((tp == C_BUILTIN_FPTR) || (tp == C_BUILTIN_FUNC)) {
+        new (&p_ptr.fptr) std::unique_ptr<c_function>{
+            std::make_unique<c_function>(*v.p_ptr.fptr)
+        };
+    } else if (tp == C_BUILTIN_PTR) {
+        new (&p_ptr.ptr) std::unique_ptr<c_type>{
+            std::make_unique<c_type>(*v.p_ptr.ptr)
         };
     }
 
@@ -109,8 +150,8 @@ void c_type::do_serialize(std::string &o) const {
             o += ' ';
         }
         o += '*';
-    } else if (ttp == C_BUILTIN_FPTR) {
-        p_ptr.fptr->do_serialize_full(o, true, tcv);
+    } else if ((ttp == C_BUILTIN_FPTR) || (ttp == C_BUILTIN_FUNC)) {
+        p_ptr.fptr->do_serialize_full(o, (ttp == C_BUILTIN_FPTR), tcv);
         return;
     } else {
         switch (type()) {

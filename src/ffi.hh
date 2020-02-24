@@ -12,7 +12,7 @@ namespace ffi {
 
 template<typename T>
 struct cdata {
-    ast::c_object const *decl;
+    ast::c_type decl;
     T val;
 };
 

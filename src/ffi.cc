@@ -6,7 +6,7 @@
 namespace ffi {
 
 bool prepare_cif(cdata<fdata> &fud) {
-    auto &func = fud.decl->as<ast::c_function>();
+    auto &func = fud.decl.function();
     size_t nargs = func.params().size();
 
     ffi_type **targs = reinterpret_cast<ffi_type **>(&fud.val.args[nargs + 1]);
@@ -25,7 +25,7 @@ bool prepare_cif(cdata<fdata> &fud) {
 }
 
 void call_cif(cdata<fdata> &fud, lua_State *L) {
-    auto &func = fud.decl->as<ast::c_function>();
+    auto &func = fud.decl.function();
     auto &pdecls = func.params();
 
     size_t nargs = pdecls.size();

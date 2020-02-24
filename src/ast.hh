@@ -14,6 +14,7 @@ enum c_builtin {
 
     C_BUILTIN_PTR,
     C_BUILTIN_FPTR,
+    C_BUILTIN_FUNC,
 
     C_BUILTIN_CHAR,
     C_BUILTIN_SHORT,
@@ -140,13 +141,13 @@ struct c_type: c_object {
         };
     }
 
-    c_type(c_type const &) = delete;
+    c_type(c_type const &);
     c_type(c_type &&);
 
-    c_type &operator=(c_type const &) = delete;
+    c_type &operator=(c_type const &);
     c_type &operator=(c_type &&);
 
-    c_type(c_function tp, int qual);
+    c_type(c_function tp, int qual, int cbt = C_BUILTIN_FPTR);
 
     ~c_type();
 
@@ -166,6 +167,14 @@ struct c_type: c_object {
 
     void cv(int qual) {
         p_type |= uint32_t(qual);
+    }
+
+    c_type const &ptr_base() const {
+        return *p_ptr.ptr;
+    }
+
+    c_function const &function() const {
+        return *p_ptr.fptr;
     }
 
 private:

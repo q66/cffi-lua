@@ -56,7 +56,9 @@ struct lib_meta {
         );
         luaL_setmetatable(L, "cffi_func_handle");
 
-        fud->decl = fdecl;
+        fud->decl = ast::c_type{
+            fdecl->as<ast::c_function>(), 0, ast::C_BUILTIN_FUNC
+        };
         fud->val.sym = funp;
 
         if (!ffi::prepare_cif(*fud)) {
