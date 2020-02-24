@@ -94,31 +94,36 @@ c_type::c_type(c_type &&v): c_object{std::move(v.name)}, p_type{v.p_type} {
 void c_type::do_serialize(std::string &o) const {
     int tcv = cv();
     int ttp = type();
-    if (ttp == C_BUILTIN_PTR) {
-        p_ptr.ptr->do_serialize(o);
-        if (o.back() != '*') {
-            o += ' ';
-        }
-        o += '*';
-    } else if ((ttp == C_BUILTIN_FPTR) || (ttp == C_BUILTIN_FUNC)) {
-        p_ptr.fptr->do_serialize_full(o, (ttp == C_BUILTIN_FPTR), tcv);
-        return;
-    } else {
-        switch (type()) {
-            case C_BUILTIN_CHAR:
-            case C_BUILTIN_SHORT:
-            case C_BUILTIN_LONG:
-            case C_BUILTIN_LLONG:
-                if (tcv & C_CV_UNSIGNED) {
-                    o += "unsigned ";
-                } else if (tcv & C_CV_SIGNED) {
-                    o += "signed ";
-                }
-                break;
-            default:
-                break;
-        }
-        o += this->name;
+    switch (ttp) {
+        case C_BUILTIN_PTR:
+            p_ptr.ptr->do_serialize(o);
+            if (o.back() != '*') {
+                o += ' ';
+            }
+            o += '*';
+            break;
+        case C_BUILTIN_FPTR:
+        case C_BUILTIN_FUNC:
+            /* cv is handled by func serializer */
+            p_ptr.fptr->do_serialize_full(o, (ttp == C_BUILTIN_FPTR), tcv);
+            return;
+        default:
+            switch (type()) {
+                case C_BUILTIN_CHAR:
+                case C_BUILTIN_SHORT:
+                case C_BUILTIN_LONG:
+                case C_BUILTIN_LLONG:
+                    if (tcv & C_CV_UNSIGNED) {
+                        o += "unsigned ";
+                    } else if (tcv & C_CV_SIGNED) {
+                        o += "signed ";
+                    }
+                    break;
+                default:
+                    break;
+            }
+            o += this->name;
+            break;
     }
     if (tcv & C_CV_CONST) {
         o += " const";
