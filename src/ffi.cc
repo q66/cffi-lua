@@ -103,11 +103,6 @@ ffi_type *get_ffi_type(ast::c_type const &tp) {
     return &ffi_type_sint;
 }
 
-/* FIXME: the retval casting stuff does not follow union semantics
- * and treats it as raw memory... easier for now, but fix later
- * (will need refactoring anyway to handle large types...)
- */
-
 template<typename T>
 static inline void push_int(lua_State *L, int cv, void *value) {
     if (use_ffi_signed<T>(cv)) {
@@ -142,39 +137,35 @@ void lua_push_cdata(lua_State *L, ast::c_type const &tp, void *value) {
             ));
             return;
         case ast::C_BUILTIN_CHAR:
-            push_int<char>(L, tp.cv(), value);
-            return;
+            push_int<char>(L, tp.cv(), value); return;
         case ast::C_BUILTIN_SHORT:
-            push_int<short>(L, tp.cv(), value);
-            return;
+            push_int<short>(L, tp.cv(), value); return;
         case ast::C_BUILTIN_INT:
-            push_int<int>(L, tp.cv(), value);
-            return;
+            push_int<int>(L, tp.cv(), value); return;
         case ast::C_BUILTIN_INT8:
-            push_int<int8_t>(L, tp.cv(), value);
-            return;
+            push_int<int8_t>(L, tp.cv(), value); return;
         case ast::C_BUILTIN_INT16:
-            push_int<int16_t>(L, tp.cv(), value);
-            return;
+            push_int<int16_t>(L, tp.cv(), value); return;
         case ast::C_BUILTIN_INT32:
-            push_int<int32_t>(L, tp.cv(), value);
-            return;
+            push_int<int32_t>(L, tp.cv(), value); return;
         case ast::C_BUILTIN_LONG:
         case ast::C_BUILTIN_INT64:
         case ast::C_BUILTIN_SIZE:
         case ast::C_BUILTIN_INTPTR:
         case ast::C_BUILTIN_TIME:
-            luaL_error(L, "NYI");
-            return;
+            luaL_error(L, "NYI"); return;
         default:
-            /* FIXME */
-            luaL_error(L, "value too big");
-            return;
+            /* pointers should be handled like large cdata, as they need
+             * to be represented as userdata objects on lua side either way
+             */
+            luaL_error(L, "value too big"); return;
     }
+
+    /* large cdata will be handled here, for example whole large structs */
 }
 
 template<typename T>
-static inline void write_int(lua_State *L, int index, int cv, void *stor) {
+static inline void *write_int(lua_State *L, int index, int cv, void *stor) {
     lua_Integer v = lua_tointeger(L, index);
     if (use_ffi_signed<T>(cv)) {
         using U = typename std::make_signed<T>::type;
@@ -183,6 +174,7 @@ static inline void write_int(lua_State *L, int index, int cv, void *stor) {
         using U = typename std::make_unsigned<T>::type;
         *static_cast<U *>(stor) = U(v);
     }
+    return stor;
 }
 
 void *lua_check_cdata(
@@ -192,8 +184,7 @@ void *lua_check_cdata(
         case LUA_TNIL:
             switch (tp.type()) {
                 case ast::C_BUILTIN_PTR:
-                    stor->ptr = nullptr;
-                    return &stor->ptr;
+                    return &(stor->ptr = nullptr);
                 default:
                     luaL_error(
                         L, "cannot convert 'nil' to '%s'",
@@ -218,38 +209,27 @@ void *lua_check_cdata(
         case LUA_TNUMBER:
             switch (tp.type()) {
                 case ast::C_BUILTIN_FLOAT:
-                    stor->f = float(lua_tonumber(L, index));
-                    return &stor->f;
+                    return &(stor->f = float(lua_tonumber(L, index)));
                 case ast::C_BUILTIN_DOUBLE:
-                    stor->d = double(lua_tonumber(L, index));
-                    return &stor->d;
+                    return &(stor->d = double(lua_tonumber(L, index)));
                 case ast::C_BUILTIN_CHAR:
-                    write_int<char>(L, index, tp.cv(), &stor->c);
-                    return &stor->c;
+                    return write_int<char>(L, index, tp.cv(), &stor->c);
                 case ast::C_BUILTIN_SHORT:
-                    write_int<short>(L, index, tp.cv(), &stor->s);
-                    return &stor->s;
+                    return write_int<short>(L, index, tp.cv(), &stor->s);
                 case ast::C_BUILTIN_INT:
-                    write_int<int>(L, index, tp.cv(), &stor->i);
-                    return &stor->i;
+                    return write_int<int>(L, index, tp.cv(), &stor->i);
                 case ast::C_BUILTIN_LONG:
-                    write_int<long>(L, index, tp.cv(), &stor->l);
-                    return &stor->l;
+                    return write_int<long>(L, index, tp.cv(), &stor->l);
                 case ast::C_BUILTIN_LLONG:
-                    write_int<long long>(L, index, tp.cv(), &stor->ll);
-                    return &stor->ll;
+                    return write_int<long long>(L, index, tp.cv(), &stor->ll);
                 case ast::C_BUILTIN_INT8:
-                    write_int<int8_t>(L, index, tp.cv(), &stor->i8);
-                    return &stor->i8;
+                    return write_int<int8_t>(L, index, tp.cv(), &stor->i8);
                 case ast::C_BUILTIN_INT16:
-                    write_int<int16_t>(L, index, tp.cv(), &stor->i16);
-                    return &stor->i16;
+                    return write_int<int16_t>(L, index, tp.cv(), &stor->i16);
                 case ast::C_BUILTIN_INT32:
-                    write_int<int32_t>(L, index, tp.cv(), &stor->i32);
-                    return &stor->i32;
+                    return write_int<int32_t>(L, index, tp.cv(), &stor->i32);
                 case ast::C_BUILTIN_INT64:
-                    write_int<int64_t>(L, index, tp.cv(), &stor->i64);
-                    return &stor->i64;
+                    return write_int<int64_t>(L, index, tp.cv(), &stor->i64);
                 default:
                     luaL_error(
                         L, "cannot convert 'number' to '%s'",
@@ -261,8 +241,7 @@ void *lua_check_cdata(
         case LUA_TSTRING:
             switch (tp.type()) {
                 case ast::C_BUILTIN_PTR:
-                    stor->str = lua_tostring(L, index);
-                    return &stor->str;
+                    return &(stor->str = lua_tostring(L, index));
                 default:
                     luaL_error(
                         L, "cannot convert 'string' to '%s'",
@@ -273,8 +252,7 @@ void *lua_check_cdata(
             break;
         case LUA_TUSERDATA:
         case LUA_TLIGHTUSERDATA:
-            stor->ptr = lua_touserdata(L, index);
-            return &stor->ptr;
+            return &(stor->ptr = lua_touserdata(L, index));
         case LUA_TTABLE:
             luaL_error(L, "table initializers not yet implemented");
             break;
