@@ -35,14 +35,13 @@ void call_cif(cdata<fdata> &fud, lua_State *L) {
     auto *pvals = reinterpret_cast<ast::c_value *>(&args[2 * nargs]);
 
     for (size_t i = 0; i < pdecls.size(); ++i) {
-        /* pvals[0] is retval */
         vals[i] = lua_check_cdata(
-            L, pdecls[i].type(), pvals + i + 1, i + 2
+            L, pdecls[i].type(), &pvals[i], i + 2
         );
     }
 
-    ffi_call(&fud.val.cif, fud.val.sym, pvals, vals);
-    lua_push_cdata(L, func.result(), pvals);
+    ffi_call(&fud.val.cif, fud.val.sym, &pvals[nargs], vals);
+    lua_push_cdata(L, func.result(), &pvals[nargs]);
 }
 
 template<typename T>

@@ -44,10 +44,10 @@ struct lib_meta {
          *         void *valp1;    // &val1
          *         void *valpN;    // &val2
          *         void *valpN;    // &valN
-         *         ast::c_value val0; // lua ret
          *         ast::c_value val1; // lua arg1
          *         ast::c_value val2; // lua arg2
          *         ast::c_value valN; // lua argN
+         *         ast::c_value valR; // lua ret
          *     } val;
          * }
          */
