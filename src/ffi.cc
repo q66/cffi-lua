@@ -5,6 +5,44 @@
 
 namespace ffi {
 
+bool prepare_cif(cdata<fdata> &fud) {
+    auto &func = fud.decl->as<ast::c_function>();
+    size_t nargs = func.params().size();
+
+    ffi_type **targs = reinterpret_cast<ffi_type **>(fud.val.args);
+    for (size_t i = 0; i < nargs; ++i) {
+        targs[i] = ffi::get_ffi_type(func.params()[i].type());
+    }
+
+    if (ffi_prep_cif(
+        &fud.val.cif, FFI_DEFAULT_ABI, nargs,
+        ffi::get_ffi_type(func.result()), targs
+    ) != FFI_OK) {
+        return false;
+    }
+
+    return true;
+}
+
+void call_cif(cdata<fdata> &fud, lua_State *L) {
+    auto &func = fud.decl->as<ast::c_function>();
+    auto &pdecls = func.params();
+    auto &pvals = func.pvals();
+
+    void **args = fud.val.args;
+    void **vals = &args[pdecls.size()];
+
+    for (size_t i = 0; i < pdecls.size(); ++i) {
+        /* pvals[0] is retval */
+        vals[i] = lua_check_cdata(
+            L, pdecls[i].type(), &pvals[i + 1], i + 2
+        );
+    }
+
+    ffi_call(&fud.val.cif, fud.val.sym, &pvals[0], vals);
+    lua_push_cdata(L, func.result(), &pvals[0]);
+}
+
 template<typename T>
 static inline bool use_ffi_signed(int cv) {
     if (cv & ast::C_CV_SIGNED) {

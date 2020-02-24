@@ -32,29 +32,8 @@ static const luaL_Reg cffi_lib[] = {
     {NULL, NULL}
 };
 
-/* FIXME: proof-of-concept for now */
-
-using funcdata_t = ffi::cdata<ffi::fdata>;
-
 static int cffi_func_call(lua_State *L) {
-    auto *fud = lua::touserdata<funcdata_t>(L, 1);
-
-    auto &func = fud->decl->as<ast::c_function>();
-    auto &pdecls = func.params();
-    auto &rdecl = func.result();
-    auto &pvals = func.pvals();
-
-    void **args = fud->val.args;
-    void **vals = &args[pdecls.size()];
-
-    for (size_t i = 0; i < pdecls.size(); ++i) {
-        vals[i] = ffi::lua_check_cdata(
-            L, pdecls[i].type(), &pvals[i + 1], i + 2
-        );
-    }
-
-    ffi_call(&fud->val.cif, fud->val.sym, &pvals[0], vals);
-    ffi::lua_push_cdata(L, rdecl, &pvals[0]);
+    ffi::call_cif(*lua::touserdata<ffi::cdata<ffi::fdata>>(L, 1), L);
     return 1;
 }
 
@@ -83,23 +62,16 @@ static int cffi_handle_index(lua_State *L) {
         luaL_error(L, "undefined symbol: %s", fname);
     }
 
-    auto *fud = lua::newuserdata<funcdata_t>(L, sizeof(void *[nargs * 2]));
+    auto *fud = lua::newuserdata<ffi::cdata<ffi::fdata>>(
+        L, sizeof(void *[nargs * 2])
+    );
     luaL_setmetatable(L, "cffi_func_handle");
 
     fud->decl = fdecl;
     fud->val.sym = funp;
 
-    /* args needs to be prepared with libffi types beforehand */
-    ffi_type **targs = reinterpret_cast<ffi_type **>(fud->val.args);
-    for (size_t i = 0; i < nargs; ++i) {
-        targs[i] = ffi::get_ffi_type(func.params()[i].type());
-    }
-
-    if (ffi_prep_cif(
-        &fud->val.cif, FFI_DEFAULT_ABI, nargs,
-        ffi::get_ffi_type(func.result()), targs
-    ) != FFI_OK) {
-        luaL_error(L, "unexpected failure calling '%s'", func.name.c_str());
+    if (!ffi::prepare_cif(*fud)) {
+        luaL_error(L, "unexpected failure setting up '%s'", func.name.c_str());
     }
 
     return 1;
