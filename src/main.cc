@@ -1,12 +1,9 @@
 #include <cstdlib>
 
-#include <lua.hpp>
-
-#include <ffi.h>
-
 #include "parser.hh"
 #include "ast.hh"
 #include "lib.hh"
+#include "lua.hh"
 #include "ffi.hh"
 
 static int cffi_cdef(lua_State *L) {

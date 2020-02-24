@@ -1,8 +1,6 @@
 #ifndef PARSER_HH
 #define PARSER_HH
 
-#include <lua.hpp>
-
 #include <cstdint>
 
 #include <string>

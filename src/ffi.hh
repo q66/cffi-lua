@@ -3,10 +3,9 @@
 
 #include <string>
 
-#include <lua.hpp>
-
 #include <ffi.h>
 
+#include "lua.hh"
 #include "ast.hh"
 
 namespace ffi {
