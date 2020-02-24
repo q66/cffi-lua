@@ -130,15 +130,13 @@ struct c_type: c_object {
         c_object{std::move(tname)},
         p_type{uint32_t(cbt) | uint32_t(qual)}
     {
-        new (&p_ptr.ptr) std::unique_ptr<c_type>{nullptr};
+        p_ptr.ptr = nullptr;
     }
 
     c_type(c_type tp, int qual):
         c_object{}, p_type{C_BUILTIN_PTR | uint32_t(qual)}
     {
-        new (&p_ptr.ptr) std::unique_ptr<c_type>{
-            std::make_unique<c_type>(std::move(tp))
-        };
+        p_ptr.ptr = new c_type{std::move(tp)};
     }
 
     c_type(c_type const &);
@@ -180,12 +178,8 @@ struct c_type: c_object {
 private:
     /* maybe a pointer? */
     union type_ptr {
-        type_ptr() {}
-        /* don't delete, members will be handled by c_type */
-        ~type_ptr() {}
-
-        std::unique_ptr<c_type> ptr;
-        std::unique_ptr<c_function> fptr;
+        c_type *ptr;
+        c_function *fptr;
     };
     type_ptr p_ptr;
     /*
