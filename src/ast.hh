@@ -144,8 +144,8 @@ struct c_type: c_object {
     c_type(c_type const &);
     c_type(c_type &&);
 
-    c_type &operator=(c_type const &);
-    c_type &operator=(c_type &&);
+    c_type &operator=(c_type const &) = delete;
+    c_type &operator=(c_type &&) = delete;
 
     c_type(c_function tp, int qual, int cbt = C_BUILTIN_FPTR);
 

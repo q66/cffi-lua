@@ -389,7 +389,9 @@ static ast::c_type parse_type(lex_state &ls) {
         if (ls.t.token == '*') {
             ls.get();
             ast::c_type ptp{std::move(tp), parse_cv(ls)};
-            tp = std::move(ptp);
+            using CT = ast::c_type;
+            tp.~CT();
+            new (&tp) ast::c_type{std::move(ptp)};
         } else {
             break;
         }

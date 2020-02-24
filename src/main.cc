@@ -56,7 +56,7 @@ struct lib_meta {
         );
         luaL_setmetatable(L, "cffi_func_handle");
 
-        fud->decl = ast::c_type{
+        new (&fud->decl) ast::c_type{
             fdecl->as<ast::c_function>(), 0, ast::C_BUILTIN_FUNC
         };
         fud->val.sym = funp;
@@ -88,6 +88,13 @@ struct lib_meta {
 
 /* this is the metatable for function cdata */
 struct func_meta {
+    static int gc(lua_State *L) {
+        auto &fud = *lua::touserdata<ffi::cdata<ffi::fdata>>(L, 1);
+        using T = ast::c_type;
+        fud.decl.~T();
+        return 0;
+    }
+
     static int call(lua_State *L) {
         ffi::call_cif(*lua::touserdata<ffi::cdata<ffi::fdata>>(L, 1), L);
         return 1;
@@ -97,6 +104,10 @@ struct func_meta {
         if (!luaL_newmetatable(L, "cffi_func_handle")) {
             luaL_error(L, "unexpected error: registry reinitialized");
         }
+
+        lua_pushcfunction(L, gc);
+        lua_setfield(L, -2, "__gc");
+
         lua_pushcfunction(L, call);
         lua_setfield(L, -2, "__call");
         lua_pop(L, 1);
