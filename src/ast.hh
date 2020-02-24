@@ -223,22 +223,10 @@ struct c_function: c_object {
         return p_pvals;
     }
 
-    void *ffi_data() {
-        return p_ffi_data.get();
-    }
-
-    /* takes ownership of p */
-    void ffi_data(void *p) {
-        p_ffi_data = std::unique_ptr<unsigned char[]>{
-            static_cast<unsigned char *>(p)
-        };
-    }
-
 private:
     c_type p_result;
     std::vector<c_param> p_params;
     std::vector<c_value> p_pvals;
-    std::unique_ptr<unsigned char[]> p_ffi_data;
 };
 
 struct c_variable: c_object {

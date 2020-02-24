@@ -45,8 +45,8 @@ static int cffi_func_call(lua_State *L) {
     auto &rdecl = func.result();
     auto &pvals = func.pvals();
 
-    void **args = reinterpret_cast<void **>(func.ffi_data());
-    void **vals = reinterpret_cast<void **>(&args[pdecls.size()]);
+    void **args = fud->val.args;
+    void **vals = &args[pdecls.size()];
 
     for (size_t i = 0; i < pdecls.size(); ++i) {
         vals[i] = ffi::lua_check_cdata(
@@ -84,21 +84,16 @@ static int cffi_handle_index(lua_State *L) {
         luaL_error(L, "undefined symbol: %s", fname);
     }
 
-    auto *fud = static_cast<ffi::cdata<ffi::fdata> *>(
-        lua_newuserdata(L, sizeof(ffi::cdata<ffi::fdata>))
-    );
+    auto *fud = static_cast<ffi::cdata<ffi::fdata> *>(lua_newuserdata(
+        L, sizeof(ffi::cdata<ffi::fdata>) + sizeof(void *[nargs * 2])
+    ));
     luaL_setmetatable(L, "cffi_func_handle");
 
     fud->decl = fdecl;
     fud->val.sym = reinterpret_cast<void (*)()>(funp);
-    void *args = reinterpret_cast<void *>(
-        new unsigned char[2 * nargs * sizeof(void *)]
-    );
-    /* give ownership to declaration handle asap */
-    func.ffi_data(args);
 
     /* args needs to be prepared with libffi types beforehand */
-    ffi_type **targs = static_cast<ffi_type **>(args);
+    ffi_type **targs = reinterpret_cast<ffi_type **>(fud->val.args);
     for (size_t i = 0; i < nargs; ++i) {
         targs[i] = ffi::get_ffi_type(func.params()[i].type());
     }

@@ -20,6 +20,7 @@ struct cdata {
 struct fdata {
     void (*sym)();
     ffi_cif cif;
+    void *args[];
 };
 
 ffi_type *get_ffi_type(ast::c_type const &tp);

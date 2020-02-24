@@ -98,6 +98,7 @@ ffi_type *get_ffi_type(ast::c_type const &tp) {
     }
 
 #undef INT_CASE
+#undef INT_CASE64
 
     /* TODO: custom types */
     return &ffi_type_sint;
