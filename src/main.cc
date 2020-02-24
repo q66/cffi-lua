@@ -34,8 +34,10 @@ static const luaL_Reg cffi_lib[] = {
 
 /* FIXME: proof-of-concept for now */
 
+using funcdata_t = ffi::cdata<ffi::fdata>;
+
 static int cffi_func_call(lua_State *L) {
-    auto *fud = static_cast<ffi::cdata<ffi::fdata> *>(lua_touserdata(L, 1));
+    auto *fud = lua::touserdata<funcdata_t>(L, 1);
 
     auto &func = *static_cast<ast::c_function *>(fud->decl);
     auto &pdecls = func.params();
@@ -65,7 +67,7 @@ static void cffi_setup_data_handle_meta(lua_State *L) {
 }
 
 static int cffi_handle_index(lua_State *L) {
-    auto dl = *static_cast<lib::handle *>(lua_touserdata(L, 1));
+    auto dl = *lua::touserdata<lib::handle>(L, 1);
     char const *fname = luaL_checkstring(L, 2);
 
     auto *fdecl = ast::lookup_decl(fname);
@@ -81,9 +83,7 @@ static int cffi_handle_index(lua_State *L) {
         luaL_error(L, "undefined symbol: %s", fname);
     }
 
-    auto *fud = static_cast<ffi::cdata<ffi::fdata> *>(lua_newuserdata(
-        L, sizeof(ffi::cdata<ffi::fdata>) + sizeof(void *[nargs * 2])
-    ));
+    auto *fud = lua::newuserdata<funcdata_t>(L, sizeof(void *[nargs * 2]));
     luaL_setmetatable(L, "cffi_func_handle");
 
     fud->decl = fdecl;
@@ -106,7 +106,7 @@ static int cffi_handle_index(lua_State *L) {
 }
 
 static int cffi_free_handle(lua_State *L) {
-    auto *c_ud = static_cast<lib::handle *>(lua_touserdata(L, 1));
+    auto *c_ud = lua::touserdata<lib::handle>(L, 1);
     lib::close(*c_ud);
     return 0;
 }
@@ -122,9 +122,7 @@ static void cffi_setup_lib_handle_meta(lua_State *L) {
 extern "C" int luaopen_cffi(lua_State *L) {
     luaL_newlib(L, cffi_lib);
 
-    auto *c_ud = static_cast<lib::handle *>(
-        lua_newuserdata(L, sizeof(void *))
-    );
+    auto *c_ud = lua::newuserdata<lib::handle>(L);
     *c_ud = lib::open();
     if (luaL_newmetatable(L, "cffi_lib_handle")) {
         cffi_setup_lib_handle_meta(L);

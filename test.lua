@@ -8,9 +8,9 @@ ffi.cdef [[
 print(ffi.C)
 
 ret = ffi.C.puts("hello world")
-print("end test, ret:" .. tostring(ret))
+print("end test, ret: " .. tostring(ret))
 
 test = ffi.C.strtod(tostring(22 / 7), nil)
-print("strtod (tostring(22 / 7)) == " .. tostring(test))
+print("strtod(tostring(22 / 7)) == " .. tostring(test))
 
 print(pcall(ffi.C.strtod, 150, nil))

@@ -2,6 +2,4 @@
 
 namespace lua {
 
-
-
 } /* namespace lua */
