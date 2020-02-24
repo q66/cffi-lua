@@ -5,7 +5,7 @@
 #include <ffi.h>
 
 #include "parser.hh"
-#include "state.hh"
+#include "ast.hh"
 #include "lib.hh"
 #include "ffi.hh"
 
@@ -40,7 +40,7 @@ static const luaL_Reg cffi_lib[] = {
 static int cffi_func_call(lua_State *L) {
     auto *fud = static_cast<ffi::cdata<ffi::fdata> *>(lua_touserdata(L, 1));
 
-    auto &func = *static_cast<parser::c_function *>(fud->decl);
+    auto &func = *static_cast<ast::c_function *>(fud->decl);
     auto &pdecls = func.params();
     auto &rdecl = func.result();
     auto &pvals = func.pvals();
@@ -71,12 +71,12 @@ static int cffi_handle_index(lua_State *L) {
     auto dl = *static_cast<lib::handle *>(lua_touserdata(L, 1));
     char const *fname = luaL_checkstring(L, 2);
 
-    auto *fdecl = state::lookup_decl(fname);
+    auto *fdecl = ast::lookup_decl(fname);
     if (!fdecl) {
         luaL_error(L, "missing declaration for symbol '%s'", fname);
     }
 
-    auto &func = *static_cast<parser::c_function *>(fdecl);
+    auto &func = *static_cast<ast::c_function *>(fdecl);
     size_t nargs = func.params().size();
 
     auto funp = lib::get_func(dl, fname);

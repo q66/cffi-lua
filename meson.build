@@ -17,7 +17,7 @@ lua_dep = dependency('lua')
 cffi_src = [
     'main.cc',
     'parser.cc',
-    'state.cc',
+    'ast.cc',
     'lib.cc',
     'ffi.cc'
 ]

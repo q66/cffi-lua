@@ -7,7 +7,7 @@
 #include <stdexcept>
 
 #include "parser.hh"
-#include "state.hh"
+#include "ast.hh"
 
 namespace parser {
 
@@ -239,20 +239,20 @@ static int parse_cv(lex_state &ls) {
 
     for (;;) switch (ls.t.kw) {
         case KW_const:
-            if (quals & C_CV_CONST) {
+            if (quals & ast::C_CV_CONST) {
                 ls.syntax_error("duplicate const qualifier");
                 break;
             }
             ls.get();
-            quals |= C_CV_CONST;
+            quals |= ast::C_CV_CONST;
             break;
         case KW_volatile:
-            if (quals & C_CV_VOLATILE) {
+            if (quals & ast::C_CV_VOLATILE) {
                 ls.syntax_error("duplicate volatile qualifier");
                 break;
             }
             ls.get();
-            quals |= C_CV_VOLATILE;
+            quals |= ast::C_CV_VOLATILE;
             break;
         default:
             return quals;
@@ -265,12 +265,12 @@ static int parse_cv(lex_state &ls) {
  * about the real signatures, only about their sizes and signedness and so
  * on to provide to the codegen) but it's a start
  */
-static c_type parse_type(lex_state &ls) {
+static ast::c_type parse_type(lex_state &ls) {
     /* left-side cv */
     int quals = parse_cv(ls);
 
     if (ls.t.kw == KW_signed || ls.t.kw == KW_unsigned) {
-        quals |= (ls.t.kw == KW_signed) ? C_CV_SIGNED : C_CV_UNSIGNED;
+        quals |= (ls.t.kw == KW_signed) ? ast::C_CV_SIGNED : ast::C_CV_UNSIGNED;
         ls.get();
         switch (ls.t.kw) {
             case KW_char:
@@ -291,7 +291,7 @@ static c_type parse_type(lex_state &ls) {
     }
 
     std::string tname;
-    c_builtin cbt = C_BUILTIN_NOT;
+    ast::c_builtin cbt = ast::C_BUILTIN_NOT;
 
     if (ls.t.token == TOK_NAME && !ls.t.kw) {
         /* a name but not a keyword, probably custom type */
@@ -300,59 +300,59 @@ static c_type parse_type(lex_state &ls) {
     } else switch (ls.t.kw) {
         /* may be a builtin type */
         case KW_int8_t:
-            cbt = C_BUILTIN_INT8;
+            cbt = ast::C_BUILTIN_INT8;
             goto btype;
         case KW_int16_t:
-            cbt = C_BUILTIN_INT16;
+            cbt = ast::C_BUILTIN_INT16;
             goto btype;
         case KW_int32_t:
-            cbt = C_BUILTIN_INT32;
+            cbt = ast::C_BUILTIN_INT32;
             goto btype;
         case KW_int64_t:
-            cbt = C_BUILTIN_INT64;
+            cbt = ast::C_BUILTIN_INT64;
             goto btype;
         case KW_uint8_t:
-            cbt = C_BUILTIN_INT8;
-            quals |= C_CV_UNSIGNED;
+            cbt = ast::C_BUILTIN_INT8;
+            quals |= ast::C_CV_UNSIGNED;
             goto btype;
         case KW_uint16_t:
-            cbt = C_BUILTIN_INT16;
-            quals |= C_CV_UNSIGNED;
+            cbt = ast::C_BUILTIN_INT16;
+            quals |= ast::C_CV_UNSIGNED;
             goto btype;
         case KW_uint32_t:
-            cbt = C_BUILTIN_INT32;
-            quals |= C_CV_UNSIGNED;
+            cbt = ast::C_BUILTIN_INT32;
+            quals |= ast::C_CV_UNSIGNED;
             goto btype;
         case KW_uint64_t:
-            cbt = C_BUILTIN_INT64;
-            quals |= C_CV_UNSIGNED;
+            cbt = ast::C_BUILTIN_INT64;
+            quals |= ast::C_CV_UNSIGNED;
             goto btype;
         case KW_uintptr_t:
-            cbt = C_BUILTIN_INTPTR;
-            quals |= C_CV_UNSIGNED;
+            cbt = ast::C_BUILTIN_INTPTR;
+            quals |= ast::C_CV_UNSIGNED;
             goto btype;
         case KW_intptr_t:
-            cbt = C_BUILTIN_INTPTR;
-            quals |= C_CV_SIGNED;
+            cbt = ast::C_BUILTIN_INTPTR;
+            quals |= ast::C_CV_SIGNED;
             goto btype;
         case KW_ptrdiff_t:
-            cbt = C_BUILTIN_PTRDIFF;
+            cbt = ast::C_BUILTIN_PTRDIFF;
             goto btype;
         case KW_ssize_t:
-            cbt = C_BUILTIN_SIZE;
-            quals |= C_CV_SIGNED;
+            cbt = ast::C_BUILTIN_SIZE;
+            quals |= ast::C_CV_SIGNED;
             goto btype;
         case KW_size_t:
-            cbt = C_BUILTIN_SIZE;
-            quals |= C_CV_UNSIGNED;
+            cbt = ast::C_BUILTIN_SIZE;
+            quals |= ast::C_CV_UNSIGNED;
             goto btype;
-        case KW_time_t: cbt = C_BUILTIN_TIME; goto btype;
-        case KW_float:  cbt = C_BUILTIN_FLOAT; goto btype;
-        case KW_double: cbt = C_BUILTIN_DOUBLE; goto btype;
-        case KW_bool:   cbt = C_BUILTIN_BOOL; goto btype;
-        case KW_char:   cbt = C_BUILTIN_CHAR; goto btype;
-        case KW_short:  cbt = C_BUILTIN_SHORT; goto btype;
-        case KW_int:    cbt = C_BUILTIN_INT;
+        case KW_time_t: cbt = ast::C_BUILTIN_TIME; goto btype;
+        case KW_float:  cbt = ast::C_BUILTIN_FLOAT; goto btype;
+        case KW_double: cbt = ast::C_BUILTIN_DOUBLE; goto btype;
+        case KW_bool:   cbt = ast::C_BUILTIN_BOOL; goto btype;
+        case KW_char:   cbt = ast::C_BUILTIN_CHAR; goto btype;
+        case KW_short:  cbt = ast::C_BUILTIN_SHORT; goto btype;
+        case KW_int:    cbt = ast::C_BUILTIN_INT;
         btype:
             tname = ls.t.value_s;
             ls.get();
@@ -360,19 +360,19 @@ static c_type parse_type(lex_state &ls) {
         case KW_long:
             ls.get();
             if (ls.t.kw == KW_long) {
-                cbt = C_BUILTIN_LLONG;
+                cbt = ast::C_BUILTIN_LLONG;
                 tname = "long long";
                 ls.get();
             } else if (ls.t.kw == KW_int) {
-                cbt = C_BUILTIN_LONG;
+                cbt = ast::C_BUILTIN_LONG;
                 tname = "long";
                 ls.get();
             } else if (ls.t.kw == KW_double) {
-                cbt = C_BUILTIN_LDOUBLE;
+                cbt = ast::C_BUILTIN_LDOUBLE;
                 tname = "long double";
                 ls.get();
             } else {
-                cbt = C_BUILTIN_LONG;
+                cbt = ast::C_BUILTIN_LONG;
                 tname = "long";
             }
             break;
@@ -381,14 +381,14 @@ static c_type parse_type(lex_state &ls) {
             break;
     }
 
-    c_type tp{tname, cbt, quals};
+    ast::c_type tp{tname, cbt, quals};
     for (;;) {
         /* right-side cv */
         tp.cv(parse_cv(ls));
         /* pointers plus their right side qualifiers */
         if (ls.t.token == '*') {
             ls.get();
-            c_type ptp{std::move(tp), parse_cv(ls)};
+            ast::c_type ptp{std::move(tp), parse_cv(ls)};
             tp = std::move(ptp);
         } else {
             break;
@@ -425,7 +425,7 @@ static void parse_decl(lex_state &ls) {
     ls.get();
 
     if (ls.t.token == ';') {
-        state::add_decl(new c_variable{std::move(dname), std::move(tp)});
+        ast::add_decl(new ast::c_variable{std::move(dname), std::move(tp)});
         return;
     } else if (ls.t.token != '(') {
         ls.syntax_error("';' expected");
@@ -434,7 +434,7 @@ static void parse_decl(lex_state &ls) {
 
     ls.get();
 
-    std::vector<c_param> params;
+    std::vector<ast::c_param> params;
 
     for (;;) {
         auto pt = parse_type(ls);
@@ -457,7 +457,7 @@ static void parse_decl(lex_state &ls) {
         ls.get();
     }
 
-    state::add_decl(new c_function{
+    ast::add_decl(new ast::c_function{
         std::move(dname), std::move(tp), std::move(params)
     });
 }
