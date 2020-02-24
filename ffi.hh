@@ -12,12 +12,12 @@
 namespace ffi {
 
 template<typename T>
-struct cffi_cdata {
+struct cdata {
     parser::c_object *decl;
     T val;
 };
 
-struct cffi_fdata {
+struct fdata {
     void (*sym)();
     ffi_cif cif;
 };

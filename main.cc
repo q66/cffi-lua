@@ -37,10 +37,8 @@ static const luaL_Reg cffi_lib[] = {
 
 /* FIXME: proof-of-concept for now */
 
-using fdata_t = ffi::cffi_cdata<ffi::cffi_fdata>;
-
 static int cffi_func_call(lua_State *L) {
-    fdata_t *fud = static_cast<fdata_t *>(lua_touserdata(L, 1));
+    auto *fud = static_cast<ffi::cdata<ffi::fdata> *>(lua_touserdata(L, 1));
 
     auto &func = *static_cast<parser::c_function *>(fud->decl);
     auto &pdecls = func.params();
@@ -86,8 +84,8 @@ static int cffi_handle_index(lua_State *L) {
         luaL_error(L, "undefined symbol: %s", fname);
     }
 
-    auto *fud = static_cast<fdata_t *>(
-        lua_newuserdata(L, sizeof(fdata_t))
+    auto *fud = static_cast<ffi::cdata<ffi::fdata> *>(
+        lua_newuserdata(L, sizeof(ffi::cdata<ffi::fdata>))
     );
     luaL_setmetatable(L, "cffi_func_handle");
 
