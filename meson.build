@@ -15,11 +15,11 @@ ffi_dep = dependency('libffi')
 lua_dep = dependency('lua')
 
 cffi_src = [
-    'main.cc',
-    'parser.cc',
-    'ast.cc',
-    'lib.cc',
-    'ffi.cc'
+    'src/main.cc',
+    'src/parser.cc',
+    'src/ast.cc',
+    'src/lib.cc',
+    'src/ffi.cc'
 ]
 
 cffi_lib = shared_module('cffi',
