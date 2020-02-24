@@ -38,23 +38,21 @@ struct lib_meta {
          *     <cdata header>
          *     struct fdata {
          *         <fdata header>
+         *         ast::c_value val1; // lua arg1
+         *         ast::c_value val2; // lua arg2
+         *         ast::c_value valN; // lua argN
+         *         ast::c_value valR; // lua ret
          *         ffi_type *arg1; // type
          *         ffi_type *arg2; // type
          *         ffi_type *argN; // type
          *         void *valp1;    // &val1
          *         void *valpN;    // &val2
          *         void *valpN;    // &valN
-         *         ast::c_value val1; // lua arg1
-         *         ast::c_value val2; // lua arg2
-         *         ast::c_value valN; // lua argN
-         *         ast::c_value valR; // lua ret
          *     } val;
          * }
          */
         auto *fud = lua::newuserdata<ffi::cdata<ffi::fdata>>(
-            L, sizeof(void *[nargs * 2 + (
-                (nargs + 1) * sizeof(ast::c_value) + sizeof(void *) - 1
-            ) / sizeof(void *)])
+            L, sizeof(ast::c_value[1 + nargs]) + sizeof(void *[2 * nargs])
         );
         luaL_setmetatable(L, "cffi_func_handle");
 

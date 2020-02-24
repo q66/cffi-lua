@@ -19,7 +19,7 @@ struct cdata {
 struct fdata {
     void (*sym)();
     ffi_cif cif;
-    void *args[];
+    ast::c_value args[];
 };
 
 bool prepare_cif(cdata<fdata> &fud);

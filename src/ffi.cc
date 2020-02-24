@@ -9,7 +9,7 @@ bool prepare_cif(cdata<fdata> &fud) {
     auto &func = fud.decl->as<ast::c_function>();
     size_t nargs = func.params().size();
 
-    ffi_type **targs = reinterpret_cast<ffi_type **>(fud.val.args);
+    ffi_type **targs = reinterpret_cast<ffi_type **>(&fud.val.args[nargs + 1]);
     for (size_t i = 0; i < nargs; ++i) {
         targs[i] = ffi::get_ffi_type(func.params()[i].type());
     }
@@ -30,9 +30,8 @@ void call_cif(cdata<fdata> &fud, lua_State *L) {
 
     size_t nargs = pdecls.size();
 
-    void **args = fud.val.args;
-    void **vals = &args[nargs];
-    auto *pvals = reinterpret_cast<ast::c_value *>(&args[2 * nargs]);
+    auto *pvals = fud.val.args;
+    void **vals = &reinterpret_cast<void **>(&pvals[nargs + 1])[nargs];
 
     for (size_t i = 0; i < pdecls.size(); ++i) {
         vals[i] = lua_check_cdata(
