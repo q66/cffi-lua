@@ -52,7 +52,7 @@ struct lib_meta {
 
     static void setup(lua_State *L) {
         if (!luaL_newmetatable(L, "cffi_lib_handle")) {
-            goto pop;
+            luaL_error(L, "unexpected error: registry reinitialized");
         }
 
         lua_pushcfunction(L, gc);
@@ -61,7 +61,6 @@ struct lib_meta {
         lua_pushcfunction(L, index);
         lua_setfield(L, -2, "__index");
 
-pop:
         lua_setmetatable(L, -2);
         lua_setfield(L, -2, "C");
     }
@@ -76,11 +75,10 @@ struct func_meta {
 
     static void setup(lua_State *L) {
         if (!luaL_newmetatable(L, "cffi_func_handle")) {
-            goto pop;
+            luaL_error(L, "unexpected error: registry reinitialized");
         }
         lua_pushcfunction(L, call);
         lua_setfield(L, -2, "__call");
-pop:
         lua_pop(L, 1);
     }
 };
@@ -89,9 +87,8 @@ pop:
 struct data_meta {
     static void setup(lua_State *L) {
         if (!luaL_newmetatable(L, "cffi_data_handle")) {
-            goto pop;
+            luaL_error(L, "unexpected error: registry reinitialized");
         }
-pop:
         lua_pop(L, 1);
     }
 };
