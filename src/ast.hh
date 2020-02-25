@@ -358,25 +358,34 @@ private:
     c_type p_type;
 };
 
-struct c_typedecl: c_object {
-};
-
-struct c_typedef: c_typedecl {
+struct c_typedef: c_object {
     c_object_type obj_type() const {
         return c_object_type::TYPEDEF;
     }
 };
 
-struct c_struct: c_typedecl {
+struct c_struct: c_object {
     c_object_type obj_type() const {
         return c_object_type::STRUCT;
     }
 };
 
-struct c_enum: c_typedecl {
+struct c_enum: c_object {
+    struct field {
+        std::string name;
+        int value; /* for now, we only support fields that fit in an int */
+    };
+
+    c_enum(std::string ename, std::vector<field> fields):
+        c_object{std::move(ename)}, p_fields{std::move(fields)}
+    {}
+
     c_object_type obj_type() const {
         return c_object_type::ENUM;
     }
+
+private:
+    std::vector<field> p_fields;
 };
 
 /* takes unique ownership of the pointer */

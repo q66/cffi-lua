@@ -27,19 +27,13 @@ namespace parser {
 
 /* primary keyword enum */
 
-#define KW(x) KW_##x
+#define KW(x) TOK_##x
 
 /* a token is an int, single-char tokens are just their ascii */
 enum c_token {
-    TOK_INVALID = 257,
+    TOK_CUSTOM = 257,
 
-    TOK_INTEGER, TOK_NAME
-};
-
-enum c_keyword {
-    KW_INVALID = 0,
-
-    KEYWORDS
+    TOK_INTEGER = TOK_CUSTOM, TOK_NAME, KEYWORDS
 };
 
 #undef KW
@@ -50,8 +44,7 @@ enum c_keyword {
 
 #define KW(x) #x
 
-static char const *tokens[] = { "<integer>", "<name>" };
-static char const *keywords[] = {KEYWORDS};
+static char const *tokens[] = { "<integer>", "<name>", KEYWORDS };
 
 #undef KW
 
@@ -73,7 +66,7 @@ union lex_token_u {
 
 struct lex_token {
     int token = -1;
-    int kw = KW_INVALID;
+    ast::c_expr_type numtag = ast::c_expr_type::INVALID;
     std::string value_s;
     lex_token_u value{};
 };
@@ -84,8 +77,11 @@ static void init_kwmap() {
     if (!keyword_map.empty()) {
         return;
     }
-    for (int i = 1; i <= int(sizeof(keywords) / sizeof(keywords[0])); ++i) {
-        keyword_map[keywords[i - 1]] = i;
+    auto nkw = int(
+        sizeof(tokens) / sizeof(tokens[0]) + TOK_CUSTOM - TOK_NAME - 1
+    );
+    for (int i = 1; i <= nkw; ++i) {
+        keyword_map[tokens[TOK_NAME - TOK_CUSTOM + i]] = i;
     }
 }
 
@@ -126,12 +122,10 @@ struct lex_state {
             lahead.token = -1;
             return t.token;
         }
-        t.kw = KW_INVALID;
         return (t.token = lex(t));
     }
 
     int lookahead() {
-        lahead.kw = KW_INVALID;
         return (lahead.token = lex(t));
     }
 
@@ -276,7 +270,7 @@ private:
             mul *= base;
         } while (numend != numbeg);
         /* write type and value */
-        tok.kw = int(get_int_type(tok, val, base == 10));
+        tok.numtag = get_int_type(tok, val, base == 10);
     }
 
     void read_integer(lex_token &tok) {
@@ -288,7 +282,7 @@ private:
             )) {
                 /* special case: value 0 */
                 tok.value.i = 0;
-                tok.kw = int(ast::c_expr_type::INT);
+                tok.numtag = ast::c_expr_type::INT;
                 return;
             }
             if ((current | 32) == 'x') {
@@ -378,10 +372,10 @@ private:
                     std::string name{beg, end};
                     /* could be a keyword? */
                     auto kwit = keyword_map.find(name);
-                    if (kwit != keyword_map.end()) {
-                        tok.kw = kwit->second;
-                    }
                     tok.value_s = std::move(name);
+                    if (kwit != keyword_map.end()) {
+                        return TOK_NAME + kwit->second;
+                    }
                     return TOK_NAME;
                 }
                 /* single-char token */
@@ -393,7 +387,6 @@ private:
     }
 
     int current = -1;
-    int line_number = 1;
 
     char const *stream;
     char const *send;
@@ -401,16 +394,86 @@ private:
     std::string p_buf;
 
 public:
+    int line_number = 1;
     lex_token t, lahead;
 };
 
+static std::string token_to_str(int tok) {
+    std::string ret;
+    if (tok < 0) {
+        return "<eof>";
+    }
+    if (tok < TOK_CUSTOM) {
+        if (isprint(tok)) {
+            ret += char(tok);
+        } else {
+            char buf[16];
+            snprintf(buf, sizeof(buf), "char(%d)", tok);
+            ret += buf;
+        }
+        return ret;
+    }
+    return tokens[tok - TOK_CUSTOM];
+}
+
 /* parser */
+
+static void
+error_expected(lex_state &ls, int tok) {
+    std::string buf;
+    buf += '\'';
+    buf += token_to_str(tok);
+    buf += "' expected";
+    ls.syntax_error(buf);
+}
+
+static bool test_next(lex_state &ls, int tok) {
+    if (ls.t.token == tok) {
+        ls.get();
+        return true;
+    }
+    return false;
+}
+
+static void check(lex_state &ls, int tok) {
+    if (ls.t.token != tok) {
+        error_expected(ls, tok);
+    }
+}
+
+static void check_next(lex_state &ls, int tok) {
+    check(ls, tok);
+    ls.get();
+}
+
+static void check_match(lex_state &ls, int what, int who, int where) {
+    if (test_next(ls, what)) {
+        return;
+    }
+    if (where == ls.line_number) {
+        error_expected(ls, what);
+    } else {
+        char lbuf[16];
+        auto tbuf = token_to_str(what);
+        auto vbuf = token_to_str(who);
+        std::string buf;
+        buf += '\'';
+        buf += tbuf;
+        buf += " ' expected (to close '";
+        buf += vbuf;
+        buf += "' at line ";
+        snprintf(lbuf, sizeof(lbuf), "%d", where);
+        buf += lbuf;
+        buf += ')';
+        ls.syntax_error(buf);
+    }
+}
 
 static int parse_cv(lex_state &ls) {
     int quals = 0;
 
-    for (;;) switch (ls.t.kw) {
-        case KW_const:
+    for (;;) switch (ls.t.token) {
+        case TOK_const:
             if (quals & ast::C_CV_CONST) {
                 ls.syntax_error("duplicate const qualifier");
                 break;
@@ -418,7 +481,7 @@ static int parse_cv(lex_state &ls) {
             ls.get();
             quals |= ast::C_CV_CONST;
             break;
-        case KW_volatile:
+        case TOK_volatile:
             if (quals & ast::C_CV_VOLATILE) {
                 ls.syntax_error("duplicate volatile qualifier");
                 break;
@@ -441,18 +504,19 @@ static ast::c_type parse_type(lex_state &ls) {
     /* left-side cv */
     int quals = parse_cv(ls);
 
-    if (ls.t.kw == KW_signed || ls.t.kw == KW_unsigned) {
-        quals |= (ls.t.kw == KW_signed) ? ast::C_CV_SIGNED : ast::C_CV_UNSIGNED;
+    if (ls.t.token == TOK_signed || ls.t.token == TOK_unsigned) {
+        quals |= (ls.t.token == TOK_signed)
+            ? ast::C_CV_SIGNED : ast::C_CV_UNSIGNED;
         ls.get();
-        switch (ls.t.kw) {
-            case KW_char:
-            case KW_short:
-            case KW_int:
+        switch (ls.t.token) {
+            case TOK_char:
+            case TOK_short:
+            case TOK_int:
                 /* restrict what can follow signed/unsigned */
                 break;
-            case KW_long:
+            case TOK_long:
                 ls.lookahead();
-                if (ls.lahead.kw == KW_double) {
+                if (ls.lahead.token == TOK_double) {
                     ls.syntax_error("builtin integer type expected");
                 }
                 break;
@@ -465,84 +529,84 @@ static ast::c_type parse_type(lex_state &ls) {
     std::string tname;
     ast::c_builtin cbt = ast::C_BUILTIN_NOT;
 
-    if (ls.t.token == TOK_NAME && !ls.t.kw) {
+    if (ls.t.token == TOK_NAME) {
         /* a name but not a keyword, probably custom type */
         tname = ls.t.value_s;
         ls.get();
-    } else switch (ls.t.kw) {
+    } else switch (ls.t.token) {
         /* may be a builtin type */
-        case KW_void:
+        case TOK_void:
             cbt = ast::C_BUILTIN_VOID;
             goto btype;
-        case KW_int8_t:
+        case TOK_int8_t:
             cbt = ast::C_BUILTIN_INT8;
             goto btype;
-        case KW_int16_t:
+        case TOK_int16_t:
             cbt = ast::C_BUILTIN_INT16;
             goto btype;
-        case KW_int32_t:
+        case TOK_int32_t:
             cbt = ast::C_BUILTIN_INT32;
             goto btype;
-        case KW_int64_t:
+        case TOK_int64_t:
             cbt = ast::C_BUILTIN_INT64;
             goto btype;
-        case KW_uint8_t:
+        case TOK_uint8_t:
             cbt = ast::C_BUILTIN_INT8;
             quals |= ast::C_CV_UNSIGNED;
             goto btype;
-        case KW_uint16_t:
+        case TOK_uint16_t:
             cbt = ast::C_BUILTIN_INT16;
             quals |= ast::C_CV_UNSIGNED;
             goto btype;
-        case KW_uint32_t:
+        case TOK_uint32_t:
             cbt = ast::C_BUILTIN_INT32;
             quals |= ast::C_CV_UNSIGNED;
             goto btype;
-        case KW_uint64_t:
+        case TOK_uint64_t:
             cbt = ast::C_BUILTIN_INT64;
             quals |= ast::C_CV_UNSIGNED;
             goto btype;
-        case KW_uintptr_t:
+        case TOK_uintptr_t:
             cbt = ast::C_BUILTIN_INTPTR;
             quals |= ast::C_CV_UNSIGNED;
             goto btype;
-        case KW_intptr_t:
+        case TOK_intptr_t:
             cbt = ast::C_BUILTIN_INTPTR;
             quals |= ast::C_CV_SIGNED;
             goto btype;
-        case KW_ptrdiff_t:
+        case TOK_ptrdiff_t:
             cbt = ast::C_BUILTIN_PTRDIFF;
             goto btype;
-        case KW_ssize_t:
+        case TOK_ssize_t:
             cbt = ast::C_BUILTIN_SIZE;
             quals |= ast::C_CV_SIGNED;
             goto btype;
-        case KW_size_t:
+        case TOK_size_t:
             cbt = ast::C_BUILTIN_SIZE;
             quals |= ast::C_CV_UNSIGNED;
             goto btype;
-        case KW_time_t: cbt = ast::C_BUILTIN_TIME; goto btype;
-        case KW_float:  cbt = ast::C_BUILTIN_FLOAT; goto btype;
-        case KW_double: cbt = ast::C_BUILTIN_DOUBLE; goto btype;
-        case KW_bool:   cbt = ast::C_BUILTIN_BOOL; goto btype;
-        case KW_char:   cbt = ast::C_BUILTIN_CHAR; goto btype;
-        case KW_short:  cbt = ast::C_BUILTIN_SHORT; goto btype;
-        case KW_int:    cbt = ast::C_BUILTIN_INT;
+        case TOK_time_t: cbt = ast::C_BUILTIN_TIME; goto btype;
+        case TOK_float:  cbt = ast::C_BUILTIN_FLOAT; goto btype;
+        case TOK_double: cbt = ast::C_BUILTIN_DOUBLE; goto btype;
+        case TOK_bool:   cbt = ast::C_BUILTIN_BOOL; goto btype;
+        case TOK_char:   cbt = ast::C_BUILTIN_CHAR; goto btype;
+        case TOK_short:  cbt = ast::C_BUILTIN_SHORT; goto btype;
+        case TOK_int:    cbt = ast::C_BUILTIN_INT;
         btype:
             tname = ls.t.value_s;
             ls.get();
             break;
-        case KW_long:
+        case TOK_long:
             ls.get();
-            if (ls.t.kw == KW_long) {
+            if (ls.t.token == TOK_long) {
                 cbt = ast::C_BUILTIN_LLONG;
                 tname = "long long";
                 ls.get();
-            } else if (ls.t.kw == KW_int) {
+            } else if (ls.t.token == TOK_int) {
                 cbt = ast::C_BUILTIN_LONG;
                 tname = "long";
                 ls.get();
-            } else if (ls.t.kw == KW_double) {
+            } else if (ls.t.token == TOK_double) {
                 cbt = ast::C_BUILTIN_LDOUBLE;
                 tname = "long double";
                 ls.get();
@@ -575,18 +639,31 @@ static ast::c_type parse_type(lex_state &ls) {
     return std::move(tp);
 }
 
+static void parse_enum(lex_state &ls) {
+    ls.get();
+
+    std::string name;
+    if (ls.t.token == TOK_NAME) {
+        /* name is optional */
+        name = ls.t.value_s;
+        ls.get();
+    }
+
+    std::vector<ast::c_enum::field> fields;
+}
+
 static void parse_decl(lex_state &ls) {
-    switch (ls.t.kw) {
-        case KW_typedef:
+    switch (ls.t.token) {
+        case TOK_typedef:
             //parse_typedef(ls);
             return;
-        case KW_struct:
+        case TOK_struct:
             //parse_struct(ls);
             return;
-        case KW_enum:
-            //parse_enum(ls);
+        case TOK_enum:
+            parse_enum(ls);
             return;
-        case KW_extern:
+        case TOK_extern:
             /* may precede any declaration without changing its behavior */
             ls.get();
             break;
@@ -595,9 +672,7 @@ static void parse_decl(lex_state &ls) {
     auto tp = parse_type(ls);
     std::string dname;
 
-    if (ls.t.token != TOK_NAME) {
-        ls.syntax_error("name expected");
-    }
+    check(ls, TOK_NAME);
     dname = ls.t.value_s;
     ls.get();
 
