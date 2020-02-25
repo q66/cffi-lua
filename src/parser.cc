@@ -639,6 +639,9 @@ static ast::c_type parse_type(lex_state &ls) {
     return std::move(tp);
 }
 
+static void parse_struct(lex_state &ls) {
+}
+
 static void parse_enum(lex_state &ls) {
     ls.get();
 
@@ -680,10 +683,11 @@ static void parse_decl(lex_state &ls) {
         ast::add_decl(new ast::c_variable{std::move(dname), std::move(tp)});
         return;
     } else if (ls.t.token != '(') {
-        ls.syntax_error("';' expected");
+        check(ls, ';');
         return;
     }
 
+    int linenum = ls.line_number;
     ls.get();
 
     std::vector<ast::c_param> params;
@@ -695,18 +699,15 @@ static void parse_decl(lex_state &ls) {
             ls.get();
             continue;
         }
-        if (ls.t.token != TOK_NAME) {
-            ls.syntax_error("parameter name expected");
-        }
+        check(ls, TOK_NAME);
         params.emplace_back(ls.t.value_s, std::move(pt));
         ls.get();
-        if (ls.t.token == ')') {
+        if (ls.t.token == ',') {
             ls.get();
-            break;
-        } else if (ls.t.token != ',') {
-            ls.syntax_error("')' expected");
+            continue;
         }
-        ls.get();
+        check_match(ls, ')', '(', linenum);
+        break;
     }
 
     ast::add_decl(new ast::c_function{
