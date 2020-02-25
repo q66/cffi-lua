@@ -33,7 +33,7 @@ namespace parser {
 enum c_token {
     TOK_INVALID = 257,
 
-    TOK_NAME
+    TOK_INTEGER, TOK_NAME
 };
 
 enum c_keyword {
@@ -50,7 +50,7 @@ enum c_keyword {
 
 #define KW(x) #x
 
-static char const *tokens[] = { "<name>" };
+static char const *tokens[] = { "<integer>", "<name>" };
 static char const *keywords[] = {KEYWORDS};
 
 #undef KW
@@ -71,21 +71,32 @@ union lex_token_u {
     double d;
 };
 
+enum c_int_literal {
+    INT_INVALID = 0,
+
+    INT_INT,
+    INT_UINT,
+    INT_LONG,
+    INT_ULONG,
+    INT_LLONG,
+    INT_ULLONG
+};
+
 struct lex_token {
     int token = -1;
-    c_keyword kw = KW_INVALID;
+    int kw = KW_INVALID;
     std::string value_s;
     lex_token_u value{};
 };
 
-static thread_local std::unordered_map<std::string, c_keyword> keyword_map;
+static thread_local std::unordered_map<std::string, int> keyword_map;
 
 static void init_kwmap() {
     if (!keyword_map.empty()) {
         return;
     }
     for (int i = 1; i <= int(sizeof(keywords) / sizeof(keywords[0])); ++i) {
-        keyword_map[keywords[i - 1]] = c_keyword(i);
+        keyword_map[keywords[i - 1]] = i;
     }
 }
 
@@ -165,6 +176,157 @@ private:
         ++line_number; /* FIXME: handle overflow */
     }
 
+    template<typename T>
+    bool check_int_fits(unsigned long long val) {
+        using U = unsigned long long;
+        return (val <= U(std::numeric_limits<T>::max()));
+    }
+
+    /* this doesn't deal with stuff like negative values at all, that's
+     * done in the expression parser as a regular unary expression and
+     * is subject to the standard rules
+     */
+    int get_int_type(lex_token &tok, unsigned long long val, bool decimal) {
+        bool unsig = false;
+        int use_long = 0;
+        if ((current | 32) == 'u') {
+            unsig = true;
+            next_char();
+            if ((current | 32) == 'l') {
+                ++use_long;
+                next_char();
+                if ((current | 32) == 'l') {
+                    ++use_long;
+                    next_char();
+                }
+            }
+        } else if ((current | 32) == 'l') {
+            ++use_long;
+            next_char();
+            if ((current | 32) == 'l') {
+                ++use_long;
+                next_char();
+            }
+            if ((current | 32) == 'u') {
+                unsig = true;
+            }
+        }
+        /* decimals still allow explicit unsigned, for others it's implicit */
+        bool aus = (unsig || !decimal);
+        switch (use_long) {
+            case 0:
+                /* no long suffix, can be any size */
+                if (!unsig && check_int_fits<int>(val)) {
+                    tok.value.i = static_cast<int>(val);
+                    return INT_INT;
+                } else if (aus && check_int_fits<unsigned int>(val)) {
+                    tok.value.u = static_cast<unsigned int>(val);
+                    return INT_UINT;
+                } else if (!unsig && check_int_fits<long>(val)) {
+                    tok.value.l = static_cast<long>(val);
+                    return INT_LONG;
+                } else if (aus && check_int_fits<unsigned long>(val)) {
+                    tok.value.ul = static_cast<unsigned long>(val);
+                    return INT_ULONG;
+                } else if (!unsig && check_int_fits<long long>(val)) {
+                    tok.value.ll = static_cast<long long>(val);
+                    return INT_LLONG;
+                } else if (aus) {
+                    tok.value.ull = static_cast<unsigned long long>(val);
+                    return INT_ULLONG;
+                }
+                break;
+            case 1:
+                /* l suffix */
+                if (!unsig && check_int_fits<long>(val)) {
+                    tok.value.l = static_cast<long>(val);
+                    return INT_LONG;
+                } else if (aus && check_int_fits<unsigned long>(val)) {
+                    tok.value.ul = static_cast<unsigned long>(val);
+                    return INT_ULONG;
+                }
+                break;
+            case 2:
+                /* ll suffix */
+                if (!unsig && check_int_fits<long long>(val)) {
+                    tok.value.ll = static_cast<long long>(val);
+                    return INT_LLONG;
+                } else if (aus) {
+                    tok.value.ull = static_cast<unsigned long long>(val);
+                    return INT_ULLONG;
+                }
+                break;
+            default:
+                break;
+        }
+        /* unsuffixed decimal and doesn't fit into signed long long,
+         * or explicitly marked long and out of bounds
+         */
+        lex_error("value out of bounds", TOK_INTEGER);
+        return INT_INVALID;
+    }
+
+    template<size_t base, typename F, typename G>
+    void read_int_core(F &&digf, G &&convf, lex_token &tok) {
+        char const *numbeg = (stream - 1);
+        do {
+            next_char();
+        } while (digf(current));
+        char const *numend = (stream - 1);
+        size_t ndig = (numend - numbeg);
+        /* decrement to last digit */
+        --numend;
+        /* go from the end */
+        unsigned long long val = 0, mul = 1;
+        do {
+            /* standardize case */
+            unsigned char dig = convf(current);
+            val += dig * mul;
+            mul *= base;
+        } while (numend != numbeg);
+        /* write type and value */
+        tok.kw = get_int_type(tok, val, base == 10);
+    }
+
+    void read_integer(lex_token &tok) {
+        if (current == '0') {
+            next_char();
+            if (!current || (
+                ((current | 32) != 'x') && !(current >= '0' && current <= '7')
+            )) {
+                /* special case: value 0 */
+                tok.value.i = 0;
+                tok.kw = INT_INT;
+                return;
+            }
+            if ((current == 'x') || (current == 'X')) {
+                /* hex */
+                next_char();
+                if (!isxdigit(current)) {
+                    lex_error("malformed integer", TOK_INTEGER);
+                    return;
+                }
+                read_int_core<16>(isxdigit, [](int dig) {
+                    dig |= 32;
+                    dig = (dig >= 'a') ? (dig - 'a' + 10) : (dig - '0');
+                    return dig;
+                }, tok);
+            } else {
+                /* octal */
+                read_int_core<8>([](int cur) {
+                    return (cur >= '0') && (cur <= '7');
+                }, [](int dig) {
+                    return (dig - '0');
+                }, tok);
+            }
+        } else {
+            /* decimal */
+            read_int_core<10>(isdigit, [](int dig) {
+                return (dig - '0');
+            }, tok);
+        }
+    }
+
     int lex(lex_token &tok) {
         for (;;) switch (current) {
             case '\0':
@@ -194,6 +356,10 @@ private:
                 if (isspace(current)) {
                     next_char();
                     continue;
+                } else if (isdigit(current)) {
+                    p_buf.clear();
+                    read_integer(tok);
+                    return TOK_INTEGER;
                 }
                 if (current && (isalpha(current) || (current == '_'))) {
                     /* names, keywords */
@@ -227,6 +393,8 @@ private:
 
     char const *stream;
     char const *send;
+
+    std::string p_buf;
 
 public:
     lex_token t, lahead;
