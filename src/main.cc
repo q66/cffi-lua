@@ -54,7 +54,7 @@ struct lib_meta {
         auto *fud = lua::newuserdata<ffi::cdata<ffi::fdata>>(
             L, sizeof(ast::c_value[1 + nargs]) + sizeof(void *[2 * nargs])
         );
-        luaL_setmetatable(L, "cffi_cdata_f_handle");
+        luaL_setmetatable(L, "cffi_cdata_handle");
 
         new (&fud->decl) ast::c_type{
             fdecl->as<ast::c_function>(), 0, ast::C_BUILTIN_FUNC
@@ -95,21 +95,39 @@ struct lib_meta {
  */
 struct cdata_meta {
     static int gc(lua_State *L) {
-        auto &fud = *lua::touserdata<ffi::cdata<ffi::fdata>>(L, 1);
+        auto &fud = *lua::touserdata<ffi::cdata<void *>>(L, 1);
         using T = ast::c_type;
         fud.decl.~T();
         return 0;
     }
-};
 
-struct cdata_f_meta: cdata_meta {
-    static int call(lua_State *L) {
-        ffi::call_cif(*lua::touserdata<ffi::cdata<ffi::fdata>>(L, 1), L);
+    static int tostring(lua_State *L) {
+        auto &fud = *lua::touserdata<ffi::cdata<void *>>(L, 1);
+        auto s = fud.decl.serialize();
+        lua_pushfstring(L, "cdata<%s>: %p", s.c_str(), fud.val);
         return 1;
     }
 
+    static int call(lua_State *L) {
+        auto *decl = lua::touserdata<ast::c_type>(L, 1);
+        auto t = decl->type();
+        switch (t) {
+            case ast::C_BUILTIN_FPTR:
+            case ast::C_BUILTIN_FUNC:
+                break;
+            default: {
+                auto s = decl->serialize();
+                luaL_error(L, "'%s' is not callable", s.c_str());
+                break;
+            }
+        }
+        return ffi::call_cif(
+            *lua::touserdata<ffi::cdata<ffi::fdata>>(L, 1), L
+        );
+    }
+
     static void setup(lua_State *L) {
-        if (!luaL_newmetatable(L, "cffi_cdata_f_handle")) {
+        if (!luaL_newmetatable(L, "cffi_cdata_handle")) {
             luaL_error(L, "unexpected error: registry reinitialized");
         }
 
@@ -118,31 +136,9 @@ struct cdata_f_meta: cdata_meta {
 
         lua_pushcfunction(L, call);
         lua_setfield(L, -2, "__call");
-        lua_pop(L, 1);
-    }
-};
 
-struct cdata_p_meta: cdata_meta {
-    static void setup(lua_State *L) {
-        if (!luaL_newmetatable(L, "cffi_cdata_p_handle")) {
-            luaL_error(L, "unexpected error: registry reinitialized");
-        }
-
-        lua_pushcfunction(L, gc);
-        lua_setfield(L, -2, "__gc");
-
-        lua_pop(L, 1);
-    }
-};
-
-struct cdata_v_meta: cdata_meta {
-    static void setup(lua_State *L) {
-        if (!luaL_newmetatable(L, "cffi_cdata_v_handle")) {
-            luaL_error(L, "unexpected error: registry reinitialized");
-        }
-
-        lua_pushcfunction(L, gc);
-        lua_setfield(L, -2, "__gc");
+        lua_pushcfunction(L, tostring);
+        lua_setfield(L, -2, "__tostring");
 
         lua_pop(L, 1);
     }
@@ -160,7 +156,17 @@ struct ffi_module {
     }
 
     static int string_f(lua_State *L) {
-        return 0;
+        if (!luaL_checkudata(L, 1, "cffi_cdata_handle")) {
+            lua_pushfstring(
+                L, "cannot convert '%s' to 'const char *'",
+                luaL_typename(L, 1)
+            );
+            luaL_argcheck(L, false, 1, lua_tostring(L, -1));
+        }
+        /* FIXME: check argument type conversions */
+        auto &fud = *lua::touserdata<ffi::cdata<char const *>>(L, 1);
+        lua_pushstring(L, fud.val);
+        return 1;
     }
 
     static void setup(lua_State *L) {
@@ -188,9 +194,7 @@ struct ffi_module {
         lib_meta::setup(L);
 
         /* cdata handles */
-        cdata_f_meta::setup(L);
-        cdata_p_meta::setup(L);
-        cdata_v_meta::setup(L);
+        cdata_meta::setup(L);
     }
 };
 

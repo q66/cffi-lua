@@ -24,7 +24,7 @@ bool prepare_cif(cdata<fdata> &fud) {
     return true;
 }
 
-void call_cif(cdata<fdata> &fud, lua_State *L) {
+int call_cif(cdata<fdata> &fud, lua_State *L) {
     auto &func = fud.decl.function();
     auto &pdecls = func.params();
 
@@ -40,7 +40,7 @@ void call_cif(cdata<fdata> &fud, lua_State *L) {
     }
 
     ffi_call(&fud.val.cif, fud.val.sym, &pvals[nargs], vals);
-    lua_push_cdata(L, func.result(), &pvals[nargs]);
+    return lua_push_cdata(L, func.result(), &pvals[nargs]);
 }
 
 template<typename T>
@@ -94,6 +94,9 @@ ffi_type *get_ffi_type(ast::c_type const &tp) {
         }
 
     switch (tp.type()) {
+        case ast::C_BUILTIN_VOID:
+            return &ffi_type_void;
+
         case ast::C_BUILTIN_PTR:
             return &ffi_type_pointer;
 
@@ -153,48 +156,61 @@ static inline void push_int(lua_State *L, int cv, void *value) {
     }
 }
 
-void lua_push_cdata(lua_State *L, ast::c_type const &tp, void *value) {
+int lua_push_cdata(lua_State *L, ast::c_type const &tp, void *value) {
     switch (tp.type()) {
+        /* no retval */
+        case ast::C_BUILTIN_VOID:
+            return 0;
         /* convert to lua boolean */
         case ast::C_BUILTIN_BOOL:
             lua_pushboolean(L, *static_cast<unsigned char *>(value));
-            return;
+            return 1;
         /* convert to lua number */
         case ast::C_BUILTIN_FLOAT:
             lua_pushnumber(L, lua_Number(*static_cast<float *>(value)));
-            return;
+            return 1;
         case ast::C_BUILTIN_DOUBLE:
             lua_pushnumber(L, lua_Number(*static_cast<double *>(value)));
-            return;
+            return 1;
         case ast::C_BUILTIN_LDOUBLE:
             lua_pushnumber(L, lua_Number(*static_cast<long double *>(value)));
-            return;
+            return 1;
         case ast::C_BUILTIN_CHAR:
-            push_int<char>(L, tp.cv(), value); return;
+            push_int<char>(L, tp.cv(), value); return 1;
         case ast::C_BUILTIN_SHORT:
-            push_int<short>(L, tp.cv(), value); return;
+            push_int<short>(L, tp.cv(), value); return 1;
         case ast::C_BUILTIN_INT:
-            push_int<int>(L, tp.cv(), value); return;
+            push_int<int>(L, tp.cv(), value); return 1;
         case ast::C_BUILTIN_INT8:
-            push_int<int8_t>(L, tp.cv(), value); return;
+            push_int<int8_t>(L, tp.cv(), value); return 1;
         case ast::C_BUILTIN_INT16:
-            push_int<int16_t>(L, tp.cv(), value); return;
+            push_int<int16_t>(L, tp.cv(), value); return 1;
         case ast::C_BUILTIN_INT32:
-            push_int<int32_t>(L, tp.cv(), value); return;
+            push_int<int32_t>(L, tp.cv(), value); return 1;
         case ast::C_BUILTIN_LONG:
         case ast::C_BUILTIN_INT64:
         case ast::C_BUILTIN_SIZE:
         case ast::C_BUILTIN_INTPTR:
         case ast::C_BUILTIN_TIME:
-            luaL_error(L, "NYI"); return;
-        default:
+            luaL_error(L, "NYI"); return 0;
+        case ast::C_BUILTIN_PTR: {
             /* pointers should be handled like large cdata, as they need
              * to be represented as userdata objects on lua side either way
              */
-            luaL_error(L, "value too big"); return;
+            auto *fud = lua::newuserdata<ffi::cdata<void *>>(L);
+            new (&fud->decl) ast::c_type{tp};
+            fud->val = *reinterpret_cast<void **>(value);
+            luaL_setmetatable(L, "cffi_cdata_handle");
+            return 1;
+        }
+        default:
+            luaL_error(L, "unexpected error: unhandled type %d", tp.type());
+            return 0;
     }
 
     /* large cdata will be handled here, for example whole large structs */
+    luaL_error(L, "NYI");
+    return 0;
 }
 
 template<typename T>
@@ -263,6 +279,8 @@ void *lua_check_cdata(
                     return write_int<int32_t>(L, index, tp.cv(), &stor->i32);
                 case ast::C_BUILTIN_INT64:
                     return write_int<int64_t>(L, index, tp.cv(), &stor->i64);
+                case ast::C_BUILTIN_SIZE:
+                    return write_int<size_t>(L, index, tp.cv(), &stor->sz);
                 default:
                     luaL_error(
                         L, "cannot convert 'number' to '%s'",
@@ -285,7 +303,25 @@ void *lua_check_cdata(
             break;
         case LUA_TUSERDATA:
         case LUA_TLIGHTUSERDATA:
-            return &(stor->ptr = lua_touserdata(L, index));
+            switch (tp.type()) {
+                case ast::C_BUILTIN_PTR:
+                    if (luaL_checkudata(L, index, "cffi_cdata_handle")) {
+                        /* special handling for cdata */
+                        /* FIXME: check type conversions... */
+                        return &(stor->ptr = lua::touserdata<
+                            ffi::cdata<void *>
+                        >(L, index)->val);
+                    } else {
+                        return &(stor->ptr = lua_touserdata(L, index));
+                    }
+                default:
+                    luaL_error(
+                        L, "cannot convert 'string' to '%s'",
+                        tp.serialize().c_str()
+                    );
+                    break;
+            }
+            break;
         case LUA_TTABLE:
             luaL_error(L, "table initializers not yet implemented");
             break;

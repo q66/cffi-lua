@@ -12,6 +12,8 @@ enum c_builtin {
 
     C_BUILTIN_NOT,
 
+    C_BUILTIN_VOID,
+
     C_BUILTIN_PTR,
     C_BUILTIN_FPTR,
     C_BUILTIN_FUNC,
@@ -90,6 +92,8 @@ union c_value {
     uint32_t u32;
     uint16_t u16;
     uint8_t u8;
+    /* other types */
+    size_t sz;
     /* booleans */
     bool b;
     /* pointer types */

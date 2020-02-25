@@ -15,7 +15,7 @@ namespace parser {
 
 /* stdint types might as well also be builtin... */
 #define KEYWORDS KW(const), KW(enum), KW(extern), KW(struct), KW(typedef), \
-    KW(signed), KW(unsigned), KW(volatile), \
+    KW(signed), KW(unsigned), KW(volatile), KW(void), \
     \
     KW(bool), KW(char), KW(short), KW(int), KW(long), KW(float), KW(double), \
     \
@@ -299,6 +299,9 @@ static ast::c_type parse_type(lex_state &ls) {
         ls.get();
     } else switch (ls.t.kw) {
         /* may be a builtin type */
+        case KW_void:
+            cbt = ast::C_BUILTIN_VOID;
+            goto btype;
         case KW_int8_t:
             cbt = ast::C_BUILTIN_INT8;
             goto btype;
