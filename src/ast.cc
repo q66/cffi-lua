@@ -47,39 +47,39 @@ void c_function::do_serialize_full(std::string &o, bool fptr, int cv) const {
 }
 
 c_type::c_type(c_function tp, int qual, int cbt):
-    c_object{}, p_type{cbt | uint32_t(qual)}
-{
-    p_ptr.fptr = new c_function{std::move(tp)};
-}
+    c_object{}, p_fptr{new c_function{std::move(tp)}},
+    p_type{cbt | uint32_t(qual)}
+{}
 
 c_type::~c_type() {
     int tp = type();
     if ((tp == C_BUILTIN_FPTR) || (tp == C_BUILTIN_FUNC)) {
-        delete p_ptr.fptr;
+        delete p_fptr;
     } else if (tp == C_BUILTIN_PTR) {
-        delete p_ptr.ptr;
+        delete p_ptr;
     }
 }
 
 c_type::c_type(c_type const &v): c_object{v.name}, p_type{v.p_type} {
     int tp = type();
     if ((tp == C_BUILTIN_FPTR) || (tp == C_BUILTIN_FUNC)) {
-        p_ptr.fptr = new c_function{*v.p_ptr.fptr};
+        p_fptr = new c_function{*v.p_fptr};
     } else if (tp == C_BUILTIN_PTR) {
-        p_ptr.ptr = new c_type{*v.p_ptr.ptr};
+        p_ptr = new c_type{*v.p_ptr};
     }
 }
 
-c_type::c_type(c_type &&v): c_object{std::move(v.name)}, p_type{v.p_type} {
-    p_ptr.ptr = std::exchange(v.p_ptr.ptr, nullptr);
-}
+c_type::c_type(c_type &&v):
+    c_object{std::move(v.name)}, p_ptr{std::exchange(v.p_ptr, nullptr)},
+    p_type{v.p_type}
+{}
 
 void c_type::do_serialize(std::string &o) const {
     int tcv = cv();
     int ttp = type();
     switch (ttp) {
         case C_BUILTIN_PTR:
-            p_ptr.ptr->do_serialize(o);
+            p_ptr->do_serialize(o);
             if (o.back() != '*') {
                 o += ' ';
             }
@@ -88,7 +88,7 @@ void c_type::do_serialize(std::string &o) const {
         case C_BUILTIN_FPTR:
         case C_BUILTIN_FUNC:
             /* cv is handled by func serializer */
-            p_ptr.fptr->do_serialize_full(o, (ttp == C_BUILTIN_FPTR), tcv);
+            p_fptr->do_serialize_full(o, (ttp == C_BUILTIN_FPTR), tcv);
             return;
         default:
             switch (type()) {

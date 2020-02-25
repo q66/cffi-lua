@@ -71,17 +71,6 @@ union lex_token_u {
     double d;
 };
 
-enum c_int_literal {
-    INT_INVALID = 0,
-
-    INT_INT,
-    INT_UINT,
-    INT_LONG,
-    INT_ULONG,
-    INT_LLONG,
-    INT_ULLONG
-};
-
 struct lex_token {
     int token = -1;
     int kw = KW_INVALID;
@@ -186,7 +175,9 @@ private:
      * done in the expression parser as a regular unary expression and
      * is subject to the standard rules
      */
-    int get_int_type(lex_token &tok, unsigned long long val, bool decimal) {
+    ast::c_expr_type get_int_type(
+        lex_token &tok, unsigned long long val, bool decimal
+    ) {
         bool unsig = false;
         int use_long = 0;
         if ((current | 32) == 'u') {
@@ -218,42 +209,42 @@ private:
                 /* no long suffix, can be any size */
                 if (!unsig && check_int_fits<int>(val)) {
                     tok.value.i = static_cast<int>(val);
-                    return INT_INT;
+                    return ast::c_expr_type::INT;
                 } else if (aus && check_int_fits<unsigned int>(val)) {
                     tok.value.u = static_cast<unsigned int>(val);
-                    return INT_UINT;
+                    return ast::c_expr_type::UINT;
                 } else if (!unsig && check_int_fits<long>(val)) {
                     tok.value.l = static_cast<long>(val);
-                    return INT_LONG;
+                    return ast::c_expr_type::LONG;
                 } else if (aus && check_int_fits<unsigned long>(val)) {
                     tok.value.ul = static_cast<unsigned long>(val);
-                    return INT_ULONG;
+                    return ast::c_expr_type::ULONG;
                 } else if (!unsig && check_int_fits<long long>(val)) {
                     tok.value.ll = static_cast<long long>(val);
-                    return INT_LLONG;
+                    return ast::c_expr_type::LLONG;
                 } else if (aus) {
                     tok.value.ull = static_cast<unsigned long long>(val);
-                    return INT_ULLONG;
+                    return ast::c_expr_type::ULLONG;
                 }
                 break;
             case 1:
                 /* l suffix */
                 if (!unsig && check_int_fits<long>(val)) {
                     tok.value.l = static_cast<long>(val);
-                    return INT_LONG;
+                    return ast::c_expr_type::LONG;
                 } else if (aus && check_int_fits<unsigned long>(val)) {
                     tok.value.ul = static_cast<unsigned long>(val);
-                    return INT_ULONG;
+                    return ast::c_expr_type::ULONG;
                 }
                 break;
             case 2:
                 /* ll suffix */
                 if (!unsig && check_int_fits<long long>(val)) {
                     tok.value.ll = static_cast<long long>(val);
-                    return INT_LLONG;
+                    return ast::c_expr_type::LLONG;
                 } else if (aus) {
                     tok.value.ull = static_cast<unsigned long long>(val);
-                    return INT_ULLONG;
+                    return ast::c_expr_type::ULLONG;
                 }
                 break;
             default:
@@ -263,7 +254,7 @@ private:
          * or explicitly marked long and out of bounds
          */
         lex_error("value out of bounds", TOK_INTEGER);
-        return INT_INVALID;
+        return ast::c_expr_type::INVALID;
     }
 
     template<size_t base, typename F, typename G>
@@ -285,7 +276,7 @@ private:
             mul *= base;
         } while (numend != numbeg);
         /* write type and value */
-        tok.kw = get_int_type(tok, val, base == 10);
+        tok.kw = int(get_int_type(tok, val, base == 10));
     }
 
     void read_integer(lex_token &tok) {
@@ -297,7 +288,7 @@ private:
             )) {
                 /* special case: value 0 */
                 tok.value.i = 0;
-                tok.kw = INT_INT;
+                tok.kw = int(ast::c_expr_type::INT);
                 return;
             }
             if ((current | 32) == 'x') {

@@ -60,6 +60,61 @@ enum class c_object_type {
     PARAM,
 };
 
+enum class c_expr_type {
+    INVALID = 0,
+    INT,
+    UINT,
+    LONG,
+    ULONG,
+    LLONG,
+    ULLONG,
+    FLOAT,
+    DOUBLE,
+    STRING,
+    CHAR,
+    NULLPTR,
+    BOOL,
+    NAME,
+    UNARY,
+    BINARY,
+    TERNARY
+};
+
+enum class c_expr_binop {
+    INVALID = 0,
+    ADD,  // +
+    SUB,  // -
+    MUL,  // *
+    DIV,  // /
+    MOD,  // %
+
+    EQ,   // ==
+    NQ,   // !=
+    GT,   // >
+    LT,   // <
+    GE,   // >=
+    LE,   // <=
+
+    AND,  // &&
+    OR,   // ||
+
+    BAND, // &
+    BOR,  // |
+    BXOR, // ^
+    LSH,  // <<
+    RSH   // >>
+};
+
+enum class c_expr_unop {
+    INVALID = 0,
+
+    UNM,  // -
+    UNP,  // +
+
+    NOT,  // !
+    BNOT  // ~
+};
+
 /* this is a universal union to store C values converted from
  * Lua values before they're passed to the function itself
  *
@@ -101,6 +156,51 @@ union c_value {
     void *ptr;
 };
 
+struct c_expr {
+    ~c_expr() {
+        switch (type) {
+            case c_expr_type::UNARY:
+                delete un.expr;
+                break;
+            case c_expr_type::BINARY:
+                delete bin.lhs;
+                delete bin.rhs;
+                break;
+            case c_expr_type::TERNARY:
+                delete tern.cond;
+                delete tern.texpr;
+                delete tern.fexpr;
+                break;
+        }
+    }
+
+    c_expr_type type;
+
+    struct unary {
+        c_expr_unop op;
+        c_expr *expr;
+    };
+
+    struct binary {
+        c_expr_binop op;
+        c_expr *lhs;
+        c_expr *rhs;
+    };
+
+    struct ternary {
+        c_expr *cond;
+        c_expr *texpr;
+        c_expr *fexpr;
+    };
+
+    union {
+        unary un;
+        binary bin;
+        ternary tern;
+        c_value val;
+    };
+};
+
 struct c_object {
     c_object(std::string oname = std::string{}): name{std::move(oname)} {}
     virtual ~c_object() {}
@@ -131,17 +231,14 @@ struct c_function;
 
 struct c_type: c_object {
     c_type(std::string tname, int cbt, int qual):
-        c_object{std::move(tname)},
+        c_object{std::move(tname)}, p_ptr{nullptr},
         p_type{uint32_t(cbt) | uint32_t(qual)}
-    {
-        p_ptr.ptr = nullptr;
-    }
+    {}
 
     c_type(c_type tp, int qual):
-        c_object{}, p_type{C_BUILTIN_PTR | uint32_t(qual)}
-    {
-        p_ptr.ptr = new c_type{std::move(tp)};
-    }
+        c_object{}, p_ptr{new c_type{std::move(tp)}},
+        p_type{C_BUILTIN_PTR | uint32_t(qual)}
+    {}
 
     c_type(c_type const &);
     c_type(c_type &&);
@@ -172,20 +269,19 @@ struct c_type: c_object {
     }
 
     c_type const &ptr_base() const {
-        return *p_ptr.ptr;
+        return *p_ptr;
     }
 
     c_function const &function() const {
-        return *p_ptr.fptr;
+        return *p_fptr;
     }
 
 private:
     /* maybe a pointer? */
-    union type_ptr {
-        c_type *ptr;
-        c_function *fptr;
+    union {
+        c_type *p_ptr;
+        c_function *p_fptr;
     };
-    type_ptr p_ptr;
     /*
      * 8 bits: type type (builtin/regular)
      * 8 bits: qualifier
