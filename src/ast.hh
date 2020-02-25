@@ -16,7 +16,10 @@ enum c_builtin {
 
     C_BUILTIN_PTR,
     C_BUILTIN_FPTR,
+
     C_BUILTIN_FUNC,
+    C_BUILTIN_STRUCT,
+    C_BUILTIN_ENUM,
 
     C_BUILTIN_CHAR,
     C_BUILTIN_SHORT,
@@ -47,6 +50,10 @@ enum c_cv {
     C_CV_VOLATILE = 1 << 9,
     C_CV_UNSIGNED = 1 << 10,
     C_CV_SIGNED = 1 << 11,
+};
+
+enum c_type_ownership {
+    C_TYPE_WEAK = 1 << 16
 };
 
 enum class c_object_type {
@@ -228,6 +235,8 @@ struct c_object {
 };
 
 struct c_function;
+struct c_struct;
+struct c_enum;
 
 struct c_type: c_object {
     c_type(std::string tname, int cbt, int qual):
@@ -240,13 +249,33 @@ struct c_type: c_object {
         p_type{C_BUILTIN_PTR | uint32_t(qual)}
     {}
 
+    c_type(c_function tp, int qual, int cbt = C_BUILTIN_FPTR);
+
+    c_type(c_type const *ctp, int qual):
+        c_object{}, p_cptr{ctp},
+        p_type{C_BUILTIN_PTR | C_TYPE_WEAK | uint32_t(qual)}
+    {}
+
+    c_type(c_function const *ctp, int qual, int cbt = C_BUILTIN_FPTR):
+        c_object{}, p_cfptr{ctp},
+        p_type{cbt | C_TYPE_WEAK | uint32_t(qual)}
+    {}
+
+    c_type(c_struct const *ctp, int qual):
+        c_object{}, p_crec{ctp},
+        p_type{C_BUILTIN_STRUCT | C_TYPE_WEAK | uint32_t(qual)}
+    {}
+
+    c_type(c_enum const *ctp, int qual):
+        c_object{}, p_cenum{ctp},
+        p_type{C_BUILTIN_ENUM | C_TYPE_WEAK | uint32_t(qual)}
+    {}
+
     c_type(c_type const &);
     c_type(c_type &&);
 
     c_type &operator=(c_type const &) = delete;
     c_type &operator=(c_type &&) = delete;
-
-    c_type(c_function tp, int qual, int cbt = C_BUILTIN_FPTR);
 
     ~c_type();
 
@@ -262,6 +291,10 @@ struct c_type: c_object {
 
     int cv() const {
         return int(p_type & (0xFF << 8));
+    }
+
+    bool owns() const {
+        return !bool(p_type & (0xFF << 16));
     }
 
     void cv(int qual) {
@@ -281,10 +314,15 @@ private:
     union {
         c_type *p_ptr;
         c_function *p_fptr;
+        c_type const *p_cptr;
+        c_function const *p_cfptr;
+        c_struct const *p_crec;
+        c_enum const *p_cenum;
     };
     /*
      * 8 bits: type type (builtin/regular)
      * 8 bits: qualifier
+     * 8 bits: ownership
      */
     uint32_t p_type;
 };
@@ -359,9 +397,25 @@ private:
 };
 
 struct c_typedef: c_object {
+    c_typedef(std::string aname, c_type btype):
+        c_object{std::move(aname)}, p_type{std::move(btype)}
+    {}
+
     c_object_type obj_type() const {
         return c_object_type::TYPEDEF;
     }
+
+    void do_serialize(std::string &o) const {
+        /* typedefs are resolved to their base type */
+        p_type.do_serialize(o);
+    }
+
+    c_type const &type() const {
+        return p_type;
+    }
+
+private:
+    c_type p_type;
 };
 
 struct c_struct: c_object {

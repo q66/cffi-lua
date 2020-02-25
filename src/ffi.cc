@@ -38,7 +38,7 @@ static void make_cdata_func(
     );
     luaL_setmetatable(L, "cffi_cdata_handle");
 
-    new (&fud->decl) ast::c_type{func, 0, ast::C_BUILTIN_FUNC};
+    new (&fud->decl) ast::c_type{&func, 0, ast::C_BUILTIN_FUNC};
     fud->val.sym = funp;
 
     if (!ffi::prepare_cif(*fud)) {

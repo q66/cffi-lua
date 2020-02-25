@@ -639,7 +639,23 @@ static ast::c_type parse_type(lex_state &ls) {
     return std::move(tp);
 }
 
+/* two syntaxes allowed by C:
+ * typedef FROM TO;
+ * FROM typedef TO;
+ */
+static void parse_typedef(lex_state &ls, ast::c_type &&tp) {
+    /* the new type name */
+    check(ls, TOK_NAME);
+    std::string aname = ls.t.value_s;
+    ls.get();
+
+    check_next(ls, ';');
+
+    ast::add_decl(new ast::c_typedef{std::move(aname), std::move(tp)});
+}
+
 static void parse_struct(lex_state &ls) {
+    ls.get();
 }
 
 static void parse_enum(lex_state &ls) {
@@ -657,11 +673,14 @@ static void parse_enum(lex_state &ls) {
 
 static void parse_decl(lex_state &ls) {
     switch (ls.t.token) {
-        case TOK_typedef:
-            //parse_typedef(ls);
+        case TOK_typedef: {
+            /* syntax 1: typedef FROM TO; */
+            ls.get();
+            parse_typedef(ls, parse_type(ls));
             return;
+        }
         case TOK_struct:
-            //parse_struct(ls);
+            parse_struct(ls);
             return;
         case TOK_enum:
             parse_enum(ls);
@@ -673,10 +692,15 @@ static void parse_decl(lex_state &ls) {
     }
 
     auto tp = parse_type(ls);
-    std::string dname;
+    if (ls.t.token == TOK_typedef) {
+        /* weird ass infix syntax: FROM typedef TO; */
+        ls.get();
+        parse_typedef(ls, std::move(tp));
+        return;
+    }
 
     check(ls, TOK_NAME);
-    dname = ls.t.value_s;
+    std::string dname = ls.t.value_s;
     ls.get();
 
     if (ls.t.token == ';') {

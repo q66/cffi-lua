@@ -52,6 +52,9 @@ c_type::c_type(c_function tp, int qual, int cbt):
 {}
 
 c_type::~c_type() {
+    if (!owns()) {
+        return;
+    }
     int tp = type();
     if ((tp == C_BUILTIN_FPTR) || (tp == C_BUILTIN_FUNC)) {
         delete p_fptr;
