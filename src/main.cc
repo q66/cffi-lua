@@ -54,7 +54,7 @@ struct lib_meta {
         auto *fud = lua::newuserdata<ffi::cdata<ffi::fdata>>(
             L, sizeof(ast::c_value[1 + nargs]) + sizeof(void *[2 * nargs])
         );
-        luaL_setmetatable(L, "cffi_func_handle");
+        luaL_setmetatable(L, "cffi_cdata_f_handle");
 
         new (&fud->decl) ast::c_type{
             fdecl->as<ast::c_function>(), 0, ast::C_BUILTIN_FUNC
@@ -86,22 +86,30 @@ struct lib_meta {
     }
 };
 
-/* this is the metatable for function cdata */
-struct func_meta {
+/* used by all kinds of cdata
+ *
+ * there are several kinds of cdata:
+ * - callable cdata (functions)
+ * - indexable cdata (pointers, arrays)
+ * - value cdata (primitives)
+ */
+struct cdata_meta {
     static int gc(lua_State *L) {
         auto &fud = *lua::touserdata<ffi::cdata<ffi::fdata>>(L, 1);
         using T = ast::c_type;
         fud.decl.~T();
         return 0;
     }
+};
 
+struct cdata_f_meta: cdata_meta {
     static int call(lua_State *L) {
         ffi::call_cif(*lua::touserdata<ffi::cdata<ffi::fdata>>(L, 1), L);
         return 1;
     }
 
     static void setup(lua_State *L) {
-        if (!luaL_newmetatable(L, "cffi_func_handle")) {
+        if (!luaL_newmetatable(L, "cffi_cdata_f_handle")) {
             luaL_error(L, "unexpected error: registry reinitialized");
         }
 
@@ -114,12 +122,28 @@ struct func_meta {
     }
 };
 
-/* this is the metatable for generic cdata */
-struct data_meta {
+struct cdata_p_meta: cdata_meta {
     static void setup(lua_State *L) {
-        if (!luaL_newmetatable(L, "cffi_data_handle")) {
+        if (!luaL_newmetatable(L, "cffi_cdata_p_handle")) {
             luaL_error(L, "unexpected error: registry reinitialized");
         }
+
+        lua_pushcfunction(L, gc);
+        lua_setfield(L, -2, "__gc");
+
+        lua_pop(L, 1);
+    }
+};
+
+struct cdata_v_meta: cdata_meta {
+    static void setup(lua_State *L) {
+        if (!luaL_newmetatable(L, "cffi_cdata_v_handle")) {
+            luaL_error(L, "unexpected error: registry reinitialized");
+        }
+
+        lua_pushcfunction(L, gc);
+        lua_setfield(L, -2, "__gc");
+
         lua_pop(L, 1);
     }
 };
@@ -158,12 +182,15 @@ struct ffi_module {
     static void open(lua_State *L) {
         setup(L); /* push table to stack */
 
+        /* lib handles */
         auto *c_ud = lua::newuserdata<lib::handle>(L);
         *c_ud = lib::open();
-
         lib_meta::setup(L);
-        func_meta::setup(L);
-        data_meta::setup(L);
+
+        /* cdata handles */
+        cdata_f_meta::setup(L);
+        cdata_p_meta::setup(L);
+        cdata_v_meta::setup(L);
     }
 };
 
