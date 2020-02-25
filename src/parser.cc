@@ -292,14 +292,15 @@ private:
         if (current == '0') {
             next_char();
             if (!current || (
-                ((current | 32) != 'x') && !(current >= '0' && current <= '7')
+                ((current | 32) != 'x') && ((current | 32) != 'b') &&
+                !(current >= '0' && current <= '7')
             )) {
                 /* special case: value 0 */
                 tok.value.i = 0;
                 tok.kw = INT_INT;
                 return;
             }
-            if ((current == 'x') || (current == 'X')) {
+            if ((current | 32) == 'x') {
                 /* hex */
                 next_char();
                 if (!isxdigit(current)) {
@@ -310,6 +311,18 @@ private:
                     dig |= 32;
                     dig = (dig >= 'a') ? (dig - 'a' + 10) : (dig - '0');
                     return dig;
+                }, tok);
+            } else if ((current | 32) == 'b') {
+                /* binary */
+                next_char();
+                if ((current != '0') && (current != '1')) {
+                    lex_error("malformed integer", TOK_INTEGER);
+                    return;
+                }
+                read_int_core<2>([](int cur) {
+                    return (cur == '0') || (cur == '1');
+                }, [](int dig) {
+                    return (dig - '0');
                 }, tok);
             } else {
                 /* octal */
