@@ -130,12 +130,12 @@ void add_decl(c_object *decl) {
     decl_map.emplace(d.name, &d);
 }
 
-c_object *lookup_decl(std::string const &name) {
+c_object const *lookup_decl(std::string const &name) {
     auto it = decl_map.find(name);
     if (it == decl_map.end()) {
         return nullptr;
     }
-    return const_cast<c_object *>(it->second);
+    return it->second;
 }
 
 } /* namespace ast */

@@ -9,6 +9,7 @@ ffi.cdef [[
 ]]
 
 print("## BEGIN TESTS ##")
+print()
 
 print("# main library namespace")
 print("namespace data: " .. tostring(ffi.C))

@@ -6,6 +6,7 @@
 #include <ffi.h>
 
 #include "lua.hh"
+#include "lib.hh"
 #include "ast.hh"
 
 namespace ffi {
@@ -21,6 +22,10 @@ struct fdata {
     ffi_cif cif;
     ast::c_value args[];
 };
+
+void make_cdata(
+    lua_State *L, lib::handle dl, ast::c_object const *obj, char const *name
+);
 
 bool prepare_cif(cdata<fdata> &fud);
 int call_cif(cdata<fdata> &fud, lua_State *L);

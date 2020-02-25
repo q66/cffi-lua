@@ -19,54 +19,7 @@ struct lib_meta {
     static int index(lua_State *L) {
         auto dl = *lua::touserdata<lib::handle>(L, 1);
         char const *fname = luaL_checkstring(L, 2);
-
-        auto *fdecl = ast::lookup_decl(fname);
-        if (!fdecl) {
-            luaL_error(L, "missing declaration for symbol '%s'", fname);
-        }
-
-        auto &func = fdecl->as<ast::c_function>();
-        size_t nargs = func.params().size();
-
-        auto funp = lib::get_func(dl, fname);
-        if (!funp) {
-            luaL_error(L, "undefined symbol: %s", fname);
-        }
-
-        /* MEMORY LAYOUT:
-         * struct cdata {
-         *     <cdata header>
-         *     struct fdata {
-         *         <fdata header>
-         *         ast::c_value val1; // lua arg1
-         *         ast::c_value val2; // lua arg2
-         *         ast::c_value valN; // lua argN
-         *         ast::c_value valR; // lua ret
-         *         ffi_type *arg1; // type
-         *         ffi_type *arg2; // type
-         *         ffi_type *argN; // type
-         *         void *valp1;    // &val1
-         *         void *valpN;    // &val2
-         *         void *valpN;    // &valN
-         *     } val;
-         * }
-         */
-        auto *fud = lua::newuserdata<ffi::cdata<ffi::fdata>>(
-            L, sizeof(ast::c_value[1 + nargs]) + sizeof(void *[2 * nargs])
-        );
-        luaL_setmetatable(L, "cffi_cdata_handle");
-
-        new (&fud->decl) ast::c_type{
-            fdecl->as<ast::c_function>(), 0, ast::C_BUILTIN_FUNC
-        };
-        fud->val.sym = funp;
-
-        if (!ffi::prepare_cif(*fud)) {
-            luaL_error(
-                L, "unexpected failure setting up '%s'", func.name.c_str()
-            );
-        }
-
+        ffi::make_cdata(L, dl, ast::lookup_decl(fname), fname);
         return 1;
     }
 
@@ -158,7 +111,7 @@ struct ffi_module {
     static int string_f(lua_State *L) {
         if (!luaL_checkudata(L, 1, "cffi_cdata_handle")) {
             lua_pushfstring(
-                L, "cannot convert '%s' to 'const char *'",
+                L, "cannot convert '%s' to 'char const *'",
                 luaL_typename(L, 1)
             );
             luaL_argcheck(L, false, 1, lua_tostring(L, -1));

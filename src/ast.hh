@@ -254,6 +254,10 @@ struct c_variable: c_object {
         p_type.do_serialize(o);
     }
 
+    c_type const &type() const {
+        return p_type;
+    }
+
 private:
     c_type p_type;
 };
@@ -282,7 +286,7 @@ struct c_enum: c_typedecl {
 /* takes unique ownership of the pointer */
 void add_decl(c_object *decl);
 
-c_object *lookup_decl(std::string const &name);
+c_object const *lookup_decl(std::string const &name);
 
 } /* namespace ast */
 

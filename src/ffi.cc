@@ -5,6 +5,81 @@
 
 namespace ffi {
 
+static void make_cdata_func(
+    lua_State *L, lib::handle dl, ast::c_function const &func, char const *name
+) {
+    auto funp = lib::get_func(dl, name);
+    if (!funp) {
+        luaL_error(L, "undefined symbol: %s", name);
+    }
+
+    size_t nargs = func.params().size();
+
+    /* MEMORY LAYOUT:
+     * struct cdata {
+     *     <cdata header>
+     *     struct fdata {
+     *         <fdata header>
+     *         ast::c_value val1; // lua arg1
+     *         ast::c_value val2; // lua arg2
+     *         ast::c_value valN; // lua argN
+     *         ast::c_value valR; // lua ret
+     *         ffi_type *arg1; // type
+     *         ffi_type *arg2; // type
+     *         ffi_type *argN; // type
+     *         void *valp1;    // &val1
+     *         void *valpN;    // &val2
+     *         void *valpN;    // &valN
+     *     } val;
+     * }
+     */
+    auto *fud = lua::newuserdata<ffi::cdata<ffi::fdata>>(
+        L, sizeof(ast::c_value[1 + nargs]) + sizeof(void *[2 * nargs])
+    );
+    luaL_setmetatable(L, "cffi_cdata_handle");
+
+    new (&fud->decl) ast::c_type{func, 0, ast::C_BUILTIN_FUNC};
+    fud->val.sym = funp;
+
+    if (!ffi::prepare_cif(*fud)) {
+        luaL_error(
+            L, "unexpected failure setting up '%s'", func.name.c_str()
+        );
+    }
+}
+
+static void make_cdata_var(
+    lua_State *L, lib::handle dl, ast::c_variable const &var, char const *name
+) {
+    auto symp = lib::get_var(dl, name);
+    if (!symp) {
+        luaL_error(L, "undefined symbol: %s", name);
+    }
+    lua_push_cdata(L, var.type(), symp);
+}
+
+void make_cdata(
+    lua_State *L, lib::handle dl, ast::c_object const *obj, char const *name
+) {
+    auto tp = ast::c_object_type::INVALID;
+    if (obj) {
+        tp = obj->obj_type();
+    }
+    switch (tp) {
+        case ast::c_object_type::FUNCTION:
+            make_cdata_func(L, dl, obj->as<ast::c_function>(), name);
+            return;
+        case ast::c_object_type::VARIABLE:
+            make_cdata_var(L, dl, obj->as<ast::c_variable>(), name);
+            return;
+        default:
+            luaL_error(
+                L, "missing declaration for symbol '%s'", obj->name.c_str()
+            );
+            return;
+    }
+}
+
 bool prepare_cif(cdata<fdata> &fud) {
     auto &func = fud.decl.function();
     size_t nargs = func.params().size();
