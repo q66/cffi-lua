@@ -104,7 +104,7 @@ struct ffi_module {
         return 0;
     }
 
-    static int new_f(lua_State *L) {
+    static int new_f(lua_State *) {
         return 0;
     }
 

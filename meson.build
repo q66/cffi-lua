@@ -6,7 +6,7 @@ project('cffi-lua', ['cpp'],
 
 tgt_compiler_id = meson.get_compiler('cpp').get_id()
 if tgt_compiler_id == 'gcc' or tgt_compiler_id == 'clang'
-    extra_cxxflags = ['-Wextra', '-Wshadow', '-Wold-style-cast']
+    extra_cxxflags = ['-Wall', '-Wextra', '-Wshadow', '-Wold-style-cast']
 else
     extra_cxxflags = []
 endif

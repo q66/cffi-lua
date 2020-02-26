@@ -273,19 +273,18 @@ private:
 
     template<size_t base, typename F, typename G>
     void read_int_core(F &&digf, G &&convf, lex_token &tok) {
+        /* first digit address */
         char const *numbeg = (stream - 1);
         do {
             next_char();
         } while (digf(current));
+        /* one past last digit address */
         char const *numend = (stream - 1);
-        size_t ndig = (numend - numbeg);
-        /* decrement to last digit */
-        --numend;
         /* go from the end */
         unsigned long long val = 0, mul = 1;
         do {
             /* standardize case */
-            unsigned char dig = convf(current);
+            unsigned char dig = convf(*--numend);
             val += dig * mul;
             mul *= base;
         } while (numend != numbeg);

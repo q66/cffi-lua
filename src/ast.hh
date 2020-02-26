@@ -178,6 +178,8 @@ struct c_expr {
                 delete tern.texpr;
                 delete tern.fexpr;
                 break;
+            default:
+                break;
         }
     }
 
