@@ -649,8 +649,6 @@ static void parse_typedef(lex_state &ls, ast::c_type &&tp) {
     std::string aname = ls.t.value_s;
     ls.get();
 
-    check_next(ls, ';');
-
     ast::add_decl(new ast::c_typedef{std::move(aname), std::move(tp)});
 }
 
