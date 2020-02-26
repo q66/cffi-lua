@@ -19,7 +19,7 @@ TODO:
 - [ ] Correct handling of arguments and return types
 - [ ] Type conversions
 - [ ] User defined C types, typedefs
-- [ ] Enums
+- [x] Enums
 - [ ] Complex types
 - [ ] Variadic functions
 - [ ] Allocation API

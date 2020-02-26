@@ -630,6 +630,7 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
             ast::c_expr ret;
             ret.type = ls.t.numtag;
             memcpy(&ret.val, &ls.t.value, sizeof(ls.t.value));
+            ls.get();
             return ret;
         }
         case '(': {
@@ -682,6 +683,7 @@ static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec) {
         ast::c_expr rhs = parse_cexpr_bin(ls, nprec);
         ast::c_expr bin;
         bin.type = ast::c_expr_type::BINARY;
+        bin.bin.op = op;
         bin.bin.lhs = expr_dup(std::move(lhs)).release();
         bin.bin.rhs = expr_dup(std::move(rhs)).release();
         lhs = std::move(bin);

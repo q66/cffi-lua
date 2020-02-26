@@ -72,6 +72,13 @@ void make_cdata(
         case ast::c_object_type::VARIABLE:
             make_cdata_var(L, dl, obj->as<ast::c_variable>(), name);
             return;
+        case ast::c_object_type::CONSTANT: {
+            auto &cd = obj->as<ast::c_constant>();
+            lua_push_cdata(
+                L, cd.type(), const_cast<ast::c_value *>(&cd.value())
+            );
+            return;
+        }
         default:
             luaL_error(
                 L, "missing declaration for symbol '%s'", obj->name.c_str()

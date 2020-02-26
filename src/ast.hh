@@ -62,6 +62,7 @@ enum class c_object_type {
     INVALID = 0,
     FUNCTION,
     VARIABLE,
+    CONSTANT,
     TYPEDEF,
     STRUCT,
     ENUM,
@@ -426,6 +427,32 @@ private:
     c_type p_type;
 };
 
+struct c_constant: c_object {
+    c_constant(std::string cname, c_type ctype, c_value const &cval):
+        c_object{std::move(cname)}, p_type{std::move(ctype)}, p_value{cval}
+    {}
+
+    c_object_type obj_type() const {
+        return c_object_type::CONSTANT;
+    }
+
+    void do_serialize(std::string &o) const {
+        p_type.do_serialize(o);
+    }
+
+    c_type const &type() const {
+        return p_type;
+    }
+
+    c_value const &value() const {
+        return p_value;
+    }
+
+private:
+    c_type p_type;
+    c_value p_value;
+};
+
 struct c_typedef: c_object {
     c_typedef(std::string aname, c_type btype):
         c_object{std::move(aname)}, p_type{std::move(btype)}
@@ -498,8 +525,16 @@ struct c_enum: c_object {
         o += this->name;
     }
 
+    std::vector<field> const &fields() const {
+        return p_fields;
+    }
+
 private:
     std::vector<field> p_fields;
+};
+
+struct redefine_error: public std::runtime_error {
+    using std::runtime_error::runtime_error;
 };
 
 /* takes unique ownership of the pointer */

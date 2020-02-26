@@ -6,6 +6,12 @@ ffi.cdef [[
     char *strdup(char const *x);
     void *memcpy(void *dest, const void *src, size_t num);
     void free(void *p);
+
+    enum test {
+        FIRST = 1, SECOND, THIRD, FOURTH,
+
+        SOME_FLAG = 1 << 4
+    };
 ]]
 
 print("## BEGIN TESTS ##")
@@ -40,6 +46,11 @@ ffi.C.memcpy(foo, "<redacted>", 10);
 bar = ffi.string(foo)
 print("converted back to string: " .. bar)
 ffi.C.free(foo)
+print()
+
+print("# enum constants")
+print("ffi.C.THIRD = " .. ffi.C.THIRD)
+print("ffi.C.SOME_FLAG = " .. ffi.C.SOME_FLAG)
 print()
 
 print("## END TESTS ##")

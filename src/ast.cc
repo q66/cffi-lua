@@ -4,6 +4,8 @@
 
 namespace ast {
 
+/* FIXME: implement actual integer promotions etc */
+
 static c_value eval_unary(c_expr const &e) {
     c_value baseval = e.un.expr->eval();
     switch (e.un.op) {
@@ -246,9 +248,26 @@ static std::vector<std::unique_ptr<c_object>> decl_list;
 static std::unordered_map<std::string, c_object const *> decl_map;
 
 void add_decl(c_object *decl) {
+    if (decl_map.find(decl->name) != decl_map.end()) {
+        throw redefine_error{decl->name};
+    }
+
     decl_list.emplace_back(decl);
     auto &d = *decl_list.back();
     decl_map.emplace(d.name, &d);
+
+    /* enums: register fields as constant values
+     * FIXME: don't hardcode like this
+     */
+    if (d.obj_type() == c_object_type::ENUM) {
+        for (auto &fld: d.as<c_enum>().fields()) {
+            c_value val;
+            val.i = fld.value;
+            add_decl(
+                new c_constant{fld.name, c_type{"int", C_BUILTIN_INT, 0}, val}
+            );
+        }
+    }
 }
 
 c_object const *lookup_decl(std::string const &name) {
