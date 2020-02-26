@@ -1050,13 +1050,33 @@ static void parse_decls(lex_state &ls) {
     }
 }
 
-void parse(std::string const &input) {
-    lex_state ls{input.c_str(), input.c_str() + input.size()};
+void parse(char const *input, char const *iend) {
+    if (!iend) {
+        iend = input + strlen(input);
+    }
+    lex_state ls{input, iend};
 
     /* read first token */
     ls.get();
 
     parse_decls(ls);
+}
+
+void parse(std::string const &input) {
+    parse(input.c_str(), input.c_str() + input.size());
+}
+
+ast::c_type parse_type(char const *input, char const *iend) {
+    if (!iend) {
+        iend = input + strlen(input);
+    }
+    lex_state ls{input, iend};
+    ls.get();
+    return parse_type(ls);
+}
+
+ast::c_type parse_type(std::string const &input) {
+    return parse_type(input.c_str(), input.c_str() + input.size());
 }
 
 } /* namespace parser */

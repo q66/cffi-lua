@@ -22,12 +22,12 @@ print("namespace data: " .. tostring(ffi.C))
 print()
 
 print("# string printing")
-ret = ffi.C.puts("hello world")
+local ret = ffi.C.puts("hello world")
 print("received from puts: " .. ret)
 print()
 
 print("# strtod")
-test = ffi.C.strtod(tostring(22 / 7), nil)
+local test = ffi.C.strtod(tostring(22 / 7), nil)
 print("strtod(tostring(22 / 7)) == " .. tostring(test))
 print()
 
@@ -36,17 +36,17 @@ print(pcall(ffi.C.strtod, 150, nil))
 print()
 
 print("# strdup")
-input = "some random string"
+local input = "some random string"
 print("input: " .. input)
 
-foo = ffi.C.strdup(input)
+local foo = ffi.C.strdup(input)
 print("dup'd: " .. tostring(foo))
 
 ffi.C.memcpy(foo, "<redacted>", 10);
 print("second character: " .. string.char(foo[1]))
 print("setting second character to R...")
 foo[1] = string.byte("R")
-bar = ffi.string(foo)
+local bar = ffi.string(foo)
 print("converted back to string: " .. bar)
 ffi.C.free(foo)
 print()

@@ -180,8 +180,17 @@ struct ffi_module {
         return 0;
     }
 
-    static int new_f(lua_State *) {
-        return 0;
+    static int new_f(lua_State *L) {
+        /* TODO: implement ctypes */
+        auto tp = parser::parse_type(luaL_checkstring(L, 1));
+        ast::c_value stor{};
+        if (lua_gettop(L) >= 2) {
+            ffi::lua_check_cdata(L, tp, &stor, 2);
+        } else {
+            memset(&stor, 0, sizeof(stor));
+        }
+        ffi::lua_push_cdata(L, tp, &stor);
+        return 1;
     }
 
     static int string_f(lua_State *L) {
