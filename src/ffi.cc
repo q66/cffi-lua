@@ -51,7 +51,7 @@ static void make_cdata_func(
 static void make_cdata_var(
     lua_State *L, lib::handle dl, ast::c_variable const &var, char const *name
 ) {
-    auto symp = lib::get_var(dl, name);
+    void *symp = lib::get_var(dl, name);
     if (!symp) {
         luaL_error(L, "undefined symbol: %s", name);
     }

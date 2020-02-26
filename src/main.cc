@@ -18,9 +18,41 @@ struct lib_meta {
 
     static int index(lua_State *L) {
         auto dl = *lua::touserdata<lib::handle>(L, 1);
-        char const *fname = luaL_checkstring(L, 2);
-        ffi::make_cdata(L, dl, ast::lookup_decl(fname), fname);
+        char const *sname = luaL_checkstring(L, 2);
+        ffi::make_cdata(L, dl, ast::lookup_decl(sname), sname);
         return 1;
+    }
+
+    static int newindex(lua_State *L) {
+        auto dl = *lua::touserdata<lib::handle>(L, 1);
+        char const *sname = luaL_checkstring(L, 2);
+
+        auto const *decl = ast::lookup_decl(sname);
+        if (!decl) {
+            luaL_error(
+                L, "missing declaration for symbol '%s'", decl->name.c_str()
+            );
+            return 0;
+        }
+        if (decl->obj_type() != ast::c_object_type::VARIABLE) {
+            luaL_error(L, "symbol '%s' is not mutable", decl->name.c_str());
+        }
+
+        void *symp = lib::get_var(dl, sname);
+        if (!symp) {
+            luaL_error(L, "undefined symbol: %s", sname);
+            return 0;
+        }
+
+        /* FIXME: find a nicer way to get the data written...
+         * the union cast is moderately unsafe but should work as long
+         * as the typechecking is right, and if it's not, oh well
+         */
+        ffi::lua_check_cdata(
+            L, decl->as<ast::c_variable>().type(),
+            static_cast<ast::c_value *>(symp), 3
+        );
+        return 0;
     }
 
     static void setup(lua_State *L) {
@@ -33,6 +65,9 @@ struct lib_meta {
 
         lua_pushcfunction(L, index);
         lua_setfield(L, -2, "__index");
+
+        lua_pushcfunction(L, newindex);
+        lua_setfield(L, -2, "__newindex");
 
         lua_setmetatable(L, -2);
         lua_setfield(L, -2, "C");
@@ -63,8 +98,7 @@ struct cdata_meta {
 
     static int call(lua_State *L) {
         auto *decl = lua::touserdata<ast::c_type>(L, 1);
-        auto t = decl->type();
-        switch (t) {
+        switch (decl->type()) {
             case ast::C_BUILTIN_FPTR:
             case ast::C_BUILTIN_FUNC:
                 break;
@@ -79,6 +113,42 @@ struct cdata_meta {
         );
     }
 
+    template<typename F>
+    static void index_common(lua_State *L, F &&func) {
+        auto *cd = lua::touserdata<ffi::cdata<void **>>(L, 1);
+        /* TODO: add arrays */
+        switch (cd->decl.type()) {
+            case ast::C_BUILTIN_PTR:
+                break;
+            default: {
+                auto s = cd->decl.serialize();
+                luaL_error(L, "'%s' is not indexable", s.c_str());
+                break;
+            }
+        }
+        auto sidx = luaL_checkinteger(L, 2);
+        luaL_argcheck(L, sidx >= 0, 2, "index is negative");
+        auto *ptr = reinterpret_cast<unsigned char *>(cd->val);
+        auto *type = ffi::get_ffi_type(cd->decl.ptr_base());
+        func(*cd, static_cast<void *>(&ptr[sidx * type->size]));
+    }
+
+    static int index(lua_State *L) {
+        index_common(L, [L](auto &cd, void *val) {
+            ffi::lua_push_cdata(L, cd.decl.ptr_base(), val);
+        });
+        return 1;
+    }
+
+    static int newindex(lua_State *L) {
+        index_common(L, [L](auto &cd, void *val) {
+            ffi::lua_check_cdata(
+                L, cd.decl.ptr_base(), static_cast<ast::c_value *>(val), 3
+            );
+        });
+        return 0;
+    }
+
     static void setup(lua_State *L) {
         if (!luaL_newmetatable(L, "cffi_cdata_handle")) {
             luaL_error(L, "unexpected error: registry reinitialized");
@@ -89,6 +159,12 @@ struct cdata_meta {
 
         lua_pushcfunction(L, call);
         lua_setfield(L, -2, "__call");
+
+        lua_pushcfunction(L, index);
+        lua_setfield(L, -2, "__index");
+
+        lua_pushcfunction(L, newindex);
+        lua_setfield(L, -2, "__newindex");
 
         lua_pushcfunction(L, tostring);
         lua_setfield(L, -2, "__tostring");

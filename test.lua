@@ -43,6 +43,9 @@ foo = ffi.C.strdup(input)
 print("dup'd: " .. tostring(foo))
 
 ffi.C.memcpy(foo, "<redacted>", 10);
+print("second character: " .. string.char(foo[1]))
+print("setting second character to R...")
+foo[1] = string.byte("R")
 bar = ffi.string(foo)
 print("converted back to string: " .. bar)
 ffi.C.free(foo)
