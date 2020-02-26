@@ -96,7 +96,7 @@ enum class c_expr_binop {
     MOD,  // %
 
     EQ,   // ==
-    NQ,   // !=
+    NEQ,  // !=
     GT,   // >
     LT,   // <
     GE,   // >=

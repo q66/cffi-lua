@@ -30,10 +30,14 @@ namespace parser {
 #define KW(x) TOK_##x
 
 /* a token is an int, single-char tokens are just their ascii */
+/* TOK_NAME must be the first pre-keyword token! */
 enum c_token {
     TOK_CUSTOM = 257,
 
-    TOK_INTEGER = TOK_CUSTOM, TOK_NAME, KEYWORDS
+    TOK_EQ = TOK_CUSTOM, TOK_NEQ, TOK_GE, TOK_LE,
+    TOK_AND, TOK_OR, TOK_LSH, TOK_RSH,
+
+    TOK_INTEGER, TOK_NAME, KEYWORDS
 };
 
 #undef KW
@@ -44,7 +48,12 @@ enum c_token {
 
 #define KW(x) #x
 
-static char const *tokens[] = { "<integer>", "<name>", KEYWORDS };
+static char const *tokens[] = {
+    "==", "!=", ">=", "<=",
+    "&&", "||", "<<", ">>",
+
+    "<integer>", "<name>", KEYWORDS
+};
 
 #undef KW
 
@@ -348,6 +357,53 @@ private:
                     next_char();
                 }
                 continue;
+            }
+            /* =, == */
+            case '=':
+                next_char();
+                if (current == '=') {
+                    next_char();
+                    return TOK_EQ;
+                }
+                return '=';
+            /* !, != */
+            case '!':
+                next_char();
+                if (current == '=') {
+                    next_char();
+                    return TOK_NEQ;
+                }
+                return '!';
+            /* >, >>, >= */
+            case '>':
+                next_char();
+                if (current == '>') {
+                    next_char();
+                    return TOK_RSH;
+                } else if (current == '=') {
+                    next_char();
+                    return TOK_GE;
+                }
+                return '>';
+            /* <, <<, <= */
+            case '<':
+                next_char();
+                if (current == '<') {
+                    next_char();
+                    return TOK_LSH;
+                } else if (current == '=') {
+                    next_char();
+                    return TOK_LE;
+                }
+                return '<';
+            case '&':
+            case '|': {
+                int c = current;
+                next_char();
+                if (current != c) {
+                    return c;
+                }
+                return (c == '&') ? TOK_AND : TOK_OR;
             }
             /* single-char tokens, keywords */
             default: {
