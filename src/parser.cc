@@ -563,11 +563,38 @@ static int parse_cv(lex_state &ls) {
     return quals;
 }
 
+static ast::c_type parse_type_ptr(
+    lex_state &ls, ast::c_type tp, bool allow_void
+) {
+    for (;;) {
+        /* right-side cv */
+        tp.cv(parse_cv(ls));
+        /* for contexts where void is not allowed,
+         * anything void-based must be a pointer
+         */
+        if (!allow_void && (tp.type() == ast::C_BUILTIN_VOID)) {
+            check(ls, '*');
+        }
+        /* pointers plus their right side qualifiers */
+        if (ls.t.token == '*') {
+            ls.get();
+            ast::c_type ptp{std::move(tp), parse_cv(ls)};
+            using CT = ast::c_type;
+            tp.~CT();
+            new (&tp) ast::c_type{std::move(ptp)};
+        } else {
+            break;
+        }
+    }
+
+    return tp;
+}
+
 /* a bit naive for now, and builtins could be handled better (we don't care
  * about the real signatures, only about their sizes and signedness and so
  * on to provide to the codegen) but it's a start
  */
-static ast::c_type parse_type(lex_state &ls) {
+static ast::c_type parse_type(lex_state &ls, bool allow_void = false) {
     /* left-side cv */
     int quals = parse_cv(ls);
 
@@ -687,23 +714,7 @@ static ast::c_type parse_type(lex_state &ls) {
             break;
     }
 
-    ast::c_type tp{tname, cbt, quals};
-    for (;;) {
-        /* right-side cv */
-        tp.cv(parse_cv(ls));
-        /* pointers plus their right side qualifiers */
-        if (ls.t.token == '*') {
-            ls.get();
-            ast::c_type ptp{std::move(tp), parse_cv(ls)};
-            using CT = ast::c_type;
-            tp.~CT();
-            new (&tp) ast::c_type{std::move(ptp)};
-        } else {
-            break;
-        }
-    }
-
-    return std::move(tp);
+    return parse_type_ptr(ls, ast::c_type{tname, cbt, quals}, allow_void);
 }
 
 /* two syntaxes allowed by C:
@@ -780,7 +791,7 @@ static void parse_decl(lex_state &ls) {
             break;
     }
 
-    auto tp = parse_type(ls);
+    auto tp = parse_type(ls, true);
     if (ls.t.token == TOK_typedef) {
         /* weird ass infix syntax: FROM typedef TO; */
         ls.get();
@@ -791,6 +802,11 @@ static void parse_decl(lex_state &ls) {
     check(ls, TOK_NAME);
     std::string dname = ls.t.value_s;
     ls.get();
+
+    /* leftmost type is plain void; so it must be a function */
+    if (tp.type() == ast::C_BUILTIN_VOID) {
+        check(ls, '(');
+    }
 
     if (ls.t.token == ';') {
         ls.stage_decl(new ast::c_variable{std::move(dname), std::move(tp)});
