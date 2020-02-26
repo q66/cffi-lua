@@ -1,6 +1,124 @@
+#include <cassert>
+
 #include "ast.hh"
 
 namespace ast {
+
+static c_value eval_unary(c_expr const &e) {
+    c_value baseval = e.un.expr->eval();
+    switch (e.un.op) {
+        case c_expr_unop::UNP:
+            break;
+        case c_expr_unop::UNM:
+            baseval.i = -baseval.i;
+            break;
+        case c_expr_unop::NOT:
+            baseval.i = !baseval.i;
+            break;
+        case c_expr_unop::BNOT:
+            baseval.i = ~baseval.i;
+            break;
+        default:
+            assert(false);
+            break;
+    }
+    return baseval;
+}
+
+static c_value eval_binary(c_expr const &e) {
+    c_value lval = e.bin.lhs->eval();
+    c_value rval = e.bin.rhs->eval();
+    c_value ret;
+    switch (e.bin.op) {
+        case c_expr_binop::ADD:
+            ret.i = lval.i + rval.i; break;
+        case c_expr_binop::SUB:
+            ret.i = lval.i - rval.i; break;
+        case c_expr_binop::MUL:
+            ret.i = lval.i * rval.i; break;
+        case c_expr_binop::DIV:
+            ret.i = lval.i / rval.i; break;
+        case c_expr_binop::MOD:
+            ret.i = lval.i % rval.i; break;
+
+        case c_expr_binop::EQ:
+            ret.i = (lval.i == rval.i); break;
+        case c_expr_binop::NEQ:
+            ret.i = (lval.i != rval.i); break;
+        case c_expr_binop::GT:
+            ret.i = (lval.i > rval.i); break;
+        case c_expr_binop::LT:
+            ret.i = (lval.i < rval.i); break;
+        case c_expr_binop::GE:
+            ret.i = (lval.i >= rval.i); break;
+        case c_expr_binop::LE:
+            ret.i = (lval.i <= rval.i); break;
+
+        case c_expr_binop::AND:
+            ret.i = lval.i && rval.i; break;
+        case c_expr_binop::OR:
+            ret.i = lval.i || rval.i; break;
+
+        case c_expr_binop::BAND:
+            ret.i = lval.i & rval.i; break;
+        case c_expr_binop::BOR:
+            ret.i = lval.i | rval.i; break;
+        case c_expr_binop::BXOR:
+            ret.i = lval.i ^ rval.i; break;
+        case c_expr_binop::LSH:
+            ret.i = lval.i << rval.i; break;
+        case c_expr_binop::RSH:
+            ret.i = lval.i >> rval.i; break;
+
+        default:
+            assert(false);
+            break;
+    }
+    return ret;
+}
+
+static c_value eval_ternary(c_expr const &e) {
+    c_value cval = e.tern.cond->eval();
+    if (cval.i) {
+        return e.tern.texpr->eval();
+    }
+    return e.tern.fexpr->eval();
+}
+
+c_value c_expr::eval() const {
+    c_value ret;
+    switch (type) {
+        case c_expr_type::BINARY:
+            return eval_binary(*this);
+        case c_expr_type::UNARY:
+            return eval_unary(*this);
+        case c_expr_type::TERNARY:
+            return eval_ternary(*this);
+        case c_expr_type::INT:
+            ret.i = val.i; break;
+        case c_expr_type::UINT:
+            ret.i = int(val.u); break;
+        case c_expr_type::LONG:
+            ret.i = int(val.l); break;
+        case c_expr_type::ULONG:
+            ret.i = int(val.ul); break;
+        case c_expr_type::LLONG:
+            ret.i = int(val.ll); break;
+        case c_expr_type::ULLONG:
+            ret.i = int(val.ull); break;
+        case c_expr_type::FLOAT:
+            ret.i = int(val.f); break;
+        case c_expr_type::DOUBLE:
+            ret.i = int(val.d); break;
+        case c_expr_type::CHAR:
+            ret.i = int(val.c); break;
+        case c_expr_type::BOOL:
+            ret.i = int(val.b); break;
+        default:
+            ret.i = 0; break;
+    }
+    return ret;
+}
 
 void c_param::do_serialize(std::string &o) const {
     p_type.do_serialize(o);

@@ -215,6 +215,8 @@ struct c_expr {
         c_value val;
     };
 
+    c_value eval() const;
+
 private:
     void clear() {
         switch (type) {
@@ -480,7 +482,7 @@ struct c_enum: c_object {
         {}
 
         std::string name;
-        int value; /* for now, we only support fields that fit in an int */
+        int value; /* FIXME: make a c_expr */
     };
 
     c_enum(std::string ename, std::vector<field> fields):

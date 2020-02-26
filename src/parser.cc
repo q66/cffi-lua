@@ -918,14 +918,42 @@ static void parse_struct(lex_state &ls) {
 static void parse_enum(lex_state &ls) {
     ls.get();
 
-    std::string name;
+    /* name is optional */
+    std::string ename;
     if (ls.t.token == TOK_NAME) {
-        /* name is optional */
-        name = ls.t.value_s;
+        ename = ls.t.value_s;
         ls.get();
     }
 
+    int linenum = ls.line_number;
+    check_next(ls, '{');
+
     std::vector<ast::c_enum::field> fields;
+
+    while (ls.t.token != '}') {
+        check(ls, TOK_NAME);
+        std::string fname = ls.t.value_s;
+        ls.get();
+        if (ls.t.token == '=') {
+            ls.get();
+            auto exp = parse_cexpr(ls);
+            auto val = exp.eval();
+            fields.emplace_back(std::move(fname), val.i);
+        } else {
+            fields.emplace_back(
+                std::move(fname), fields.empty() ? 0 : (fields.back().value + 1)
+            );
+        }
+        if (ls.t.token != ',') {
+            break;
+        } else {
+            ls.get();
+        }
+    }
+
+    check_match(ls, '}', '{', linenum);
+
+    ls.stage_decl(new ast::c_enum{std::move(ename), std::move(fields)});
 }
 
 static void parse_decl(lex_state &ls) {
