@@ -419,13 +419,38 @@ private:
 };
 
 struct c_struct: c_object {
+    struct field {
+        field(std::string nm, c_type &&tp):
+            name{std::move(nm)}, type(std::move(tp))
+        {}
+
+        std::string name;
+        c_type type;
+    };
+
+    c_struct(std::string ename, std::vector<field> fields):
+        c_object{std::move(ename)}, p_fields{std::move(fields)}
+    {}
+
     c_object_type obj_type() const {
         return c_object_type::STRUCT;
     }
+
+    void do_serialize(std::string &o) const {
+        o += "struct ";
+        o += this->name;
+    }
+
+private:
+    std::vector<field> p_fields;
 };
 
 struct c_enum: c_object {
     struct field {
+        field(std::string nm, int val):
+            name{std::move(nm)}, value(val)
+        {}
+
         std::string name;
         int value; /* for now, we only support fields that fit in an int */
     };
@@ -436,6 +461,11 @@ struct c_enum: c_object {
 
     c_object_type obj_type() const {
         return c_object_type::ENUM;
+    }
+
+    void do_serialize(std::string &o) const {
+        o += "enum ";
+        o += this->name;
     }
 
 private:

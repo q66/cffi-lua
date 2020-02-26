@@ -655,7 +655,31 @@ static void parse_typedef(lex_state &ls, ast::c_type &&tp) {
 }
 
 static void parse_struct(lex_state &ls) {
-    ls.get();
+    ls.get(); /* struct keyword */
+
+    /* name is optional */
+    std::string sname;
+    if (ls.t.token == TOK_NAME) {
+        sname = ls.t.value_s;
+        ls.get();
+    }
+
+    int linenum = ls.line_number;
+    check_next(ls, '{');
+
+    std::vector<ast::c_struct::field> fields;
+
+    while (ls.t.token != '}') {
+        auto ft = parse_type(ls);
+        check(ls, TOK_NAME);
+        fields.emplace_back(ls.t.value_s, std::move(ft));
+        ls.get();
+        check_next(ls, ';');
+    }
+
+    check_match(ls, '}', '{', linenum);
+
+    ast::add_decl(new ast::c_struct{std::move(sname), std::move(fields)});
 }
 
 static void parse_enum(lex_state &ls) {
@@ -750,10 +774,7 @@ static void parse_decls(lex_state &ls) {
         if (!ls.t.token) {
             break;
         }
-        if (ls.t.token != ';') {
-            ls.syntax_error("';' expected");
-        }
-        ls.get();
+        check_next(ls, ';');
     }
 }
 
