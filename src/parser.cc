@@ -1,5 +1,6 @@
 #include <cstring>
 #include <cctype>
+#include <cassert>
 
 #include <string>
 #include <unordered_map>
@@ -144,6 +145,15 @@ struct lex_state {
 
     void syntax_error(std::string const &msg) {
         lex_error(msg, t.token);
+    }
+
+    void stage_decl(ast::c_object *obj) {
+        assert(!p_staged);
+        p_staged = std::unique_ptr<ast::c_object>{obj};
+    }
+
+    void commit() {
+        ast::add_decl(p_staged.release());
     }
 
 private:
@@ -396,6 +406,7 @@ private:
                     return TOK_LE;
                 }
                 return '<';
+            /* &, &&, |, || */
             case '&':
             case '|': {
                 int c = current;
@@ -405,13 +416,12 @@ private:
                 }
                 return (c == '&') ? TOK_AND : TOK_OR;
             }
-            /* single-char tokens, keywords */
+            /* single-char tokens, number literals, keywords, names */
             default: {
                 if (isspace(current)) {
                     next_char();
                     continue;
                 } else if (isdigit(current)) {
-                    p_buf.clear();
                     read_integer(tok);
                     return TOK_INTEGER;
                 }
@@ -447,7 +457,7 @@ private:
     char const *stream;
     char const *send;
 
-    std::string p_buf;
+    std::unique_ptr<ast::c_object> p_staged;
 
 public:
     int line_number = 1;
@@ -705,7 +715,7 @@ static void parse_typedef(lex_state &ls, ast::c_type &&tp) {
     std::string aname = ls.t.value_s;
     ls.get();
 
-    ast::add_decl(new ast::c_typedef{std::move(aname), std::move(tp)});
+    ls.stage_decl(new ast::c_typedef{std::move(aname), std::move(tp)});
 }
 
 static void parse_struct(lex_state &ls) {
@@ -733,7 +743,7 @@ static void parse_struct(lex_state &ls) {
 
     check_match(ls, '}', '{', linenum);
 
-    ast::add_decl(new ast::c_struct{std::move(sname), std::move(fields)});
+    ls.stage_decl(new ast::c_struct{std::move(sname), std::move(fields)});
 }
 
 static void parse_enum(lex_state &ls) {
@@ -782,7 +792,7 @@ static void parse_decl(lex_state &ls) {
     ls.get();
 
     if (ls.t.token == ';') {
-        ast::add_decl(new ast::c_variable{std::move(dname), std::move(tp)});
+        ls.stage_decl(new ast::c_variable{std::move(dname), std::move(tp)});
         return;
     } else if (ls.t.token != '(') {
         check(ls, ';');
@@ -812,7 +822,7 @@ static void parse_decl(lex_state &ls) {
         break;
     }
 
-    ast::add_decl(new ast::c_function{
+    ls.stage_decl(new ast::c_function{
         std::move(dname), std::move(tp), std::move(params)
     });
 }
@@ -829,6 +839,10 @@ static void parse_decls(lex_state &ls) {
             break;
         }
         check_next(ls, ';');
+        /* one declaration per statement, commit whatever into list
+         * FIXME: stage multiple and commit at the end of parse
+         */
+        ls.commit();
     }
 }
 
