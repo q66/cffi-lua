@@ -535,6 +535,164 @@ static void check_match(lex_state &ls, int what, int who, int where) {
     }
 }
 
+static ast::c_expr_binop get_binop(int tok) {
+    switch (tok) {
+        case '+': return ast::c_expr_binop::ADD;
+        case '-': return ast::c_expr_binop::SUB;
+        case '*': return ast::c_expr_binop::MUL;
+        case '/': return ast::c_expr_binop::DIV;
+        case '%': return ast::c_expr_binop::MOD;
+
+        case TOK_EQ:  return ast::c_expr_binop::EQ;
+        case TOK_NEQ: return ast::c_expr_binop::NEQ;
+        case '>':     return ast::c_expr_binop::GT;
+        case '<':     return ast::c_expr_binop::LT;
+        case TOK_GE:  return ast::c_expr_binop::GE;
+        case TOK_LE:  return ast::c_expr_binop::LE;
+
+        case TOK_AND: return ast::c_expr_binop::AND;
+        case TOK_OR:  return ast::c_expr_binop::OR;
+
+        case '&':     return ast::c_expr_binop::BAND;
+        case '|':     return ast::c_expr_binop::BOR;
+        case '^':     return ast::c_expr_binop::BXOR;
+        case TOK_LSH: return ast::c_expr_binop::LSH;
+        case TOK_RSH: return ast::c_expr_binop::RSH;
+
+        default: return ast::c_expr_binop::INVALID;
+    }
+}
+
+static ast::c_expr_unop get_unop(int tok) {
+    switch (tok) {
+        case '+': return ast::c_expr_unop::UNP;
+        case '-': return ast::c_expr_unop::UNM;
+        case '!': return ast::c_expr_unop::NOT;
+        case '~': return ast::c_expr_unop::BNOT;
+
+        default: return ast::c_expr_unop::INVALID;
+    }
+}
+
+/* operator precedences as defined by the C standard, as ugly as that is... */
+
+/* matches layout of c_expr_binop */
+static constexpr int binprec[] = {
+    -1, // invalid
+
+    10,  // +
+    10,  // -
+    11, // *
+    11, // /
+    11, // %
+
+    7,  // ==
+    7,  // !=
+    8,  // >
+    8,  // <
+    8,  // >=
+    8,  // <=
+
+    3,  // &&
+    2,  // ||
+
+    6,  // &
+    4,  // |
+    5,  // ^
+    9,  // <<
+    9,  // >>
+};
+
+static constexpr int unprec = 11;
+static constexpr int ifprec = 1;
+
+static std::unique_ptr<ast::c_expr> expr_dup(ast::c_expr &&exp) {
+    return std::make_unique<ast::c_expr>(std::move(exp));
+}
+
+static ast::c_expr parse_cexpr(lex_state &ls);
+static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec);
+
+static ast::c_expr parse_cexpr_simple(lex_state &ls) {
+    auto unop = get_unop(ls.t.token);
+    if (unop != ast::c_expr_unop::INVALID) {
+        ls.get();
+        auto exp = parse_cexpr_bin(ls, unprec);
+        ast::c_expr unexp;
+        unexp.type = ast::c_expr_type::UNARY;
+        unexp.un.op = unop;
+        unexp.un.expr = expr_dup(std::move(exp)).release();
+        return unexp;
+    }
+    /* FIXME: implement non-integer constants */
+    switch (ls.t.token) {
+        case TOK_INTEGER: {
+            ast::c_expr ret;
+            ret.type = ls.t.numtag;
+            memcpy(&ret.val, &ls.t.value, sizeof(ls.t.value));
+            return ret;
+        }
+        case '(': {
+            int line = ls.line_number;
+            ls.get();
+            auto ret = parse_cexpr(ls);
+            check_match(ls, ')', '(', line);
+            return ret;
+        }
+        default:
+            ls.syntax_error("unexpected symbol");
+            break;
+    }
+    return ast::c_expr{}; /* unreachable */
+}
+
+static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec) {
+    auto lhs = parse_cexpr_simple(ls);
+    for (;;) {
+        bool istern = (ls.t.token == '?');
+        ast::c_expr_binop op;
+        int prec;
+        if (istern) {
+            prec = ifprec;
+        } else {
+            op = get_binop(ls.t.token);
+            prec = binprec[int(op)];
+        }
+        /* also matches when prec == -1 (for ast::c_expr_binop::INVALID) */
+        if (prec < min_prec) {
+            break;
+        }
+        ls.get();
+        if (istern) {
+            ast::c_expr texp = parse_cexpr(ls);
+            check_next(ls, ':');
+            ast::c_expr fexp = parse_cexpr_bin(ls, ifprec);
+            ast::c_expr tern;
+            tern.type = ast::c_expr_type::TERNARY;
+            tern.tern.cond = expr_dup(std::move(lhs)).release();
+            tern.tern.texpr = expr_dup(std::move(texp)).release();
+            tern.tern.fexpr = expr_dup(std::move(fexp)).release();
+            lhs = std::move(tern);
+            continue;
+        }
+        /* for right associative this would be prec, we don't
+         * have those except ternary which is handled specially
+         */
+        int nprec = prec + 1;
+        ast::c_expr rhs = parse_cexpr_bin(ls, nprec);
+        ast::c_expr bin;
+        bin.type = ast::c_expr_type::BINARY;
+        bin.bin.lhs = expr_dup(std::move(lhs)).release();
+        bin.bin.rhs = expr_dup(std::move(rhs)).release();
+        lhs = std::move(bin);
+    }
+    return lhs;
+}
+
+static ast::c_expr parse_cexpr(lex_state &ls) {
+    return parse_cexpr_bin(ls, 1);
+}
+
 static int parse_cv(lex_state &ls) {
     int quals = 0;
 

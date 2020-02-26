@@ -1,6 +1,8 @@
 #ifndef AST_HH
 #define AST_HH
 
+#include <cstring>
+
 #include <vector>
 #include <unordered_map>
 #include <memory>
@@ -87,6 +89,7 @@ enum class c_expr_type {
     TERNARY
 };
 
+/* don't forget to update precedences in parser when adding to this */
 enum class c_expr_binop {
     INVALID = 0,
     ADD,  // +
@@ -164,23 +167,26 @@ union c_value {
 };
 
 struct c_expr {
+    c_expr(): type(c_expr_type::INVALID) {}
+
+    c_expr(c_expr const &) = delete;
+    c_expr(c_expr &&e): type(e.type) {
+        e.type = c_expr_type::INVALID;
+        /* copy largest union */
+        memcpy(&tern, &e.tern, sizeof(e.tern));
+    }
+
+    c_expr &operator=(c_expr const &) = delete;
+    c_expr &operator=(c_expr &&e) {
+        clear();
+        type = e.type;
+        e.type = c_expr_type::INVALID;
+        memcpy(&tern, &e.tern, sizeof(e.tern));
+        return *this;
+    }
+
     ~c_expr() {
-        switch (type) {
-            case c_expr_type::UNARY:
-                delete un.expr;
-                break;
-            case c_expr_type::BINARY:
-                delete bin.lhs;
-                delete bin.rhs;
-                break;
-            case c_expr_type::TERNARY:
-                delete tern.cond;
-                delete tern.texpr;
-                delete tern.fexpr;
-                break;
-            default:
-                break;
-        }
+        clear();
     }
 
     c_expr_type type;
@@ -208,6 +214,26 @@ struct c_expr {
         ternary tern;
         c_value val;
     };
+
+private:
+    void clear() {
+        switch (type) {
+            case c_expr_type::UNARY:
+                delete un.expr;
+                break;
+            case c_expr_type::BINARY:
+                delete bin.lhs;
+                delete bin.rhs;
+                break;
+            case c_expr_type::TERNARY:
+                delete tern.cond;
+                delete tern.texpr;
+                delete tern.fexpr;
+                break;
+            default:
+                break;
+        }
+    }
 };
 
 struct c_object {
