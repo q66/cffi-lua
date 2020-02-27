@@ -173,6 +173,61 @@ struct cdata_meta {
     }
 };
 
+/* represents lua-side type definition */
+struct ctype_meta {
+    static int gc(lua_State *L) {
+        auto &decl = *lua::touserdata<ast::c_type>(L, 1);
+        using T = ast::c_type;
+        decl.~T();
+        return 0;
+    }
+
+    static int tostring(lua_State *L) {
+        auto &decl = *lua::touserdata<ast::c_type>(L, 1);
+        lua_pushfstring(L, "ctype<%s>", decl.serialize().c_str());
+        return 1;
+    }
+
+    static int call(lua_State *L) {
+        auto &decl = *lua::touserdata<ast::c_type>(L, 1);
+        switch (decl.type()) {
+            case ast::C_BUILTIN_FUNC:
+                luaL_argcheck(
+                    L, false, 1, "function types cannot be instantiated"
+                );
+                break;
+            default: {
+                break;
+            }
+        }
+        ast::c_value stor{};
+        if (lua_gettop(L) >= 2) {
+            ffi::lua_check_cdata(L, decl, &stor, 2);
+        } else {
+            memset(&stor, 0, sizeof(stor));
+        }
+        ffi::lua_push_cdata(L, decl, &stor);
+        return 1;
+    }
+
+    static void setup(lua_State *L) {
+        if (!luaL_newmetatable(L, "cffi_ctype_handle")) {
+            luaL_error(L, "unexpected error: registry reinitialized");
+        }
+
+        lua_pushcfunction(L, gc);
+        lua_setfield(L, -2, "__gc");
+
+        lua_pushcfunction(L, call);
+        lua_setfield(L, -2, "__call");
+
+        lua_pushcfunction(L, tostring);
+        lua_setfield(L, -2, "__tostring");
+
+        lua_pop(L, 1);
+    }
+};
+
 /* the ffi module itself */
 struct ffi_module {
     static int cdef_f(lua_State *L) {
@@ -181,20 +236,43 @@ struct ffi_module {
     }
 
     static int new_f(lua_State *L) {
-        /* TODO: implement ctypes */
-        auto tp = parser::parse_type(luaL_checkstring(L, 1));
-        ast::c_value stor{};
-        if (lua_gettop(L) >= 2) {
-            ffi::lua_check_cdata(L, tp, &stor, 2);
+        /* stack: <first arg> <other args> */
+        int nargs = lua_gettop(L);
+        /* first arg: ctype */
+        if (luaL_testudata(L, 1, "cffi_ctype_handle")) {
+            /* first arg is a ctype, duplicate it so
+             * we can call it without messing up args
+             */
+            lua_pushvalue(L, 1);
         } else {
-            memset(&stor, 0, sizeof(stor));
+            /* first arg is assumed to be a string, in that case do
+             * like a typeof below to get a ctype on top of the stack
+             */
+            auto *ud = lua::newuserdata<ast::c_type>(L);
+            new (ud) ast::c_type{parser::parse_type(luaL_checkstring(L, 1))};
+            luaL_setmetatable(L, "cffi_ctype_handle");
         }
-        ffi::lua_push_cdata(L, tp, &stor);
+        /* stack: <first arg> <other args> <ctype> */
+        lua_insert(L, 2);
+        /* stack: <first arg> <ctype> <other args> */
+        lua_call(L, nargs - 1, 1);
+        /* stack: <first arg> <retval> */
+        return 1;
+    }
+
+    static int typeof_f(lua_State *L) {
+        auto *ud = lua::newuserdata<ast::c_type>(L);
+        if (luaL_testudata(L, 1, "cffi_cdata_handle")) {
+            new (ud) ast::c_type{*lua::touserdata<ast::c_type>(L, 1)};
+        } else {
+            new (ud) ast::c_type{parser::parse_type(luaL_checkstring(L, 1))};
+        }
+        luaL_setmetatable(L, "cffi_ctype_handle");
         return 1;
     }
 
     static int string_f(lua_State *L) {
-        if (!luaL_checkudata(L, 1, "cffi_cdata_handle")) {
+        if (!luaL_testudata(L, 1, "cffi_cdata_handle")) {
             lua_pushfstring(
                 L, "cannot convert '%s' to 'char const *'",
                 luaL_typename(L, 1)
@@ -214,6 +292,7 @@ struct ffi_module {
 
             /* data handling */
             {"new", new_f},
+            {"typeof", typeof_f},
 
             /* utilities */
             {"string", string_f},
@@ -233,6 +312,9 @@ struct ffi_module {
 
         /* cdata handles */
         cdata_meta::setup(L);
+
+        /* ctype handles */
+        ctype_meta::setup(L);
     }
 };
 

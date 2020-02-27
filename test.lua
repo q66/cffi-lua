@@ -21,6 +21,10 @@ print("# main library namespace")
 print("namespace data: " .. tostring(ffi.C))
 print()
 
+print("# type of a function")
+print("ffi.C.strtod == " .. tostring(ffi.typeof(ffi.C.strtod)))
+print()
+
 print("# string printing")
 local ret = ffi.C.puts("hello world")
 print("received from puts: " .. ret)
@@ -49,6 +53,14 @@ foo[1] = string.byte("R")
 local bar = ffi.string(foo)
 print("converted back to string: " .. bar)
 ffi.C.free(foo)
+print()
+
+print("# type of a ptr")
+local pt = ffi.typeof(foo);
+print("typeof(foo) == " .. tostring(pt))
+print("instantiated via ctor == " .. tostring(pt()))
+print("instantiated via string == " .. tostring(ffi.new("char *")))
+print("instantiated via ffi.new(ct) == " .. tostring(ffi.new(pt)))
 print()
 
 print("# enum constants")

@@ -137,33 +137,18 @@ void c_function::do_serialize_full(std::string &o, bool fptr, int cv) const {
     if (o.back() != '*') {
         o += ' ';
     }
-    if (fptr) {
-        o += "(*";
-    } else {
-        o += "(";
+    if (!fptr) {
+        o += "()";
+        return;
     }
+    o += "(*";
     if (cv & C_CV_CONST) {
-        if (o.back() != '(') {
-            o += ' ';
-        }
-        o += "const";
+        o += " const";
     }
     if (cv & C_CV_VOLATILE) {
-        if (o.back() != '(') {
-            o += ' ';
-        }
-        o += "volatile";
+        o += " volatile";
     }
-    o += ")(";
-    bool first = true;
-    for (auto &p: p_params) {
-        if (!first) {
-            o += ", ";
-            first = false;
-        }
-        p.do_serialize(o);
-    }
-    o += ')';
+    o += ")()";
 }
 
 c_type::c_type(c_function tp, int qual, int cbt):
@@ -184,11 +169,12 @@ c_type::~c_type() {
 }
 
 c_type::c_type(c_type const &v): c_object{v.name}, p_type{v.p_type} {
+    bool weak = !owns();
     int tp = type();
     if ((tp == C_BUILTIN_FPTR) || (tp == C_BUILTIN_FUNC)) {
-        p_fptr = new c_function{*v.p_fptr};
+        p_fptr = weak ? v.p_fptr : new c_function{*v.p_fptr};
     } else if (tp == C_BUILTIN_PTR) {
-        p_ptr = new c_type{*v.p_ptr};
+        p_ptr = weak ? v.p_ptr : new c_type{*v.p_ptr};
     }
 }
 

@@ -387,7 +387,7 @@ void *lua_check_cdata(
         case LUA_TLIGHTUSERDATA:
             switch (tp.type()) {
                 case ast::C_BUILTIN_PTR:
-                    if (luaL_checkudata(L, index, "cffi_cdata_handle")) {
+                    if (luaL_testudata(L, index, "cffi_cdata_handle")) {
                         /* special handling for cdata */
                         /* FIXME: check type conversions... */
                         return &(stor->ptr = lua::touserdata<
