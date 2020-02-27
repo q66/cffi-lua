@@ -7,28 +7,11 @@ work on a variety of OSes and architectures.
 The project was started because there isn't any FFI for standard Lua that's
 as user friendly as LuaJIT's and doesn't have portability issues.
 
-This is currently a very rough work in progress.
+**This is currently a very rough work in progress and not suitable for production.**
 
 ## Current status
 
-Parses some basic C, runs some simple/minimal examples.
-
-TODO:
-
-- [x] Lua 5.2/5.3 support and minimal functionality
-- [ ] Correct handling of arguments and return types
-- [ ] Type conversions
-- [ ] User defined C types, typedefs
-- [x] Enums
-- [ ] Complex types
-- [ ] Variadic functions
-- [ ] Allocation API
-- [ ] Library loading API
-- [x] Abstract away `dlopen` and friends
-- [ ] Abstract away libffi code
-- [ ] Lua 5.1 and LuaJIT support
-- [ ] Windows support
-- [ ] ... TBD
+See `STATUS.md` for a detailed listing.
 
 ## Dependencies
 
