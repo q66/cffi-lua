@@ -2,6 +2,9 @@
 #define AST_HH
 
 #include <cstring>
+#include <cassert>
+
+#include "libffi.hh"
 
 #include <vector>
 #include <unordered_map>
@@ -340,6 +343,8 @@ struct c_type: c_object {
         return *p_fptr;
     }
 
+    ffi_type *libffi_type() const;
+
 private:
     /* maybe a pointer? */
     union {
@@ -373,6 +378,10 @@ struct c_param: c_object {
         return p_type;
     }
 
+    ffi_type *libffi_type() const {
+        return p_type.libffi_type();
+    }
+
 private:
     c_type p_type;
 };
@@ -401,6 +410,10 @@ struct c_function: c_object {
         return p_params;
     }
 
+    ffi_type *libffi_type() const {
+        return &ffi_type_pointer;
+    }
+
 private:
     c_type p_result;
     std::vector<c_param> p_params;
@@ -421,6 +434,10 @@ struct c_variable: c_object {
 
     c_type const &type() const {
         return p_type;
+    }
+
+    ffi_type *libffi_type() const {
+        return p_type.libffi_type();
     }
 
 private:
@@ -448,6 +465,10 @@ struct c_constant: c_object {
         return p_value;
     }
 
+    ffi_type *libffi_type() const {
+        return p_type.libffi_type();
+    }
+
 private:
     c_type p_type;
     c_value p_value;
@@ -471,6 +492,10 @@ struct c_typedef: c_object {
         return p_type;
     }
 
+    ffi_type *libffi_type() const {
+        return p_type.libffi_type();
+    }
+
 private:
     c_type p_type;
 };
@@ -486,8 +511,35 @@ struct c_struct: c_object {
     };
 
     c_struct(std::string ename, std::vector<field> fields):
-        c_object{std::move(ename)}, p_fields{std::move(fields)}
-    {}
+        c_object{std::move(ename)}, p_fields{std::move(fields)},
+        p_elements{}, p_ffi_type{}
+    {
+        p_elements.reserve(p_fields.size());
+
+        p_ffi_type.size = p_ffi_type.alignment = 0;
+        p_ffi_type.type = FFI_TYPE_STRUCT;
+
+        for (size_t i = 0; i < p_fields.size(); ++i) {
+            p_elements.push_back(p_fields[i].type.libffi_type());
+        }
+
+        p_ffi_type.elements = &p_elements[0];
+
+        /* fill in the size and alignment with an ugly hack
+         *
+         * we can make use of the size/alignment at runtime, so make sure
+         * it's guaranteed to be properly filled in, even if the type has
+         * not been used with a function
+         */
+        ffi_cif cif;
+        /* this should generally not fail, as we're using the default ABI
+         * and validating our type definitions beforehand, but maybe make
+         * it a real error?
+         */
+        assert(ffi_prep_cif(
+            &cif, FFI_DEFAULT_ABI, 0, &p_ffi_type, nullptr
+        ) == FFI_OK);
+    }
 
     c_object_type obj_type() const {
         return c_object_type::STRUCT;
@@ -498,8 +550,14 @@ struct c_struct: c_object {
         o += this->name;
     }
 
+    ffi_type *libffi_type() const {
+        return const_cast<ffi_type *>(&p_ffi_type);
+    }
+
 private:
     std::vector<field> p_fields;
+    std::vector<ffi_type *> p_elements;
+    ffi_type p_ffi_type;
 };
 
 struct c_enum: c_object {
@@ -527,6 +585,11 @@ struct c_enum: c_object {
 
     std::vector<field> const &fields() const {
         return p_fields;
+    }
+
+    ffi_type *libffi_type() const {
+        /* TODO: support for large enums */
+        return &ffi_type_sint;
     }
 
 private:

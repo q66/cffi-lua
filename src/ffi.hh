@@ -3,7 +3,7 @@
 
 #include <string>
 
-#include <ffi.h>
+#include "libffi.hh"
 
 #include "lua.hh"
 #include "lib.hh"
@@ -29,8 +29,6 @@ void make_cdata(
 
 bool prepare_cif(cdata<fdata> &fud);
 int call_cif(cdata<fdata> &fud, lua_State *L);
-
-ffi_type *get_ffi_type(ast::c_type const &tp);
 
 int lua_push_cdata(lua_State *L, ast::c_type const &tp, void *value);
 void *lua_check_cdata(

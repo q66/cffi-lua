@@ -16,6 +16,7 @@ C language syntax support.
 - [x] Extern variable declarations
 - [x] `typedef`
 - [x] Full `struct` (named or unnamed)
+  - [ ] Bitfields
 - [ ] Opaque `struct`
 - [ ] Opaque `enum` (extension)
 - [ ] Transparent `struct`/`union` inside `struct` (extension)
@@ -125,6 +126,8 @@ Implements the functionality provided by the parser.
 - [ ] Safer handling of value conversions
 - [ ] Typedefs
 - [ ] Structs
+  - [ ] Bitfields
+- [ ] Unions
 - [ ] Arrays
 - [ ] Vectors
 - [ ] Alternate calling conventions

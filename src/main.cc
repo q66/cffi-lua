@@ -129,7 +129,7 @@ struct cdata_meta {
         auto sidx = luaL_checkinteger(L, 2);
         luaL_argcheck(L, sidx >= 0, 2, "index is negative");
         auto *ptr = reinterpret_cast<unsigned char *>(cd->val);
-        auto *type = ffi::get_ffi_type(cd->decl.ptr_base());
+        auto *type = cd->decl.ptr_base().libffi_type();
         func(*cd, static_cast<void *>(&ptr[sidx * type->size]));
     }
 

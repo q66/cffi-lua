@@ -1,4 +1,7 @@
 #include <cassert>
+#include <limits>
+#include <ctime>
+#include <type_traits>
 
 #include "ast.hh"
 
@@ -223,6 +226,155 @@ void c_type::do_serialize(std::string &o) const {
     if (tcv & C_CV_VOLATILE) {
         o += " volatile";
     }
+}
+
+/*
+    C_BUILTIN_INVALID = 0,
+
+    C_BUILTIN_CHAR,
+    C_BUILTIN_SHORT,
+    C_BUILTIN_INT,
+    C_BUILTIN_LONG,
+    C_BUILTIN_LLONG,
+
+    C_BUILTIN_INT8,
+    C_BUILTIN_INT16,
+    C_BUILTIN_INT32,
+    C_BUILTIN_INT64,
+
+    C_BUILTIN_SIZE,
+    C_BUILTIN_INTPTR,
+    C_BUILTIN_PTRDIFF,
+*/
+
+template<typename T>
+constexpr ffi_type *get_basic_int() {
+    bool is_signed = std::numeric_limits<T>::is_signed;
+    switch (sizeof(T)) {
+        case 8:
+            return is_signed ? &ffi_type_sint64 : &ffi_type_uint64;
+        case 4:
+            return is_signed ? &ffi_type_sint32 : &ffi_type_uint32;
+        case 2:
+            return is_signed ? &ffi_type_sint16 : &ffi_type_uint16;
+        case 1:
+            return is_signed ? &ffi_type_sint8 : &ffi_type_uint8;
+        default:
+            break;
+    }
+    assert(false);
+    return nullptr;
+}
+
+template<typename T>
+constexpr ffi_type *get_basic_float() {
+    if (std::is_same<T, float>::value) {
+        return &ffi_type_float;
+    } else if (std::is_same<T, double>::value) {
+        return &ffi_type_double;
+    } else if (std::is_same<T, long double>::value) {
+        return &ffi_type_longdouble;
+    } else {
+        assert(false);
+        return nullptr;
+    }
+}
+
+/* more costly "runtime" version of the type detection */
+template<typename T>
+ffi_type *get_basic_intr(c_type const &tp) {
+    int cv = tp.cv();
+
+    /* default for the compile-time type */
+    bool is_signed = std::numeric_limits<T>::is_signed;
+    if (cv & ast::C_CV_SIGNED) {
+        is_signed = true;
+    } else if (cv & ast::C_CV_UNSIGNED) {
+        is_signed = false;
+    }
+
+    if (is_signed) {
+        return get_basic_int<typename std::make_signed<T>::type>();
+    }
+    return get_basic_int<typename std::make_unsigned<T>::type>();
+}
+
+ffi_type *c_type::libffi_type() const {
+    switch (c_builtin(type())) {
+        /* FIXME: remove this */
+        case C_BUILTIN_NOT:
+            return p_cptr->libffi_type();
+
+        case C_BUILTIN_VOID:
+            return &ffi_type_void;
+
+        case C_BUILTIN_PTR:
+            return &ffi_type_pointer;
+
+        case C_BUILTIN_FPTR:
+        case C_BUILTIN_FUNC:
+            return p_fptr->libffi_type();
+
+        case C_BUILTIN_STRUCT:
+            return p_crec->libffi_type();
+        case C_BUILTIN_ENUM:
+            return p_cenum->libffi_type();
+
+        case C_BUILTIN_FLOAT:
+            return &ffi_type_float;
+        case C_BUILTIN_DOUBLE:
+            return &ffi_type_double;
+        case C_BUILTIN_LDOUBLE:
+            return &ffi_type_longdouble;
+
+        case C_BUILTIN_BOOL:
+            /* i guess... */
+            return &ffi_type_uchar;
+
+        case C_BUILTIN_CHAR:
+            return get_basic_intr<char>(*this);
+        case C_BUILTIN_SHORT:
+            return get_basic_intr<short>(*this);
+        case C_BUILTIN_INT:
+            return get_basic_intr<int>(*this);
+        case C_BUILTIN_LONG:
+            return get_basic_intr<long>(*this);
+        case C_BUILTIN_LLONG:
+            return get_basic_intr<long long>(*this);
+        case C_BUILTIN_INT8:
+            return get_basic_intr<int8_t>(*this);
+        case C_BUILTIN_INT16:
+            return get_basic_intr<int16_t>(*this);
+        case C_BUILTIN_INT32:
+            return get_basic_intr<int32_t>(*this);
+        case C_BUILTIN_INT64:
+            return get_basic_intr<int64_t>(*this);
+        case C_BUILTIN_SIZE:
+            return get_basic_intr<size_t>(*this);
+        case C_BUILTIN_INTPTR:
+            return get_basic_intr<intptr_t>(*this);
+        case C_BUILTIN_PTRDIFF:
+            /* always signed */
+            return get_basic_int<ptrdiff_t>();
+
+        case C_BUILTIN_TIME:
+            if (std::numeric_limits<time_t>::is_integer) {
+                return get_basic_int<time_t>();
+            } else {
+                return get_basic_float<time_t>();
+            }
+
+        case C_BUILTIN_INVALID:
+            printf("hi\n");
+            break;
+
+        /* intentionally no default so that missing members are caught */
+    }
+
+    printf("type %d\n", int(type()));
+
+    assert(false);
+    return nullptr;
 }
 
 /* lua is not thread safe, so the FFI doesn't need to be either */
