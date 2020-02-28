@@ -25,7 +25,9 @@ namespace parser {
     KW(int32_t), KW(uint32_t), KW(int64_t), KW(uint64_t), \
     \
     KW(size_t), KW(ssize_t), KW(intptr_t), KW(uintptr_t), \
-    KW(ptrdiff_t), KW(time_t)
+    KW(ptrdiff_t), KW(time_t), \
+    \
+    KW(_Bool)
 
 /* primary keyword enum */
 
@@ -848,7 +850,9 @@ qualified:
         case TOK_time_t: cbt = ast::C_BUILTIN_TIME; goto btype;
         case TOK_float:  cbt = ast::C_BUILTIN_FLOAT; goto btype;
         case TOK_double: cbt = ast::C_BUILTIN_DOUBLE; goto btype;
-        case TOK_bool:   cbt = ast::C_BUILTIN_BOOL;
+        case TOK_bool:
+        case TOK__Bool:
+            cbt = ast::C_BUILTIN_BOOL;
         btype:
             tname = ls.t.value_s;
             ls.get();

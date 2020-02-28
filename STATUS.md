@@ -30,7 +30,7 @@ C language syntax support.
 - [x] Builtin types:
   - [x] `signed`, `unsigned` types (implied `int`)
   - [x] `bool`
-  - [ ] `_Bool`
+  - [x] `_Bool`
   - [x] `char`
   - [x] `short`
   - [x] `int`
