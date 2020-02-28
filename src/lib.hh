@@ -3,12 +3,15 @@
 
 #include <string>
 
+#include "lua.hh"
+
 namespace lib {
 
 using handle = void *;
 using func = void (*)();
 
-handle open(char const *path = nullptr);
+handle load(char const *path, lua_State *L, bool global = false);
+handle get_c();
 
 void close(handle h);
 

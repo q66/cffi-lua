@@ -96,9 +96,13 @@ static_assert(
        defined(__DragonFly__)) && !defined(__ORBIS__)
 #  define FFI_OS FFI_OS_BSD
 #  define FFI_OS_NAME "BSD"
-#elif (defined(__sun__) && defined(__svr4__)) || defined(__HAIKU__)
+#elif (defined(__sun__) && defined(__svr4__)) || defined(__HAIKU__) || \
+      defined(__CYGWIN__)
 #  define FFI_OS FFI_OS_POSIX
 #  define FFI_OS_NAME "POSIX"
+#  ifdef __CYGWIN__
+#    define FFI_OS_CYGWIN 1
+#  endif
 #else
 #  define FFI_OS FFI_OS_OTHER
 #  define FFI_OS_NAME "Other"
@@ -226,6 +230,14 @@ static_assert(
 #else
 #  define FFI_ARCH_SOFTFP 0
 #endif
+#endif
+
+#if FFI_OS == FFI_OS_WINDOWS || defined(FFI_OS_CYGWIN)
+#  define FFI_WINDOWS_ABI 1
+#endif
+
+#if FFI_OS != FFI_OS_WINDOWS
+#  define FFI_USE_DLFCN 1
 #endif
 
 #endif /* PLATFORM_HH */

@@ -19,6 +19,16 @@ struct lib_meta {
         return 0;
     }
 
+    static int tostring(lua_State *L) {
+        auto dl = lua::touserdata<lib::handle>(L, 1);
+        if (*dl == lib::load(nullptr, L)) {
+            lua_pushfstring(L, "library: default");
+        } else {
+            lua_pushfstring(L, "library: %p", static_cast<void *>(*dl));
+        }
+        return 1;
+    }
+
     static int index(lua_State *L) {
         auto dl = *lua::touserdata<lib::handle>(L, 1);
         char const *sname = luaL_checkstring(L, 2);
@@ -71,6 +81,9 @@ struct lib_meta {
 
         lua_pushcfunction(L, newindex);
         lua_setfield(L, -2, "__newindex");
+
+        lua_pushcfunction(L, tostring);
+        lua_setfield(L, -2, "__tostring");
 
         lua_setmetatable(L, -2);
         lua_setfield(L, -2, "C");
@@ -263,6 +276,14 @@ struct ffi_module {
         return 1;
     }
 
+    static int load_f(lua_State *L) {
+        char const *path = luaL_checkstring(L, 1);
+        bool glob = (lua_gettop(L) >= 2) && lua_toboolean(L, 2);
+        auto *c_ud = lua::newuserdata<lib::handle>(L);
+        *c_ud = lib::load(path, L, glob);
+        return 1;
+    }
+
     static int typeof_f(lua_State *L) {
         auto *ud = lua::newuserdata<ast::c_type>(L);
         if (luaL_testudata(L, 1, "cffi_cdata_handle")) {
@@ -382,7 +403,7 @@ struct ffi_module {
 #else
         lua_setfield(L, -2, "le");
 #endif
-#if FFI_OS == FFI_OS_WINDOWS
+#ifdef FFI_WINDOWS_ABI
         lua_pushboolean(L, true);
         lua_setfield(L, -2, "win");
 #endif
@@ -410,6 +431,7 @@ struct ffi_module {
         static const luaL_Reg lib_def[] = {
             /* core */
             {"cdef", cdef_f},
+            {"load", load_f},
 
             /* data handling */
             {"new", new_f},
@@ -441,7 +463,7 @@ struct ffi_module {
 
         /* lib handles */
         auto *c_ud = lua::newuserdata<lib::handle>(L);
-        *c_ud = lib::open();
+        *c_ud = lib::load(nullptr, L, false);
         lib_meta::setup(L);
 
         /* cdata handles */

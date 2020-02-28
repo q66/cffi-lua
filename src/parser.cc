@@ -1071,23 +1071,29 @@ static void parse_decl(lex_state &ls) {
 
     std::vector<ast::c_param> params;
 
+    if (ls.t.token == ')') {
+        goto done_params;
+    }
+    
     for (;;) {
-        auto pt = parse_type(ls);
-        if (ls.t.token == ',') {
+        auto pt = parse_type(ls, params.size() == 0);
+        if (pt.type() == ast::C_BUILTIN_VOID) {
+            break;
+        }
+        if (test_next(ls, ',')) {
             /* unnamed param */
-            ls.get();
             continue;
         }
         check(ls, TOK_NAME);
         params.emplace_back(ls.t.value_s, std::move(pt));
         ls.get();
-        if (ls.t.token == ',') {
-            ls.get();
-            continue;
+        if (!test_next(ls, ',')) {
+            break;
         }
-        check_match(ls, ')', '(', linenum);
-        break;
     }
+
+done_params:
+    check_match(ls, ')', '(', linenum);
 
     ls.stage_decl(new ast::c_function{
         std::move(dname), std::move(tp), std::move(params)

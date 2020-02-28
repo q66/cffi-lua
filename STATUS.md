@@ -137,7 +137,6 @@ Implements the functionality provided by the parser.
   - [x] Simple integer expressions
   - [ ] Correct integer promotions
   - [ ] Non-integer type support
-- [ ] `time_t`
 
 ## API
 
@@ -147,7 +146,7 @@ The APIs the FFI should provide.
 
 - [x] `cffi.cdef` (symbol definition)
 - [x] `cffi.C` (global namespace)
-- [ ] `cffi.load` (library namespaces)
+- [x] `cffi.load` (library namespaces)
 
 ### cdata manipulation
 

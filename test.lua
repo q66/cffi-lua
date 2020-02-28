@@ -25,7 +25,16 @@ print("bits: " .. (ffi.abi("64bit") and "64" or "32"))
 print()
 
 print("# main library namespace")
-print("namespace data: " .. tostring(ffi.C))
+print("C namespace: " .. tostring(ffi.C))
+print()
+
+print("# library load")
+local lualib = "liblua" .. _VERSION:sub(5) .. ".so"
+print("loading self: " .. lualib)
+local llib = ffi.load(lualib)
+print("loaded: " .. tostring(llib))
+ffi.cdef [[void *luaL_newstate(void);]]
+print("luaL_newstate: " .. tostring(llib.luaL_newstate))
 print()
 
 print("# type of a function")
