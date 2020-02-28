@@ -71,7 +71,6 @@ char const *resolve_name(lua_State *L, char const *name) {
     }
     if (!strchr(name, '.')) {
         /* name without ext */
-        printf("resolved no ext\n");
         lua_pushfstring(L, FFI_DL_SONAME, name);
     } else {
         lua_pushstring(L, name);

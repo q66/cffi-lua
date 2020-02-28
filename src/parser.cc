@@ -1074,7 +1074,7 @@ static void parse_decl(lex_state &ls) {
     if (ls.t.token == ')') {
         goto done_params;
     }
-    
+
     for (;;) {
         auto pt = parse_type(ls, params.size() == 0);
         if (pt.type() == ast::C_BUILTIN_VOID) {
