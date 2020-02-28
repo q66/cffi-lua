@@ -28,7 +28,7 @@ C language syntax support.
 ### Types
 
 - [x] Builtin types:
-  - [ ] `signed`, `unsigned` types (implied `int`)
+  - [x] `signed`, `unsigned` types (implied `int`)
   - [x] `bool`
   - [ ] `_Bool`
   - [x] `char`

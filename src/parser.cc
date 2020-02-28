@@ -763,6 +763,9 @@ static ast::c_type parse_type(lex_state &ls, bool allow_void = false) {
     int quals = parse_cv(ls);
     int squals = 0;
 
+    std::string tname;
+    ast::c_builtin cbt = ast::C_BUILTIN_NOT;
+
     if (ls.t.token == TOK_signed || ls.t.token == TOK_unsigned) {
         if (ls.t.token == TOK_signed) {
             squals |= TYPE_SIGNED;
@@ -770,27 +773,30 @@ static ast::c_type parse_type(lex_state &ls, bool allow_void = false) {
             squals |= TYPE_UNSIGNED;
         }
         ls.get();
+        /* when followed by char/short/int/long, it means signed/unsigned
+         * was used as a mere qualifier, so proceed with parsing the type
+         */
         switch (ls.t.token) {
             case TOK_char:
             case TOK_short:
             case TOK_int:
-                /* restrict what can follow signed/unsigned */
-                break;
             case TOK_long:
-                ls.lookahead();
-                if (ls.lahead.token == TOK_double) {
-                    ls.syntax_error("builtin integer type expected");
-                }
-                break;
+                goto qualified;
             default:
-                ls.syntax_error("builtin integer type expected");
                 break;
         }
+        /* when not followed by that, treat them as a whole type */
+        if (squals & TYPE_SIGNED) {
+            cbt = ast::C_BUILTIN_INT;
+            tname = "int";
+        } else {
+            cbt = ast::C_BUILTIN_UINT;
+            tname = "unsigned int";
+        }
+        goto newtype;
     }
 
-    std::string tname;
-    ast::c_builtin cbt = ast::C_BUILTIN_NOT;
-
+qualified:
     if (ls.t.token == TOK_NAME) {
         /* a name but not a keyword, probably custom type */
         tname = ls.t.value_s;
@@ -872,11 +878,11 @@ static ast::c_type parse_type(lex_state &ls, bool allow_void = false) {
             break;
         case TOK_int:
             if (squals & TYPE_UNSIGNED) {
-                cbt = ast::C_BUILTIN_USHORT;
-                tname = "unsigned short";
+                cbt = ast::C_BUILTIN_UINT;
+                tname = "unsigned int";
             } else {
-                cbt = ast::C_BUILTIN_SHORT;
-                tname = "short";
+                cbt = ast::C_BUILTIN_INT;
+                tname = "int";
             }
             ls.get();
             break;
@@ -917,6 +923,7 @@ static ast::c_type parse_type(lex_state &ls, bool allow_void = false) {
             break;
     }
 
+newtype:
     return parse_type_ptr(ls, ast::c_type{tname, cbt, quals}, allow_void);
 }
 
