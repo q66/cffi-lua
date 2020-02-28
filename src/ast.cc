@@ -214,25 +214,6 @@ void c_type::do_serialize(std::string &o) const {
     }
 }
 
-/*
-    C_BUILTIN_INVALID = 0,
-
-    C_BUILTIN_CHAR,
-    C_BUILTIN_SHORT,
-    C_BUILTIN_INT,
-    C_BUILTIN_LONG,
-    C_BUILTIN_LLONG,
-
-    C_BUILTIN_INT8,
-    C_BUILTIN_INT16,
-    C_BUILTIN_INT32,
-    C_BUILTIN_INT64,
-
-    C_BUILTIN_SIZE,
-    C_BUILTIN_INTPTR,
-    C_BUILTIN_PTRDIFF,
-*/
-
 template<typename T>
 constexpr ffi_type *get_basic_int() {
     bool is_signed = std::numeric_limits<T>::is_signed;
