@@ -64,7 +64,7 @@ C language syntax support.
 - [ ] Type qualifiers:
   - [x] `signed`, `unsigned`
   - [x] `const`
-  - [ ] `__const__`, `__volatile__` (GCC extension)
+  - [x] `__const__`, `__volatile__` (GCC extension)
   - [x] `volatile`
 - [x] Pointers (`T *`)
 - [ ] C++ references (`T &`) (C++ extension)

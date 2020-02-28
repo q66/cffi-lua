@@ -16,8 +16,10 @@ namespace parser {
 /* define all keywords our subset of C understands */
 
 /* stdint types might as well also be builtin... */
-#define KEYWORDS KW(const), KW(enum), KW(extern), KW(struct), KW(typedef), \
-    KW(signed), KW(unsigned), KW(volatile), KW(void), \
+#define KEYWORDS KW(const), KW(enum), KW(extern), KW(sizeof), KW(struct), \
+    KW(typedef), KW(signed), KW(unsigned), KW(volatile), KW(void), \
+    \
+    KW(__const__), KW(__sizeof__), KW(__volatile__), \
     \
     KW(bool), KW(char), KW(short), KW(int), KW(long), KW(float), KW(double), \
     \
@@ -427,14 +429,14 @@ private:
                     read_integer(tok);
                     return TOK_INTEGER;
                 }
-                if (current && (isalpha(current) || (current == '_'))) {
+                if (isalpha(current) || (current == '_')) {
                     /* names, keywords */
                     /* what current pointed to */
                     char const *beg = (stream - 1);
                     /* keep reading until we readh non-matching char */
                     do {
                         next_char();
-                    } while (current && (isalnum(current) || (current == '_')));
+                    } while (isalnum(current) || (current == '_'));
                     /* current is a non-matching char */
                     char const *end = (stream - 1);
                     std::string name{beg, end};
@@ -702,6 +704,7 @@ static int parse_cv(lex_state &ls) {
 
     for (;;) switch (ls.t.token) {
         case TOK_const:
+        case TOK___const__:
             if (quals & ast::C_CV_CONST) {
                 ls.syntax_error("duplicate const qualifier");
                 break;
@@ -710,6 +713,7 @@ static int parse_cv(lex_state &ls) {
             quals |= ast::C_CV_CONST;
             break;
         case TOK_volatile:
+        case TOK___volatile__:
             if (quals & ast::C_CV_VOLATILE) {
                 ls.syntax_error("duplicate volatile qualifier");
                 break;
