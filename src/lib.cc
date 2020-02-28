@@ -4,8 +4,12 @@
 
 #ifdef FFI_USE_DLFCN
 #include <dlfcn.h>
+
+#include <cstdio>
 #include <cstring>
 #include <cstdint>
+
+#include <string>
 #endif
 
 #include "lib.hh"
@@ -59,7 +63,7 @@ void *get_var(handle h, char const *name) {
 
 /* library resolution */
 
-char const *resolve_name(lua_State *L, char const *name) {
+static char const *resolve_name(lua_State *L, char const *name) {
     if (strchr(name, '/')
 #ifdef FFI_OS_CYGWIN
         || strchr(name, '\\')
@@ -90,6 +94,48 @@ char const *resolve_name(lua_State *L, char const *name) {
     return lua_tostring(L, -1);
 }
 
+/* ldscript handling logic generally adapted from luajit... */
+
+static std::string check_ldscript(char const *buf) {
+    char const *p;
+    if ((
+        !strncmp(buf, "GROUP", 5) || !strncmp(buf, "INPUT", 5)
+    ) && (p = strchr(buf, '('))) {
+        while (*++p == ' ') {}
+        char const *e = p;
+        while (*e && (*e != ' ') && (*e != ')')) {
+            ++e;
+        }
+        return std::string{p, e};
+    }
+    return std::string{};
+}
+
+static std::string resolve_ldscript(std::string name) {
+    FILE *f = fopen(name.c_str(), "r");
+    if (!f) {
+        return nullptr;
+    }
+    char buf[256];
+    if (!fgets(buf, sizeof(buf), f)) {
+        fclose(f);
+        return nullptr;
+    }
+    std::string p;
+    if (!strncmp(buf, "/* GNU ld script", 16)) {
+        while (fgets(buf, sizeof(buf), f)) {
+            p = check_ldscript(buf);
+            if (!p.empty()) {
+                break;
+            }
+        }
+    } else {
+        p = check_ldscript(buf);
+    }
+    fclose(f);
+    return p;
+}
+
 handle load(char const *path, lua_State *L, bool global) {
     if (!path) {
         /* primary namespace */
@@ -101,7 +147,18 @@ handle load(char const *path, lua_State *L, bool global) {
         luaL_setmetatable(L, "cffi_lib_handle");
         return h;
     }
-    char const *err = dlerror();
+    char const *err = dlerror(), *e;
+    std::string lds;
+    if (err && (*err == '/') && (e = strchr(err, ':')) && !(
+        lds = resolve_ldscript(std::string{err, e})
+    ).empty()) {
+        h = open(lds.c_str(), global);
+        if (h) {
+            luaL_setmetatable(L, "cffi_lib_handle");
+            return h;
+        }
+        err = dlerror();
+    }
     luaL_error(L, err ? err : "dlopen() failed");
     return nullptr;
 }
