@@ -49,7 +49,9 @@ C language syntax support.
   - [x] `intptr_t`
   - [x] `uintptr_t`
   - [x] `ptrdiff_t`
-  - [ ] `wchar_t`
+  - [x] `wchar_t`
+  - [x] `char16_t`
+  - [x] `char32_t`
   - [x] `time_t`
   - [x] `float`
   - [x] `double`

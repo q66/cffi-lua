@@ -301,6 +301,14 @@ ffi_type *c_type::libffi_type() const {
             return get_basic_int<long long>();
         case C_BUILTIN_ULLONG:
             return get_basic_int<unsigned long long>();
+
+        case C_BUILTIN_WCHAR:
+            return get_basic_int<wchar_t>();
+        case C_BUILTIN_CHAR16:
+            return get_basic_int<char16_t>();
+        case C_BUILTIN_CHAR32:
+            return get_basic_int<char32_t>();
+
         case C_BUILTIN_INT8:
             return get_basic_int<int8_t>();
         case C_BUILTIN_UINT8:

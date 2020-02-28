@@ -38,6 +38,10 @@ enum c_builtin {
     C_BUILTIN_LLONG,
     C_BUILTIN_ULLONG,
 
+    C_BUILTIN_WCHAR,
+    C_BUILTIN_CHAR16,
+    C_BUILTIN_CHAR32,
+
     C_BUILTIN_INT8,
     C_BUILTIN_INT16,
     C_BUILTIN_INT32,
@@ -173,6 +177,10 @@ union c_value {
     uint32_t u32;
     uint16_t u16;
     uint8_t u8;
+    /* extra character types */
+    wchar_t w;
+    char16_t c16;
+    char32_t c32;
     /* other types */
     size_t sz;
     ssize_t ssz;

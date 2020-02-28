@@ -176,6 +176,12 @@ int lua_push_cdata(lua_State *L, ast::c_type const &tp, void *value) {
             push_int<int32_t>(L, value); return 1;
         case ast::C_BUILTIN_UINT32:
             push_int<uint32_t>(L, value); return 1;
+        case ast::C_BUILTIN_WCHAR:
+            push_int<wchar_t>(L, value); return 1;
+        case ast::C_BUILTIN_CHAR16:
+            push_int<char16_t>(L, value); return 1;
+        case ast::C_BUILTIN_CHAR32:
+            push_int<char16_t>(L, value); return 1;
         case ast::C_BUILTIN_LONG:
         case ast::C_BUILTIN_ULONG:
         case ast::C_BUILTIN_LLONG:
@@ -277,6 +283,12 @@ void *lua_check_cdata(
                     return write_int<long long>(L, index, &stor->ll);
                 case ast::C_BUILTIN_ULLONG:
                     return write_int<unsigned long long>(L, index, &stor->ull);
+                case ast::C_BUILTIN_WCHAR:
+                    return write_int<wchar_t>(L, index, &stor->w);
+                case ast::C_BUILTIN_CHAR16:
+                    return write_int<char16_t>(L, index, &stor->c16);
+                case ast::C_BUILTIN_CHAR32:
+                    return write_int<char32_t>(L, index, &stor->c32);
                 case ast::C_BUILTIN_INT8:
                     return write_int<int8_t>(L, index, &stor->i8);
                 case ast::C_BUILTIN_UINT8:

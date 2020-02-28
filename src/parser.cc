@@ -21,7 +21,8 @@ namespace parser {
     \
     KW(__const__), KW(__sizeof__), KW(__volatile__), \
     \
-    KW(bool), KW(char), KW(short), KW(int), KW(long), KW(float), KW(double), \
+    KW(bool), KW(char), KW(char16_t), KW(char32_t), KW(short), KW(int), \
+    KW(long), KW(wchar_t), KW(float), KW(double), \
     \
     KW(int8_t), KW(uint8_t), KW(int16_t), KW(uint16_t), \
     KW(int32_t), KW(uint32_t), KW(int64_t), KW(uint64_t), \
@@ -851,9 +852,12 @@ qualified:
         case TOK_size_t:
             cbt = ast::C_BUILTIN_SIZE;
             goto btype;
-        case TOK_time_t: cbt = ast::C_BUILTIN_TIME; goto btype;
-        case TOK_float:  cbt = ast::C_BUILTIN_FLOAT; goto btype;
-        case TOK_double: cbt = ast::C_BUILTIN_DOUBLE; goto btype;
+        case TOK_time_t:   cbt = ast::C_BUILTIN_TIME;   goto btype;
+        case TOK_wchar_t:  cbt = ast::C_BUILTIN_WCHAR;  goto btype;
+        case TOK_char16_t: cbt = ast::C_BUILTIN_CHAR16; goto btype;
+        case TOK_char32_t: cbt = ast::C_BUILTIN_CHAR32; goto btype;
+        case TOK_float:    cbt = ast::C_BUILTIN_FLOAT;  goto btype;
+        case TOK_double:   cbt = ast::C_BUILTIN_DOUBLE; goto btype;
         case TOK_bool:
         case TOK__Bool:
             cbt = ast::C_BUILTIN_BOOL;
