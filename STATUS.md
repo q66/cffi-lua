@@ -167,10 +167,10 @@ The APIs the FFI should provide.
 
 ### Utilities
 
-- [ ] `cffi.errno` (portable `errno` handling)
+- [x] `cffi.errno` (portable `errno` handling)
 - [x] `cffi.string` (pointer/array to Lua string)
-- [ ] `cffi.copy` (`memcpy`)
-- [ ] `cffi.fill` (`memset`)
+- [x] `cffi.copy` (`memcpy`)
+- [x] `cffi.fill` (`memset`)
 - [ ] `cffi.tonumber` (`cdata`-aware `tonumber`)
 - [ ] `cffi.tostring` (`cdata`-aware `tostring`)
 - [ ] `cffi.ll` (64-bit signed integer construction)
@@ -221,7 +221,7 @@ Build system enhancements TODO.
 
 Various things to do around the existing code.
 
-- [ ] `dlopen` etc. abstraction
+- [x] `dlopen` etc. abstraction
 - [ ] `libffi` abstraction
 - [ ] Type system cleanup
 - [ ] Testing infrastructure

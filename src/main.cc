@@ -1,4 +1,6 @@
 #include <cstdlib>
+#include <cstring>
+#include <cerrno>
 
 #include "parser.hh"
 #include "ast.hh"
@@ -271,6 +273,15 @@ struct ffi_module {
         return 1;
     }
 
+    static int errno_f(lua_State *L) {
+        int cur = errno;
+        if (lua_gettop(L) >= 1) {
+            errno = int(luaL_checkinteger(L, 1));
+        }
+        lua_pushinteger(L, cur);
+        return 1;
+    }
+
     static int string_f(lua_State *L) {
         if (!luaL_testudata(L, 1, "cffi_cdata_handle")) {
             lua_pushfstring(
@@ -280,9 +291,65 @@ struct ffi_module {
             luaL_argcheck(L, false, 1, lua_tostring(L, -1));
         }
         /* FIXME: check argument type conversions */
-        auto &fud = *lua::touserdata<ffi::cdata<char const *>>(L, 1);
-        lua_pushstring(L, fud.val);
+        auto &ud = *lua::touserdata<ffi::cdata<char const *>>(L, 1);
+        if (lua_gettop(L) <= 1) {
+            lua_pushstring(L, ud.val);
+        } else {
+            lua_pushlstring(L, ud.val, size_t(luaL_checkinteger(L, 2)));
+        }
         return 1;
+    }
+
+    /* FIXME: type conversions (constness etc.) */
+    static void *check_voidptr(lua_State *L, int idx) {
+        if (luaL_testudata(L, idx, "cffi_cdata_handle")) {
+            auto &ud = *lua::touserdata<ffi::cdata<void *>>(L, idx);
+            if (ud.decl.type() != ast::C_BUILTIN_PTR) {
+                lua_pushfstring(
+                    L, "cannot convert '%s' to 'void *'",
+                    ud.decl.serialize().c_str()
+                );
+                luaL_argcheck(L, false, idx, lua_tostring(L, -1));
+            }
+            return ud.val;
+        } else if (lua_isuserdata(L, idx)) {
+            return lua_touserdata(L, idx);
+        }
+        lua_pushfstring(
+            L, "cannot convert '%s' to 'void *'",
+            luaL_typename(L, 1)
+        );
+        luaL_argcheck(L, false, idx, lua_tostring(L, -1));
+        return nullptr;
+    }
+
+    /* FIXME: lengths (and character) in these APIs may be given by cdata... */
+
+    static int copy_f(lua_State *L) {
+        void *dst = check_voidptr(L, 1);
+        void const *src;
+        size_t len;
+        if (lua_isstring(L, 2)) {
+            src = lua_tostring(L, 2);
+            if (lua_gettop(L) <= 2) {
+                len = lua_rawlen(L, 2);
+            } else {
+                len = size_t(luaL_checkinteger(L, 3));
+            }
+        } else {
+            src = check_voidptr(L, 2);
+            len = size_t(luaL_checkinteger(L, 3));
+        }
+        memcpy(dst, src, len);
+        return 0;
+    }
+
+    static int fill_f(lua_State *L) {
+        void *dst = check_voidptr(L, 1);
+        size_t len = size_t(luaL_checkinteger(L, 2));
+        int byte = int(luaL_optinteger(L, 3, 0));
+        memset(dst, byte, len);
+        return 0;
     }
 
     static void setup(lua_State *L) {
@@ -295,7 +362,10 @@ struct ffi_module {
             {"typeof", typeof_f},
 
             /* utilities */
+            {"errno", errno_f},
             {"string", string_f},
+            {"copy", copy_f},
+            {"fill", fill_f},
 
             {NULL, NULL}
         };

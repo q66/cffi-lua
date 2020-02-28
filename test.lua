@@ -46,7 +46,9 @@ print("input: " .. input)
 local foo = ffi.C.strdup(input)
 print("dup'd: " .. tostring(foo))
 
-ffi.C.memcpy(foo, "<redacted>", 10);
+--ffi.C.memcpy(foo, "<redacted>", 10);
+print("copying '<redacted>' into the string...")
+ffi.copy(foo, "<redacted>", 10)
 print("second character: " .. string.char(foo[1]))
 print("setting second character to R...")
 foo[1] = string.byte("R")
