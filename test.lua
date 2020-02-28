@@ -17,6 +17,13 @@ ffi.cdef [[
 print("## BEGIN TESTS ##")
 print()
 
+print("# system info")
+print("os: " .. ffi.os)
+print("arch: " .. ffi.arch)
+print("endian: " .. (ffi.abi("le") and "le" or "be"))
+print("bits: " .. (ffi.abi("64bit") and "64" or "32"))
+print()
+
 print("# main library namespace")
 print("namespace data: " .. tostring(ffi.C))
 print()
@@ -46,8 +53,8 @@ print("input: " .. input)
 local foo = ffi.C.strdup(input)
 print("dup'd: " .. tostring(foo))
 
---ffi.C.memcpy(foo, "<redacted>", 10);
 print("copying '<redacted>' into the string...")
+--ffi.C.memcpy(foo, "<redacted>", 10);
 ffi.copy(foo, "<redacted>", 10)
 print("second character: " .. string.char(foo[1]))
 print("setting second character to R...")

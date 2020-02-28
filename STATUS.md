@@ -178,9 +178,9 @@ The APIs the FFI should provide.
 
 ### Target information
 
-- [ ] `cffi.abi`
-- [ ] `cffi.os`
-- [ ] `cffi.arch`
+- [x] `cffi.abi` (like luajit + elfv2 for ppc64)
+- [x] `cffi.os` (x86, arm, ppc, mips including 64-bit and bi-endian variants)
+- [x] `cffi.arch`
 
 ### Callbacks
 

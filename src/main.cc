@@ -2,6 +2,7 @@
 #include <cstring>
 #include <cerrno>
 
+#include "platform.hh"
 #include "parser.hh"
 #include "ast.hh"
 #include "lib.hh"
@@ -352,6 +353,59 @@ struct ffi_module {
         return 0;
     }
 
+    static int abi_f(lua_State *L) {
+        luaL_checkstring(L, 1);
+        lua_pushvalue(L, 1);
+        lua_rawget(L, lua_upvalueindex(1));
+        if (lua_isnil(L, -1)) {
+            lua_pop(L, 1);
+            lua_pushboolean(L, false);
+        }
+        return 1;
+    }
+
+    static void setup_abi(lua_State *L) {
+        lua_newtable(L);
+        lua_pushboolean(L, true);
+#if FFI_WORDSIZE == 64
+        lua_setfield(L, -2, "64bit");
+#elif FFI_WORDSIZE == 32
+        lua_setfield(L, -2, "32bit");
+#elif FFI_WORDSIZE == 16
+        lua_setfield(L, -2, "16bit");
+#else
+        lua_setfield(L, -2, "8bit");
+#endif
+        lua_pushboolean(L, true);
+#ifdef FFI_BIG_ENDIAN
+        lua_setfield(L, -2, "be");
+#else
+        lua_setfield(L, -2, "le");
+#endif
+#if FFI_OS == FFI_OS_WINDOWS
+        lua_pushboolean(L, true);
+        lua_setfield(L, -2, "win");
+#endif
+#ifdef FFI_ARM_EABI
+        lua_pushboolean(L, true);
+        lua_setfield(L, -2, "eabi");
+#endif
+#if FFI_ARCH == FFI_ARCH_PPC64 && defined(_CALL_ELF) && _CALL_ELF == 2
+        lua_pushboolean(L, true);
+        lua_setfield(L, -2, "elfv2");
+#endif
+#if FFI_ARCH_HAS_FPU == 1
+        lua_pushboolean(L, true);
+        lua_setfield(L, -2, "fpu");
+#endif
+        lua_pushboolean(L, true);
+#if FFI_ARCH_SOFTFP == 1
+        lua_setfield(L, -2, "softfp");
+#else
+        lua_setfield(L, -2, "hardfp");
+#endif
+    }
+
     static void setup(lua_State *L) {
         static const luaL_Reg lib_def[] = {
             /* core */
@@ -370,6 +424,16 @@ struct ffi_module {
             {NULL, NULL}
         };
         luaL_newlib(L, lib_def);
+
+        lua_pushliteral(L, FFI_OS_NAME);
+        lua_setfield(L, -2, "os");
+
+        lua_pushliteral(L, FFI_ARCH_NAME);
+        lua_setfield(L, -2, "arch");
+
+        setup_abi(L);
+        lua_pushcclosure(L, abi_f, 1);
+        lua_setfield(L, -2, "abi");
     }
 
     static void open(lua_State *L) {

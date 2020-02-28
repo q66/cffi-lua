@@ -4,12 +4,30 @@ project('cffi-lua', ['cpp'],
     meson_version: '>=0.46'
 )
 
-tgt_compiler_id = meson.get_compiler('cpp').get_id()
+cxx = meson.get_compiler('cpp')
+
+tgt_compiler_id = cxx.get_id()
 if tgt_compiler_id == 'gcc' or tgt_compiler_id == 'clang'
     extra_cxxflags = ['-Wall', '-Wextra', '-Wshadow', '-Wold-style-cast']
 else
     extra_cxxflags = []
 endif
+
+config_h = configuration_data()
+
+config_h.set('SIZEOF_POINTER', cxx.sizeof('void *'))
+
+if host_machine.endian() == 'big'
+    config_h.set10('HAVE_BIG_ENDIAN', true)
+endif
+
+if cxx.has_header('endian.h')
+    config_h.set10('HAVE_ENDIAN_H', true)
+endif
+
+configure_file(output: 'config.h', configuration: config_h)
+
+add_global_arguments('-DHAVE_CONFIG_H=1', language: 'cpp')
 
 ffi_dep = dependency('libffi')
 lua_dep = dependency('lua')
