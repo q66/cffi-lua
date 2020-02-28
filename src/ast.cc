@@ -203,20 +203,6 @@ void c_type::do_serialize(std::string &o) const {
             p_fptr->do_serialize_full(o, (ttp == C_BUILTIN_FPTR), tcv);
             return;
         default:
-            switch (type()) {
-                case C_BUILTIN_CHAR:
-                case C_BUILTIN_SHORT:
-                case C_BUILTIN_LONG:
-                case C_BUILTIN_LLONG:
-                    if (tcv & C_CV_UNSIGNED) {
-                        o += "unsigned ";
-                    } else if (tcv & C_CV_SIGNED) {
-                        o += "signed ";
-                    }
-                    break;
-                default:
-                    break;
-            }
             o += this->name;
             break;
     }
@@ -280,25 +266,6 @@ constexpr ffi_type *get_basic_float() {
     }
 }
 
-/* more costly "runtime" version of the type detection */
-template<typename T>
-ffi_type *get_basic_intr(c_type const &tp) {
-    int cv = tp.cv();
-
-    /* default for the compile-time type */
-    bool is_signed = std::numeric_limits<T>::is_signed;
-    if (cv & ast::C_CV_SIGNED) {
-        is_signed = true;
-    } else if (cv & ast::C_CV_UNSIGNED) {
-        is_signed = false;
-    }
-
-    if (is_signed) {
-        return get_basic_int<typename std::make_signed<T>::type>();
-    }
-    return get_basic_int<typename std::make_unsigned<T>::type>();
-}
-
 ffi_type *c_type::libffi_type() const {
     switch (c_builtin(type())) {
         /* FIXME: remove this */
@@ -332,29 +299,52 @@ ffi_type *c_type::libffi_type() const {
             return &ffi_type_uchar;
 
         case C_BUILTIN_CHAR:
-            return get_basic_intr<char>(*this);
+            return get_basic_int<char>();
+        case C_BUILTIN_SCHAR:
+            return get_basic_int<signed char>();
+        case C_BUILTIN_UCHAR:
+            return get_basic_int<unsigned char>();
         case C_BUILTIN_SHORT:
-            return get_basic_intr<short>(*this);
+            return get_basic_int<short>();
+        case C_BUILTIN_USHORT:
+            return get_basic_int<unsigned short>();
         case C_BUILTIN_INT:
-            return get_basic_intr<int>(*this);
+            return get_basic_int<int>();
+        case C_BUILTIN_UINT:
+            return get_basic_int<unsigned int>();
         case C_BUILTIN_LONG:
-            return get_basic_intr<long>(*this);
+            return get_basic_int<long>();
+        case C_BUILTIN_ULONG:
+            return get_basic_int<unsigned long>();
         case C_BUILTIN_LLONG:
-            return get_basic_intr<long long>(*this);
+            return get_basic_int<long long>();
+        case C_BUILTIN_ULLONG:
+            return get_basic_int<unsigned long long>();
         case C_BUILTIN_INT8:
-            return get_basic_intr<int8_t>(*this);
+            return get_basic_int<int8_t>();
+        case C_BUILTIN_UINT8:
+            return get_basic_int<uint8_t>();
         case C_BUILTIN_INT16:
-            return get_basic_intr<int16_t>(*this);
+            return get_basic_int<int16_t>();
+        case C_BUILTIN_UINT16:
+            return get_basic_int<uint16_t>();
         case C_BUILTIN_INT32:
-            return get_basic_intr<int32_t>(*this);
+            return get_basic_int<int32_t>();
+        case C_BUILTIN_UINT32:
+            return get_basic_int<uint32_t>();
         case C_BUILTIN_INT64:
-            return get_basic_intr<int64_t>(*this);
+            return get_basic_int<int64_t>();
+        case C_BUILTIN_UINT64:
+            return get_basic_int<uint64_t>();
         case C_BUILTIN_SIZE:
-            return get_basic_intr<size_t>(*this);
+            return get_basic_int<size_t>();
+        case C_BUILTIN_SSIZE:
+            return get_basic_int<ssize_t>();
         case C_BUILTIN_INTPTR:
-            return get_basic_intr<intptr_t>(*this);
+            return get_basic_int<intptr_t>();
+        case C_BUILTIN_UINTPTR:
+            return get_basic_int<uintptr_t>();
         case C_BUILTIN_PTRDIFF:
-            /* always signed */
             return get_basic_int<ptrdiff_t>();
 
         case C_BUILTIN_TIME:
@@ -365,13 +355,10 @@ ffi_type *c_type::libffi_type() const {
             }
 
         case C_BUILTIN_INVALID:
-            printf("hi\n");
             break;
 
         /* intentionally no default so that missing members are caught */
     }
-
-    printf("type %d\n", int(type()));
 
     assert(false);
     return nullptr;

@@ -749,6 +749,11 @@ static ast::c_type parse_type_ptr(
     return tp;
 }
 
+enum type_signedness {
+    TYPE_SIGNED = 1 << 0,
+    TYPE_UNSIGNED = 1 << 1
+};
+
 /* a bit naive for now, and builtins could be handled better (we don't care
  * about the real signatures, only about their sizes and signedness and so
  * on to provide to the codegen) but it's a start
@@ -756,10 +761,14 @@ static ast::c_type parse_type_ptr(
 static ast::c_type parse_type(lex_state &ls, bool allow_void = false) {
     /* left-side cv */
     int quals = parse_cv(ls);
+    int squals = 0;
 
     if (ls.t.token == TOK_signed || ls.t.token == TOK_unsigned) {
-        quals |= (ls.t.token == TOK_signed)
-            ? ast::C_CV_SIGNED : ast::C_CV_UNSIGNED;
+        if (ls.t.token == TOK_signed) {
+            squals |= TYPE_SIGNED;
+        } else {
+            squals |= TYPE_UNSIGNED;
+        }
         ls.get();
         switch (ls.t.token) {
             case TOK_char:
@@ -804,65 +813,100 @@ static ast::c_type parse_type(lex_state &ls, bool allow_void = false) {
             cbt = ast::C_BUILTIN_INT64;
             goto btype;
         case TOK_uint8_t:
-            cbt = ast::C_BUILTIN_INT8;
-            quals |= ast::C_CV_UNSIGNED;
+            cbt = ast::C_BUILTIN_UINT8;
             goto btype;
         case TOK_uint16_t:
-            cbt = ast::C_BUILTIN_INT16;
-            quals |= ast::C_CV_UNSIGNED;
+            cbt = ast::C_BUILTIN_UINT16;
             goto btype;
         case TOK_uint32_t:
-            cbt = ast::C_BUILTIN_INT32;
-            quals |= ast::C_CV_UNSIGNED;
+            cbt = ast::C_BUILTIN_UINT32;
             goto btype;
         case TOK_uint64_t:
-            cbt = ast::C_BUILTIN_INT64;
-            quals |= ast::C_CV_UNSIGNED;
+            cbt = ast::C_BUILTIN_UINT64;
             goto btype;
         case TOK_uintptr_t:
-            cbt = ast::C_BUILTIN_INTPTR;
-            quals |= ast::C_CV_UNSIGNED;
+            cbt = ast::C_BUILTIN_UINTPTR;
             goto btype;
         case TOK_intptr_t:
             cbt = ast::C_BUILTIN_INTPTR;
-            quals |= ast::C_CV_SIGNED;
             goto btype;
         case TOK_ptrdiff_t:
             cbt = ast::C_BUILTIN_PTRDIFF;
             goto btype;
         case TOK_ssize_t:
-            cbt = ast::C_BUILTIN_SIZE;
-            quals |= ast::C_CV_SIGNED;
+            cbt = ast::C_BUILTIN_SSIZE;
             goto btype;
         case TOK_size_t:
             cbt = ast::C_BUILTIN_SIZE;
-            quals |= ast::C_CV_UNSIGNED;
             goto btype;
         case TOK_time_t: cbt = ast::C_BUILTIN_TIME; goto btype;
         case TOK_float:  cbt = ast::C_BUILTIN_FLOAT; goto btype;
         case TOK_double: cbt = ast::C_BUILTIN_DOUBLE; goto btype;
-        case TOK_bool:   cbt = ast::C_BUILTIN_BOOL; goto btype;
-        case TOK_char:   cbt = ast::C_BUILTIN_CHAR; goto btype;
-        case TOK_short:  cbt = ast::C_BUILTIN_SHORT; goto btype;
-        case TOK_int:    cbt = ast::C_BUILTIN_INT;
+        case TOK_bool:   cbt = ast::C_BUILTIN_BOOL;
         btype:
             tname = ls.t.value_s;
+            ls.get();
+            break;
+        case TOK_char:
+            if (squals & TYPE_SIGNED) {
+                cbt = ast::C_BUILTIN_SCHAR;
+                tname = "signed char";
+            } else if (squals & TYPE_UNSIGNED) {
+                cbt = ast::C_BUILTIN_UCHAR;
+                tname = "unsigned char";
+            } else {
+                cbt = ast::C_BUILTIN_CHAR;
+                tname = "char";
+            }
+            ls.get();
+            break;
+        case TOK_short:
+            if (squals & TYPE_UNSIGNED) {
+                cbt = ast::C_BUILTIN_USHORT;
+                tname = "unsigned short";
+            } else {
+                cbt = ast::C_BUILTIN_SHORT;
+                tname = "short";
+            }
+            ls.get();
+            break;
+        case TOK_int:
+            if (squals & TYPE_UNSIGNED) {
+                cbt = ast::C_BUILTIN_USHORT;
+                tname = "unsigned short";
+            } else {
+                cbt = ast::C_BUILTIN_SHORT;
+                tname = "short";
+            }
             ls.get();
             break;
         case TOK_long:
             ls.get();
             if (ls.t.token == TOK_long) {
-                cbt = ast::C_BUILTIN_LLONG;
-                tname = "long long";
+                if (squals & TYPE_UNSIGNED) {
+                    cbt = ast::C_BUILTIN_ULLONG;
+                    tname = "unsigned long long";
+                } else {
+                    cbt = ast::C_BUILTIN_LLONG;
+                    tname = "long long";
+                }
                 ls.get();
             } else if (ls.t.token == TOK_int) {
-                cbt = ast::C_BUILTIN_LONG;
-                tname = "long";
+                if (squals & TYPE_UNSIGNED) {
+                    cbt = ast::C_BUILTIN_ULONG;
+                    tname = "unsigned long";
+                } else {
+                    cbt = ast::C_BUILTIN_LONG;
+                    tname = "long";
+                }
                 ls.get();
             } else if (ls.t.token == TOK_double) {
                 cbt = ast::C_BUILTIN_LDOUBLE;
                 tname = "long double";
                 ls.get();
+            } else if (squals & TYPE_UNSIGNED) {
+                cbt = ast::C_BUILTIN_ULONG;
+                tname = "unsigned long";
             } else {
                 cbt = ast::C_BUILTIN_LONG;
                 tname = "long";

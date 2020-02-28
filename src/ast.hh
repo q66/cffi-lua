@@ -27,18 +27,31 @@ enum c_builtin {
     C_BUILTIN_ENUM,
 
     C_BUILTIN_CHAR,
+    C_BUILTIN_SCHAR,
+    C_BUILTIN_UCHAR,
     C_BUILTIN_SHORT,
+    C_BUILTIN_USHORT,
     C_BUILTIN_INT,
+    C_BUILTIN_UINT,
     C_BUILTIN_LONG,
+    C_BUILTIN_ULONG,
     C_BUILTIN_LLONG,
+    C_BUILTIN_ULLONG,
 
     C_BUILTIN_INT8,
     C_BUILTIN_INT16,
     C_BUILTIN_INT32,
     C_BUILTIN_INT64,
 
+    C_BUILTIN_UINT8,
+    C_BUILTIN_UINT16,
+    C_BUILTIN_UINT32,
+    C_BUILTIN_UINT64,
+
     C_BUILTIN_SIZE,
+    C_BUILTIN_SSIZE,
     C_BUILTIN_INTPTR,
+    C_BUILTIN_UINTPTR,
     C_BUILTIN_PTRDIFF,
 
     C_BUILTIN_TIME,
@@ -53,8 +66,6 @@ enum c_builtin {
 enum c_cv {
     C_CV_CONST = 1 << 8,
     C_CV_VOLATILE = 1 << 9,
-    C_CV_UNSIGNED = 1 << 10,
-    C_CV_SIGNED = 1 << 11,
 };
 
 enum c_type_ownership {
@@ -145,6 +156,7 @@ union c_value {
     int i;
     short s;
     char c;
+    signed char sc;
     /* unsigned int primitives, unknown size */
     unsigned long long ull;
     unsigned long ul;
@@ -163,6 +175,10 @@ union c_value {
     uint8_t u8;
     /* other types */
     size_t sz;
+    ssize_t ssz;
+    intptr_t ip;
+    uintptr_t uip;
+    ptrdiff_t pd;
     /* booleans */
     bool b;
     /* pointer types */

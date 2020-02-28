@@ -126,29 +126,13 @@ int call_cif(cdata<fdata> &fud, lua_State *L) {
 }
 
 template<typename T>
-static inline bool use_ffi_signed(int cv) {
-    if (cv & ast::C_CV_SIGNED) {
-        return true;
-    }
-    if (cv & ast::C_CV_UNSIGNED) {
-        return false;
-    }
-    return std::numeric_limits<T>::is_signed;
-}
-
-template<typename T>
-static inline void push_int(lua_State *L, int cv, void *value) {
-    if (use_ffi_signed<T>(cv)) {
-        using U = typename std::make_signed<T>::type *;
-        lua_pushinteger(L, lua_Integer(*U(value)));
-    } else {
-        using U = typename std::make_unsigned<T>::type *;
-        lua_pushinteger(L, lua_Integer(*U(value)));
-    }
+static inline void push_int(lua_State *L, void *value) {
+    using U = T *;
+    lua_pushinteger(L, lua_Integer(*U(value)));
 }
 
 int lua_push_cdata(lua_State *L, ast::c_type const &tp, void *value) {
-    switch (tp.type()) {
+    switch (ast::c_builtin(tp.type())) {
         /* no retval */
         case ast::C_BUILTIN_VOID:
             return 0;
@@ -167,22 +151,47 @@ int lua_push_cdata(lua_State *L, ast::c_type const &tp, void *value) {
             lua_pushnumber(L, lua_Number(*static_cast<long double *>(value)));
             return 1;
         case ast::C_BUILTIN_CHAR:
-            push_int<char>(L, tp.cv(), value); return 1;
+            push_int<char>(L, value); return 1;
+        case ast::C_BUILTIN_SCHAR:
+            push_int<signed char>(L, value); return 1;
+        case ast::C_BUILTIN_UCHAR:
+            push_int<unsigned char>(L, value); return 1;
         case ast::C_BUILTIN_SHORT:
-            push_int<short>(L, tp.cv(), value); return 1;
+            push_int<short>(L, value); return 1;
+        case ast::C_BUILTIN_USHORT:
+            push_int<unsigned short>(L, value); return 1;
         case ast::C_BUILTIN_INT:
-            push_int<int>(L, tp.cv(), value); return 1;
+            push_int<int>(L, value); return 1;
+        case ast::C_BUILTIN_UINT:
+            push_int<unsigned int>(L, value); return 1;
         case ast::C_BUILTIN_INT8:
-            push_int<int8_t>(L, tp.cv(), value); return 1;
+            push_int<int8_t>(L, value); return 1;
+        case ast::C_BUILTIN_UINT8:
+            push_int<uint8_t>(L, value); return 1;
         case ast::C_BUILTIN_INT16:
-            push_int<int16_t>(L, tp.cv(), value); return 1;
+            push_int<int16_t>(L, value); return 1;
+        case ast::C_BUILTIN_UINT16:
+            push_int<uint16_t>(L, value); return 1;
         case ast::C_BUILTIN_INT32:
-            push_int<int32_t>(L, tp.cv(), value); return 1;
+            push_int<int32_t>(L, value); return 1;
+        case ast::C_BUILTIN_UINT32:
+            push_int<uint32_t>(L, value); return 1;
         case ast::C_BUILTIN_LONG:
+        case ast::C_BUILTIN_ULONG:
+        case ast::C_BUILTIN_LLONG:
+        case ast::C_BUILTIN_ULLONG:
         case ast::C_BUILTIN_INT64:
+        case ast::C_BUILTIN_UINT64:
         case ast::C_BUILTIN_SIZE:
+        case ast::C_BUILTIN_SSIZE:
         case ast::C_BUILTIN_INTPTR:
+        case ast::C_BUILTIN_UINTPTR:
+        case ast::C_BUILTIN_PTRDIFF:
         case ast::C_BUILTIN_TIME:
+        case ast::C_BUILTIN_STRUCT:
+        case ast::C_BUILTIN_ENUM:
+        case ast::C_BUILTIN_FUNC:
+        case ast::C_BUILTIN_FPTR:
             luaL_error(L, "NYI"); return 0;
         case ast::C_BUILTIN_PTR: {
             /* pointers should be handled like large cdata, as they need
@@ -194,26 +203,20 @@ int lua_push_cdata(lua_State *L, ast::c_type const &tp, void *value) {
             luaL_setmetatable(L, "cffi_cdata_handle");
             return 1;
         }
-        default:
-            luaL_error(L, "unexpected error: unhandled type %d", tp.type());
-            return 0;
+
+        case ast::C_BUILTIN_INVALID:
+        case ast::C_BUILTIN_NOT:
+            break;
     }
 
-    /* large cdata will be handled here, for example whole large structs */
-    luaL_error(L, "NYI");
+    luaL_error(L, "unexpected error: unhandled type %d", tp.type());
     return 0;
 }
 
 template<typename T>
-static inline void *write_int(lua_State *L, int index, int cv, void *stor) {
+static inline void *write_int(lua_State *L, int index, void *stor) {
     lua_Integer v = lua_tointeger(L, index);
-    if (use_ffi_signed<T>(cv)) {
-        using U = typename std::make_signed<T>::type;
-        *static_cast<U *>(stor) = U(v);
-    } else {
-        using U = typename std::make_unsigned<T>::type;
-        *static_cast<U *>(stor) = U(v);
-    }
+    *static_cast<T *>(stor) = T(v);
     return stor;
 }
 
@@ -253,25 +256,53 @@ void *lua_check_cdata(
                 case ast::C_BUILTIN_DOUBLE:
                     return &(stor->d = double(lua_tonumber(L, index)));
                 case ast::C_BUILTIN_CHAR:
-                    return write_int<char>(L, index, tp.cv(), &stor->c);
+                    return write_int<char>(L, index, &stor->c);
+                case ast::C_BUILTIN_SCHAR:
+                    return write_int<signed char>(L, index, &stor->sc);
+                case ast::C_BUILTIN_UCHAR:
+                    return write_int<unsigned char>(L, index, &stor->uc);
                 case ast::C_BUILTIN_SHORT:
-                    return write_int<short>(L, index, tp.cv(), &stor->s);
+                    return write_int<short>(L, index, &stor->s);
+                case ast::C_BUILTIN_USHORT:
+                    return write_int<unsigned short>(L, index, &stor->us);
                 case ast::C_BUILTIN_INT:
-                    return write_int<int>(L, index, tp.cv(), &stor->i);
+                    return write_int<int>(L, index, &stor->i);
+                case ast::C_BUILTIN_UINT:
+                    return write_int<unsigned int>(L, index, &stor->u);
                 case ast::C_BUILTIN_LONG:
-                    return write_int<long>(L, index, tp.cv(), &stor->l);
+                    return write_int<long>(L, index, &stor->l);
+                case ast::C_BUILTIN_ULONG:
+                    return write_int<unsigned long>(L, index, &stor->ul);
                 case ast::C_BUILTIN_LLONG:
-                    return write_int<long long>(L, index, tp.cv(), &stor->ll);
+                    return write_int<long long>(L, index, &stor->ll);
+                case ast::C_BUILTIN_ULLONG:
+                    return write_int<unsigned long long>(L, index, &stor->ull);
                 case ast::C_BUILTIN_INT8:
-                    return write_int<int8_t>(L, index, tp.cv(), &stor->i8);
+                    return write_int<int8_t>(L, index, &stor->i8);
+                case ast::C_BUILTIN_UINT8:
+                    return write_int<uint8_t>(L, index, &stor->u8);
                 case ast::C_BUILTIN_INT16:
-                    return write_int<int16_t>(L, index, tp.cv(), &stor->i16);
+                    return write_int<int16_t>(L, index, &stor->i16);
+                case ast::C_BUILTIN_UINT16:
+                    return write_int<uint16_t>(L, index, &stor->u16);
                 case ast::C_BUILTIN_INT32:
-                    return write_int<int32_t>(L, index, tp.cv(), &stor->i32);
+                    return write_int<int32_t>(L, index, &stor->i32);
+                case ast::C_BUILTIN_UINT32:
+                    return write_int<uint32_t>(L, index, &stor->u32);
                 case ast::C_BUILTIN_INT64:
-                    return write_int<int64_t>(L, index, tp.cv(), &stor->i64);
+                    return write_int<int64_t>(L, index, &stor->i64);
+                case ast::C_BUILTIN_UINT64:
+                    return write_int<uint64_t>(L, index, &stor->u64);
                 case ast::C_BUILTIN_SIZE:
-                    return write_int<size_t>(L, index, tp.cv(), &stor->sz);
+                    return write_int<size_t>(L, index, &stor->sz);
+                case ast::C_BUILTIN_SSIZE:
+                    return write_int<ssize_t>(L, index, &stor->ssz);
+                case ast::C_BUILTIN_INTPTR:
+                    return write_int<intptr_t>(L, index, &stor->ip);
+                case ast::C_BUILTIN_UINTPTR:
+                    return write_int<uintptr_t>(L, index, &stor->uip);
+                case ast::C_BUILTIN_PTRDIFF:
+                    return write_int<ptrdiff_t>(L, index, &stor->pd);
                 default:
                     luaL_error(
                         L, "cannot convert 'number' to '%s'",
