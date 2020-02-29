@@ -15,7 +15,9 @@ ffi.cdef [[
     enum test {
         FIRST = 1, SECOND, THIRD, FOURTH,
 
-        SOME_FLAG = 1 << 4
+        SOME_FLAG = 1 << 4,
+        SOME_SIZE = sizeof(void *),
+        SOME_ALIGN = alignof(long double)
     };
 ]]
 
@@ -91,6 +93,8 @@ print()
 print("# enum constants")
 print("ffi.C.THIRD = " .. ffi.C.THIRD)
 print("ffi.C.SOME_FLAG = " .. ffi.C.SOME_FLAG)
+print("ffi.C:SOME_SIZE = " .. ffi.C.SOME_SIZE)
+print("ffi.C.SOME_ALIGN = " .. ffi.C.SOME_ALIGN)
 print()
 
 print("## END TESTS ##")

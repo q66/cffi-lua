@@ -626,6 +626,8 @@ static std::unique_ptr<ast::c_expr> expr_dup(ast::c_expr &&exp) {
 static ast::c_expr parse_cexpr(lex_state &ls);
 static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec);
 
+static ast::c_type parse_type(lex_state &ls, bool allow_void = false);
+
 static ast::c_expr parse_cexpr_simple(lex_state &ls) {
     auto unop = get_unop(ls.t.token);
     if (unop != ast::c_expr_unop::INVALID) {
@@ -644,6 +646,44 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
             ret.type = ls.t.numtag;
             memcpy(&ret.val, &ls.t.value, sizeof(ls.t.value));
             ls.get();
+            return ret;
+        }
+        case TOK_sizeof: {
+            /* TODO: this should also take expressions
+             * we just don't support expressions this would support yet
+             */
+            ls.get();
+            int line = ls.line_number;
+            check_next(ls, '(');
+            auto tp = parse_type(ls);
+            check_match(ls, ')', '(', line);
+            ast::c_expr ret;
+            size_t align = tp.libffi_type()->size;
+            if (sizeof(unsigned long long) > sizeof(void *)) {
+                ret.type = ast::c_expr_type::ULONG;
+                ret.val.ul = static_cast<unsigned long>(align);
+            } else {
+                ret.type = ast::c_expr_type::ULLONG;
+                ret.val.ull = static_cast<unsigned long long>(align);
+            }
+            return ret;
+        }
+        case TOK_alignof:
+        case TOK___alignof__: {
+            ls.get();
+            int line = ls.line_number;
+            check_next(ls, '(');
+            auto tp = parse_type(ls);
+            check_match(ls, ')', '(', line);
+            ast::c_expr ret;
+            size_t align = tp.libffi_type()->alignment;
+            if (sizeof(unsigned long long) > sizeof(void *)) {
+                ret.type = ast::c_expr_type::ULONG;
+                ret.val.ul = static_cast<unsigned long>(align);
+            } else {
+                ret.type = ast::c_expr_type::ULLONG;
+                ret.val.ull = static_cast<unsigned long long>(align);
+            }
             return ret;
         }
         case '(': {
@@ -773,7 +813,7 @@ enum type_signedness {
  * about the real signatures, only about their sizes and signedness and so
  * on to provide to the codegen) but it's a start
  */
-static ast::c_type parse_type(lex_state &ls, bool allow_void = false) {
+static ast::c_type parse_type(lex_state &ls, bool allow_void) {
     /* left-side cv */
     int quals = parse_cv(ls);
     int squals = 0;

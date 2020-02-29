@@ -96,9 +96,9 @@ C language syntax support.
 - [x] Unary operators (`-`, `+`, `!`, `~`)
 - [x] Ternary operator
 - [x] Operator precedences
-- [ ] `alignof`
-- [ ] `sizeof`
-- [ ] `__alignof__` (GCC extension)
+- [x] `alignof`
+- [x] `sizeof`
+- [x] `__alignof__` (GCC extension)
 
 ### Assorted extensions
 

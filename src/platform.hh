@@ -216,7 +216,7 @@ static_assert(
 #  define FFI_PPC_SPE 1
 #endif
 
-#ifndef FFI_ARCH_HASFPU
+#ifndef FFI_ARCH_HAS_FPU
 #if defined(_SOFT_FLOAT) || defined(_SOFT_DOUBLE)
 #  define FFI_ARCH_HAS_FPU 0
 #else
