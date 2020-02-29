@@ -1,10 +1,15 @@
 local ffi = require("cffi")
 
 ffi.cdef [[
+    // just some typedef tests...
+    typedef char *mbuf;
+    // weird infix syntax is a thing too
+    const void *typedef cptr;
+
     double strtod(const char *str, char **endptr);
     int puts(char const *str);
-    char *strdup(char const *x);
-    void *memcpy(void *dest, const void *src, size_t num);
+    mbuf strdup(char const *x);
+    void *memcpy(void *dest, cptr src, size_t num);
     void free(void *p);
 
     enum test {
@@ -77,7 +82,7 @@ print("# type of a ptr")
 local pt = ffi.typeof(foo);
 print("typeof(foo) == " .. tostring(pt))
 print("instantiated via ctor == " .. tostring(pt()))
-print("instantiated via string == " .. tostring(ffi.new("char *")))
+print("instantiated via string == " .. tostring(ffi.new("mbuf")))
 print("instantiated via ffi.new(ct) == " .. tostring(ffi.new(pt)))
 print("size == " .. ffi.sizeof(pt))
 print("alignment == " .. ffi.alignof(pt))

@@ -135,6 +135,10 @@ struct lex_state {
         next_char();
     }
 
+    ~lex_state() {
+        commit();
+    }
+
     int get() {
         if (lahead.token >= 0) {
             t = std::move(lahead);
@@ -156,13 +160,14 @@ struct lex_state {
         lex_error(msg, t.token);
     }
 
-    void stage_decl(ast::c_object *obj) {
-        assert(!p_staged);
-        p_staged = std::unique_ptr<ast::c_object>{obj};
+    void store_decl(ast::c_object *obj) {
+        /* TODO: have a staging system */
+        ast::add_decl(obj);
     }
 
     void commit() {
-        ast::add_decl(p_staged.release());
+        /* nothing for now, objects are directly stored right now */
+        return;
     }
 
 private:
@@ -772,8 +777,8 @@ static ast::c_type parse_type(lex_state &ls, bool allow_void = false) {
     int quals = parse_cv(ls);
     int squals = 0;
 
-    std::string tname;
-    ast::c_builtin cbt = ast::C_BUILTIN_NOT;
+    std::string tname{};
+    ast::c_builtin cbt = ast::C_BUILTIN_INVALID;
 
     if (ls.t.token == TOK_signed || ls.t.token == TOK_unsigned) {
         if (ls.t.token == TOK_signed) {
@@ -803,13 +808,50 @@ static ast::c_type parse_type(lex_state &ls, bool allow_void = false) {
             tname = "unsigned int";
         }
         goto newtype;
+    } else if (ls.t.token == TOK_struct || ls.t.token == TOK_enum) {
+        tname = ls.t.value_s;
+        ls.get();
+        tname += ' ';
+        check(ls, TOK_NAME);
     }
 
 qualified:
     if (ls.t.token == TOK_NAME) {
-        /* a name but not a keyword, probably custom type */
-        tname = ls.t.value_s;
+        /* typedef, struct, enum, var, etc. */
+        tname += ls.t.value_s;
+        auto *decl = ast::lookup_decl(tname);
+        if (!decl) {
+            std::string buf;
+            buf += "undeclared symbol '";
+            buf += tname;
+            buf += "'";
+            ls.syntax_error(buf);
+        }
         ls.get();
+        switch (decl->obj_type()) {
+            case ast::c_object_type::TYPEDEF: {
+                ast::c_type tp{decl->as<ast::c_typedef>().type()};
+                /* merge qualifiers */
+                tp.cv(quals);
+                return parse_type_ptr(ls, std::move(tp), allow_void);
+            }
+            case ast::c_object_type::STRUCT: {
+                auto &tp = decl->as<ast::c_struct>();
+                return parse_type_ptr(ls, ast::c_type{&tp, quals}, true);
+            }
+            case ast::c_object_type::ENUM: {
+                auto &tp = decl->as<ast::c_enum>();
+                return parse_type_ptr(ls, ast::c_type{&tp, quals}, true);
+            }
+            default: {
+                std::string buf;
+                buf += "symbol '";
+                buf += tname;
+                buf += "' is not a type";
+                ls.syntax_error(buf);
+                break;
+            }
+        }
     } else switch (ls.t.token) {
         /* may be a builtin type */
         case TOK_void:
@@ -938,6 +980,7 @@ qualified:
     }
 
 newtype:
+    assert(cbt != ast::C_BUILTIN_INVALID);
     return parse_type_ptr(ls, ast::c_type{tname, cbt, quals}, allow_void);
 }
 
@@ -951,17 +994,19 @@ static void parse_typedef(lex_state &ls, ast::c_type &&tp) {
     std::string aname = ls.t.value_s;
     ls.get();
 
-    ls.stage_decl(new ast::c_typedef{std::move(aname), std::move(tp)});
+    ls.store_decl(new ast::c_typedef{std::move(aname), std::move(tp)});
 }
 
 static void parse_struct(lex_state &ls) {
     ls.get(); /* struct keyword */
 
     /* name is optional */
-    std::string sname;
+    std::string sname = "struct ";
     if (ls.t.token == TOK_NAME) {
-        sname = ls.t.value_s;
+        sname += ls.t.value_s;
         ls.get();
+    } else {
+        sname += ast::request_name();
     }
 
     int linenum = ls.line_number;
@@ -979,17 +1024,19 @@ static void parse_struct(lex_state &ls) {
 
     check_match(ls, '}', '{', linenum);
 
-    ls.stage_decl(new ast::c_struct{std::move(sname), std::move(fields)});
+    ls.store_decl(new ast::c_struct{std::move(sname), std::move(fields)});
 }
 
 static void parse_enum(lex_state &ls) {
     ls.get();
 
     /* name is optional */
-    std::string ename;
+    std::string ename = "enum ";
     if (ls.t.token == TOK_NAME) {
-        ename = ls.t.value_s;
+        ename += ls.t.value_s;
         ls.get();
+    } else {
+        ename += ast::request_name();
     }
 
     int linenum = ls.line_number;
@@ -1020,7 +1067,7 @@ static void parse_enum(lex_state &ls) {
 
     check_match(ls, '}', '{', linenum);
 
-    ls.stage_decl(new ast::c_enum{std::move(ename), std::move(fields)});
+    ls.store_decl(new ast::c_enum{std::move(ename), std::move(fields)});
 }
 
 static void parse_decl(lex_state &ls) {
@@ -1028,7 +1075,7 @@ static void parse_decl(lex_state &ls) {
         case TOK_typedef: {
             /* syntax 1: typedef FROM TO; */
             ls.get();
-            parse_typedef(ls, parse_type(ls));
+            parse_typedef(ls, parse_type(ls, true));
             return;
         }
         case TOK_struct:
@@ -1061,7 +1108,7 @@ static void parse_decl(lex_state &ls) {
     }
 
     if (ls.t.token == ';') {
-        ls.stage_decl(new ast::c_variable{std::move(dname), std::move(tp)});
+        ls.store_decl(new ast::c_variable{std::move(dname), std::move(tp)});
         return;
     } else if (ls.t.token != '(') {
         check(ls, ';');
@@ -1097,7 +1144,7 @@ static void parse_decl(lex_state &ls) {
 done_params:
     check_match(ls, ')', '(', linenum);
 
-    ls.stage_decl(new ast::c_function{
+    ls.store_decl(new ast::c_function{
         std::move(dname), std::move(tp), std::move(params)
     });
 }
@@ -1114,10 +1161,6 @@ static void parse_decls(lex_state &ls) {
             break;
         }
         check_next(ls, ';');
-        /* one declaration per statement, commit whatever into list
-         * FIXME: stage multiple and commit at the end of parse
-         */
-        ls.commit();
     }
 }
 

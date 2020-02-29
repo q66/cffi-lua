@@ -126,7 +126,7 @@ Implements the functionality provided by the parser.
 - [x] Enums (except large enums beyond `int`)
 - [ ] Correct type conversions (partial)
 - [ ] Safer handling of value conversions
-- [ ] Typedefs
+- [x] Typedefs
 - [ ] Structs
   - [ ] Bitfields
 - [ ] Unions

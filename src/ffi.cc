@@ -211,7 +211,6 @@ int lua_push_cdata(lua_State *L, ast::c_type const &tp, void *value) {
         }
 
         case ast::C_BUILTIN_INVALID:
-        case ast::C_BUILTIN_NOT:
             break;
     }
 

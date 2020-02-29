@@ -249,10 +249,6 @@ constexpr ffi_type *get_basic_float() {
 
 ffi_type *c_type::libffi_type() const {
     switch (c_builtin(type())) {
-        /* FIXME: remove this */
-        case C_BUILTIN_NOT:
-            return p_cptr->libffi_type();
-
         case C_BUILTIN_VOID:
             return &ffi_type_void;
 
@@ -390,6 +386,13 @@ c_object const *lookup_decl(std::string const &name) {
         return nullptr;
     }
     return it->second;
+}
+
+std::string request_name() {
+    char buf[32];
+    /* could do something better, this will do to avoid clashes for now... */
+    snprintf(buf, sizeof(buf), "%zu", decl_list.size());
+    return std::string{static_cast<char const *>(buf)};
 }
 
 } /* namespace ast */

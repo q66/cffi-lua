@@ -90,6 +90,12 @@ struct lib_meta {
     }
 };
 
+struct fd2 {
+    void *sym;
+    ffi_cif cif;
+    ast::c_value args[];
+};
+
 /* used by all kinds of cdata
  *
  * there are several kinds of cdata:
@@ -99,16 +105,28 @@ struct lib_meta {
  */
 struct cdata_meta {
     static int gc(lua_State *L) {
-        auto &fud = *lua::touserdata<ffi::cdata<void *>>(L, 1);
+        auto &cd = *lua::touserdata<ffi::cdata<void *>>(L, 1);
         using T = ast::c_type;
-        fud.decl.~T();
+        cd.decl.~T();
         return 0;
     }
 
     static int tostring(lua_State *L) {
-        auto &fud = *lua::touserdata<ffi::cdata<void *>>(L, 1);
-        auto s = fud.decl.serialize();
-        lua_pushfstring(L, "cdata<%s>: %p", s.c_str(), fud.val);
+        auto &cd = *lua::touserdata<ffi::cdata<void *>>(L, 1);
+        auto s = cd.decl.serialize();
+        void *addr;
+        switch (cd.decl.type()) {
+            case ast::C_BUILTIN_FUNC:
+            case ast::C_BUILTIN_FPTR: {
+                auto &fud = *reinterpret_cast<ffi::cdata<ffi::fdata> *>(&cd);
+                addr = reinterpret_cast<void *>(fud.val.sym);
+                break;
+            }
+            default:
+                addr = cd.val;
+                break;
+        }
+        lua_pushfstring(L, "cdata<%s>: %p", s.c_str(), addr);
         return 1;
     }
 

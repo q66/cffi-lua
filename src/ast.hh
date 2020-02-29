@@ -15,8 +15,6 @@ namespace ast {
 enum c_builtin {
     C_BUILTIN_INVALID = 0,
 
-    C_BUILTIN_NOT,
-
     C_BUILTIN_VOID,
 
     C_BUILTIN_PTR,
@@ -628,6 +626,8 @@ struct redefine_error: public std::runtime_error {
 void add_decl(c_object *decl);
 
 c_object const *lookup_decl(std::string const &name);
+
+std::string request_name();
 
 } /* namespace ast */
 
