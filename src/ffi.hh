@@ -17,7 +17,7 @@ struct cdata {
     T val;
 };
 
-struct fdata {
+struct alignas(alignof(cdata<ast::c_value>)) fdata {
     void (*sym)();
     ffi_cif cif;
     ast::c_value args[];

@@ -97,4 +97,9 @@ print("ffi.C:SOME_SIZE = " .. ffi.C.SOME_SIZE)
 print("ffi.C.SOME_ALIGN = " .. ffi.C.SOME_ALIGN)
 print()
 
+print("# scalar cdata")
+local scd = ffi.new("int", 10);
+print("int(10) == " .. tostring(scd))
+print()
+
 print("## END TESTS ##")

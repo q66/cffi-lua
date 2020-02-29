@@ -203,9 +203,9 @@ int lua_push_cdata(lua_State *L, ast::c_type const &tp, void *value) {
             /* pointers should be handled like large cdata, as they need
              * to be represented as userdata objects on lua side either way
              */
-            auto *fud = lua::newuserdata<ffi::cdata<void *>>(L);
+            auto *fud = lua::newuserdata<ffi::cdata<ast::c_value>>(L);
             new (&fud->decl) ast::c_type{tp};
-            fud->val = *reinterpret_cast<void **>(value);
+            fud->val.ptr = reinterpret_cast<ast::c_value *>(value)->ptr;
             luaL_setmetatable(L, "cffi_cdata_handle");
             return 1;
         }
@@ -342,8 +342,8 @@ void *lua_check_cdata(
                         /* special handling for cdata */
                         /* FIXME: check type conversions... */
                         return &(stor->ptr = lua::touserdata<
-                            ffi::cdata<void *>
-                        >(L, index)->val);
+                            ffi::cdata<ast::c_value>
+                        >(L, index)->val.ptr);
                     } else {
                         return &(stor->ptr = lua_touserdata(L, index));
                     }

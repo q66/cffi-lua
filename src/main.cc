@@ -105,28 +105,16 @@ struct fd2 {
  */
 struct cdata_meta {
     static int gc(lua_State *L) {
-        auto &cd = *lua::touserdata<ffi::cdata<void *>>(L, 1);
+        auto &cd = *lua::touserdata<ffi::cdata<ast::c_value>>(L, 1);
         using T = ast::c_type;
         cd.decl.~T();
         return 0;
     }
 
     static int tostring(lua_State *L) {
-        auto &cd = *lua::touserdata<ffi::cdata<void *>>(L, 1);
+        auto &cd = *lua::touserdata<ffi::cdata<ast::c_value>>(L, 1);
         auto s = cd.decl.serialize();
-        void *addr;
-        switch (cd.decl.type()) {
-            case ast::C_BUILTIN_FUNC:
-            case ast::C_BUILTIN_FPTR: {
-                auto &fud = *reinterpret_cast<ffi::cdata<ffi::fdata> *>(&cd);
-                addr = reinterpret_cast<void *>(fud.val.sym);
-                break;
-            }
-            default:
-                addr = cd.val;
-                break;
-        }
-        lua_pushfstring(L, "cdata<%s>: %p", s.c_str(), addr);
+        lua_pushfstring(L, "cdata<%s>: %p", s.c_str(), &cd.val);
         return 1;
     }
 
@@ -149,7 +137,7 @@ struct cdata_meta {
 
     template<typename F>
     static void index_common(lua_State *L, F &&func) {
-        auto *cd = lua::touserdata<ffi::cdata<void **>>(L, 1);
+        auto *cd = lua::touserdata<ffi::cdata<ast::c_value>>(L, 1);
         /* TODO: add arrays */
         switch (cd->decl.type()) {
             case ast::C_BUILTIN_PTR:
@@ -162,7 +150,7 @@ struct cdata_meta {
         }
         auto sidx = luaL_checkinteger(L, 2);
         luaL_argcheck(L, sidx >= 0, 2, "index is negative");
-        auto *ptr = reinterpret_cast<unsigned char *>(cd->val);
+        auto *ptr = reinterpret_cast<unsigned char *>(cd->val.ptr);
         auto *type = cd->decl.ptr_base().libffi_type();
         func(*cd, static_cast<void *>(&ptr[sidx * type->size]));
     }
@@ -240,7 +228,10 @@ struct ctype_meta {
         } else {
             memset(&stor, 0, sizeof(stor));
         }
-        ffi::lua_push_cdata(L, decl, &stor);
+        auto *cd = lua::newuserdata<ffi::cdata<ast::c_value>>(L);
+        new (&cd->decl) ast::c_type{decl};
+        memcpy(&cd->val, &stor, sizeof(stor));
+        luaL_setmetatable(L, "cffi_cdata_handle");
         return 1;
     }
 
@@ -343,11 +334,14 @@ struct ffi_module {
             luaL_argcheck(L, false, 1, lua_tostring(L, -1));
         }
         /* FIXME: check argument type conversions */
-        auto &ud = *lua::touserdata<ffi::cdata<char const *>>(L, 1);
+        auto &ud = *lua::touserdata<ffi::cdata<ast::c_value>>(L, 1);
         if (lua_gettop(L) <= 1) {
-            lua_pushstring(L, ud.val);
+            lua_pushstring(L, static_cast<char const *>(ud.val.ptr));
         } else {
-            lua_pushlstring(L, ud.val, size_t(luaL_checkinteger(L, 2)));
+            lua_pushlstring(
+                L, static_cast<char const *>(ud.val.ptr),
+                size_t(luaL_checkinteger(L, 2))
+            );
         }
         return 1;
     }
@@ -355,7 +349,7 @@ struct ffi_module {
     /* FIXME: type conversions (constness etc.) */
     static void *check_voidptr(lua_State *L, int idx) {
         if (luaL_testudata(L, idx, "cffi_cdata_handle")) {
-            auto &ud = *lua::touserdata<ffi::cdata<void *>>(L, idx);
+            auto &ud = *lua::touserdata<ffi::cdata<ast::c_value>>(L, idx);
             if (ud.decl.type() != ast::C_BUILTIN_PTR) {
                 lua_pushfstring(
                     L, "cannot convert '%s' to 'void *'",
@@ -363,7 +357,7 @@ struct ffi_module {
                 );
                 luaL_argcheck(L, false, idx, lua_tostring(L, -1));
             }
-            return ud.val;
+            return ud.val.ptr;
         } else if (lua_isuserdata(L, idx)) {
             return lua_touserdata(L, idx);
         }
