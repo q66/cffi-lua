@@ -15,6 +15,13 @@ template<typename T>
 struct cdata {
     ast::c_type decl;
     T val;
+
+    void *get_addr() {
+        if (decl.type() == ast::C_BUILTIN_PTR) {
+            return *reinterpret_cast<void **>(&val);
+        }
+        return &val;
+    }
 };
 
 /* data used for function types */

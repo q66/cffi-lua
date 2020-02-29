@@ -114,7 +114,7 @@ struct cdata_meta {
     static int tostring(lua_State *L) {
         auto &cd = *lua::touserdata<ffi::cdata<ast::c_value>>(L, 1);
         auto s = cd.decl.serialize();
-        lua_pushfstring(L, "cdata<%s>: %p", s.c_str(), &cd.val);
+        lua_pushfstring(L, "cdata<%s>: %p", s.c_str(), cd.get_addr());
         return 1;
     }
 
