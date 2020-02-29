@@ -1,8 +1,6 @@
 #ifndef FFI_HH
 #define FFI_HH
 
-#include <string>
-
 #include "libffi.hh"
 
 #include "lua.hh"

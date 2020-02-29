@@ -214,46 +214,13 @@ void c_type::do_serialize(std::string &o) const {
     }
 }
 
-template<typename T>
-constexpr ffi_type *get_basic_int() {
-    bool is_signed = std::numeric_limits<T>::is_signed;
-    switch (sizeof(T)) {
-        case 8:
-            return is_signed ? &ffi_type_sint64 : &ffi_type_uint64;
-        case 4:
-            return is_signed ? &ffi_type_sint32 : &ffi_type_uint32;
-        case 2:
-            return is_signed ? &ffi_type_sint16 : &ffi_type_uint16;
-        case 1:
-            return is_signed ? &ffi_type_sint8 : &ffi_type_uint8;
-        default:
-            break;
-    }
-    assert(false);
-    return nullptr;
-}
-
-template<typename T>
-constexpr ffi_type *get_basic_float() {
-    if (std::is_same<T, float>::value) {
-        return &ffi_type_float;
-    } else if (std::is_same<T, double>::value) {
-        return &ffi_type_double;
-    } else if (std::is_same<T, long double>::value) {
-        return &ffi_type_longdouble;
-    } else {
-        assert(false);
-        return nullptr;
-    }
-}
+#define C_BUILTIN_CASE(bt) case C_BUILTIN_##bt: \
+    return ast::builtin_ffi_type<C_BUILTIN_##bt>();
 
 ffi_type *c_type::libffi_type() const {
     switch (c_builtin(type())) {
-        case C_BUILTIN_VOID:
-            return &ffi_type_void;
-
-        case C_BUILTIN_PTR:
-            return &ffi_type_pointer;
+        C_BUILTIN_CASE(VOID)
+        C_BUILTIN_CASE(PTR)
 
         case C_BUILTIN_FPTR:
         case C_BUILTIN_FUNC:
@@ -264,80 +231,44 @@ ffi_type *c_type::libffi_type() const {
         case C_BUILTIN_ENUM:
             return p_cenum->libffi_type();
 
-        case C_BUILTIN_FLOAT:
-            return &ffi_type_float;
-        case C_BUILTIN_DOUBLE:
-            return &ffi_type_double;
-        case C_BUILTIN_LDOUBLE:
-            return &ffi_type_longdouble;
+        C_BUILTIN_CASE(FLOAT)
+        C_BUILTIN_CASE(DOUBLE)
+        C_BUILTIN_CASE(LDOUBLE)
 
-        case C_BUILTIN_BOOL:
-            /* i guess... */
-            return &ffi_type_uchar;
+        C_BUILTIN_CASE(BOOL)
 
-        case C_BUILTIN_CHAR:
-            return get_basic_int<char>();
-        case C_BUILTIN_SCHAR:
-            return get_basic_int<signed char>();
-        case C_BUILTIN_UCHAR:
-            return get_basic_int<unsigned char>();
-        case C_BUILTIN_SHORT:
-            return get_basic_int<short>();
-        case C_BUILTIN_USHORT:
-            return get_basic_int<unsigned short>();
-        case C_BUILTIN_INT:
-            return get_basic_int<int>();
-        case C_BUILTIN_UINT:
-            return get_basic_int<unsigned int>();
-        case C_BUILTIN_LONG:
-            return get_basic_int<long>();
-        case C_BUILTIN_ULONG:
-            return get_basic_int<unsigned long>();
-        case C_BUILTIN_LLONG:
-            return get_basic_int<long long>();
-        case C_BUILTIN_ULLONG:
-            return get_basic_int<unsigned long long>();
+        C_BUILTIN_CASE(CHAR)
+        C_BUILTIN_CASE(SCHAR)
+        C_BUILTIN_CASE(UCHAR)
+        C_BUILTIN_CASE(SHORT)
+        C_BUILTIN_CASE(USHORT)
+        C_BUILTIN_CASE(INT)
+        C_BUILTIN_CASE(UINT)
+        C_BUILTIN_CASE(LONG)
+        C_BUILTIN_CASE(ULONG)
+        C_BUILTIN_CASE(LLONG)
+        C_BUILTIN_CASE(ULLONG)
 
-        case C_BUILTIN_WCHAR:
-            return get_basic_int<wchar_t>();
-        case C_BUILTIN_CHAR16:
-            return get_basic_int<char16_t>();
-        case C_BUILTIN_CHAR32:
-            return get_basic_int<char32_t>();
+        C_BUILTIN_CASE(WCHAR)
+        C_BUILTIN_CASE(CHAR16)
+        C_BUILTIN_CASE(CHAR32)
 
-        case C_BUILTIN_INT8:
-            return get_basic_int<int8_t>();
-        case C_BUILTIN_UINT8:
-            return get_basic_int<uint8_t>();
-        case C_BUILTIN_INT16:
-            return get_basic_int<int16_t>();
-        case C_BUILTIN_UINT16:
-            return get_basic_int<uint16_t>();
-        case C_BUILTIN_INT32:
-            return get_basic_int<int32_t>();
-        case C_BUILTIN_UINT32:
-            return get_basic_int<uint32_t>();
-        case C_BUILTIN_INT64:
-            return get_basic_int<int64_t>();
-        case C_BUILTIN_UINT64:
-            return get_basic_int<uint64_t>();
-        case C_BUILTIN_SIZE:
-            return get_basic_int<size_t>();
-        case C_BUILTIN_SSIZE:
-            return get_basic_int<ssize_t>();
-        case C_BUILTIN_INTPTR:
-            return get_basic_int<intptr_t>();
-        case C_BUILTIN_UINTPTR:
-            return get_basic_int<uintptr_t>();
-        case C_BUILTIN_PTRDIFF:
-            return get_basic_int<ptrdiff_t>();
+        C_BUILTIN_CASE(INT8)
+        C_BUILTIN_CASE(INT16)
+        C_BUILTIN_CASE(INT32)
+        C_BUILTIN_CASE(INT64)
+        C_BUILTIN_CASE(UINT8)
+        C_BUILTIN_CASE(UINT16)
+        C_BUILTIN_CASE(UINT32)
+        C_BUILTIN_CASE(UINT64)
 
-        case C_BUILTIN_TIME:
-            if (std::numeric_limits<time_t>::is_integer) {
-                return get_basic_int<time_t>();
-            } else {
-                return get_basic_float<time_t>();
-            }
+        C_BUILTIN_CASE(SIZE)
+        C_BUILTIN_CASE(SSIZE)
+        C_BUILTIN_CASE(INTPTR)
+        C_BUILTIN_CASE(UINTPTR)
+        C_BUILTIN_CASE(PTRDIFF)
+
+        C_BUILTIN_CASE(TIME)
 
         case C_BUILTIN_INVALID:
             break;
@@ -348,6 +279,8 @@ ffi_type *c_type::libffi_type() const {
     assert(false);
     return nullptr;
 }
+
+#undef C_BUILTIN_CASE
 
 /* lua is not thread safe, so the FFI doesn't need to be either */
 

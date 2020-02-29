@@ -65,6 +65,126 @@ enum c_builtin {
     C_BUILTIN_BOOL,
 };
 
+namespace detail {
+    template<typename T>
+    struct builtin_traits_base {
+        using type = T;
+        static ffi_type *libffi_type() { return ffi::ffi_traits<T>::type(); }
+    };
+} /* namespace detail */
+
+/* only defined for scalar types with direct mappings */
+template<c_builtin> struct builtin_traits;
+
+template<> struct builtin_traits<C_BUILTIN_VOID>:
+    detail::builtin_traits_base<void> {};
+
+template<> struct builtin_traits<C_BUILTIN_PTR>:
+    detail::builtin_traits_base<void *> {};
+
+template<> struct builtin_traits<C_BUILTIN_CHAR>:
+    detail::builtin_traits_base<char> {};
+
+template<> struct builtin_traits<C_BUILTIN_SCHAR>:
+    detail::builtin_traits_base<signed char> {};
+
+template<> struct builtin_traits<C_BUILTIN_UCHAR>:
+    detail::builtin_traits_base<unsigned char> {};
+
+template<> struct builtin_traits<C_BUILTIN_SHORT>:
+    detail::builtin_traits_base<short> {};
+
+template<> struct builtin_traits<C_BUILTIN_USHORT>:
+    detail::builtin_traits_base<unsigned short> {};
+
+template<> struct builtin_traits<C_BUILTIN_INT>:
+    detail::builtin_traits_base<int> {};
+
+template<> struct builtin_traits<C_BUILTIN_UINT>:
+    detail::builtin_traits_base<unsigned int> {};
+
+template<> struct builtin_traits<C_BUILTIN_LONG>:
+    detail::builtin_traits_base<long> {};
+
+template<> struct builtin_traits<C_BUILTIN_ULONG>:
+    detail::builtin_traits_base<unsigned long> {};
+
+template<> struct builtin_traits<C_BUILTIN_LLONG>:
+    detail::builtin_traits_base<long long> {};
+
+template<> struct builtin_traits<C_BUILTIN_ULLONG>:
+    detail::builtin_traits_base<unsigned long long> {};
+
+template<> struct builtin_traits<C_BUILTIN_WCHAR>:
+    detail::builtin_traits_base<wchar_t> {};
+
+template<> struct builtin_traits<C_BUILTIN_CHAR16>:
+    detail::builtin_traits_base<char16_t> {};
+
+template<> struct builtin_traits<C_BUILTIN_CHAR32>:
+    detail::builtin_traits_base<char32_t> {};
+
+template<> struct builtin_traits<C_BUILTIN_INT8>:
+    detail::builtin_traits_base<int8_t> {};
+
+template<> struct builtin_traits<C_BUILTIN_INT16>:
+    detail::builtin_traits_base<int16_t> {};
+
+template<> struct builtin_traits<C_BUILTIN_INT32>:
+    detail::builtin_traits_base<int32_t> {};
+
+template<> struct builtin_traits<C_BUILTIN_INT64>:
+    detail::builtin_traits_base<int64_t> {};
+
+template<> struct builtin_traits<C_BUILTIN_UINT8>:
+    detail::builtin_traits_base<uint8_t> {};
+
+template<> struct builtin_traits<C_BUILTIN_UINT16>:
+    detail::builtin_traits_base<uint16_t> {};
+
+template<> struct builtin_traits<C_BUILTIN_UINT32>:
+    detail::builtin_traits_base<uint32_t> {};
+
+template<> struct builtin_traits<C_BUILTIN_UINT64>:
+    detail::builtin_traits_base<uint64_t> {};
+
+template<> struct builtin_traits<C_BUILTIN_SIZE>:
+    detail::builtin_traits_base<size_t> {};
+
+template<> struct builtin_traits<C_BUILTIN_SSIZE>:
+    detail::builtin_traits_base<ssize_t> {};
+
+template<> struct builtin_traits<C_BUILTIN_INTPTR>:
+    detail::builtin_traits_base<intptr_t> {};
+
+template<> struct builtin_traits<C_BUILTIN_UINTPTR>:
+    detail::builtin_traits_base<uintptr_t> {};
+
+template<> struct builtin_traits<C_BUILTIN_PTRDIFF>:
+    detail::builtin_traits_base<ptrdiff_t> {};
+
+template<> struct builtin_traits<C_BUILTIN_TIME>:
+    detail::builtin_traits_base<time_t> {};
+
+template<> struct builtin_traits<C_BUILTIN_FLOAT>:
+    detail::builtin_traits_base<float> {};
+
+template<> struct builtin_traits<C_BUILTIN_DOUBLE>:
+    detail::builtin_traits_base<double> {};
+
+template<> struct builtin_traits<C_BUILTIN_LDOUBLE>:
+    detail::builtin_traits_base<long double> {};
+
+template<> struct builtin_traits<C_BUILTIN_BOOL>:
+    detail::builtin_traits_base<bool> {};
+
+template<c_builtin t> using builtin_t = typename builtin_traits<t>::type;
+
+template<c_builtin t>
+inline ffi_type *builtin_ffi_type() {
+    return builtin_traits<t>::libffi_type();
+}
+
 enum c_cv {
     C_CV_CONST = 1 << 8,
     C_CV_VOLATILE = 1 << 9,
