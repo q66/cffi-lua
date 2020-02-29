@@ -11,7 +11,7 @@ C language syntax support.
 
 ### Declarations
 
-- [x] Simple functions (`ret func(args);`)
+- [x] Simple functions (`ret func(args);`; note: `ret func();` has no args like C++)
 - [ ] Variadic functions
 - [x] Extern variable declarations
 - [x] `typedef`
