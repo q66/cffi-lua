@@ -26,7 +26,7 @@ The dependencies are kept intentionally minimal.
 
 - A Unix-like system
 - A C++ compiler supporting the right subset of C++14
-- Lua 5.2 or newer
+- Lua 5.1 or newer
 - `libffi`
 - `meson`, `pkg-config`
 
@@ -38,6 +38,9 @@ $ cd build
 $ meson ..
 $ ninja all
 ```
+
+If you wish to use a specific Lua version, pass e.g. `-Dlua_version=5.2` to
+`meson` when configuring.
 
 ## Testing
 

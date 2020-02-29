@@ -204,10 +204,10 @@ already (except on Windows).
 
 This deals with Lua version compatibility.
 
-- [ ] Lua 5.1 (untested, but will not work)
+- [x] Lua 5.1
 - [x] Lua 5.2
 - [x] Lua 5.3
-- [ ] Lua 5.4 (untested, may work)
+- [x] Lua 5.4
 
 ## Build system
 

@@ -452,7 +452,7 @@ struct ffi_module {
     }
 
     static void setup(lua_State *L) {
-        static const luaL_Reg lib_def[] = {
+        static luaL_Reg const lib_def[] = {
             /* core */
             {"cdef", cdef_f},
             {"load", load_f},
