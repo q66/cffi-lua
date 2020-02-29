@@ -2,6 +2,7 @@
 #define AST_HH
 
 #include <cstring>
+#include <cstddef>
 #include <cassert>
 
 #include "libffi.hh"
@@ -267,7 +268,7 @@ enum class c_expr_unop {
  *
  * non-primitive Lua values are always boxed, so we know the max size
  */
-union c_value {
+union alignas(std::max_align_t) c_value {
     /* fp primitives, unknown size */
     long double ld;
     double d;

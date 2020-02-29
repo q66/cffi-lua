@@ -1,6 +1,8 @@
 #ifndef FFI_HH
 #define FFI_HH
 
+#include <cstddef>
+
 #include "libffi.hh"
 
 #include "lua.hh"
@@ -15,10 +17,17 @@ struct cdata {
     T val;
 };
 
-struct alignas(alignof(cdata<ast::c_value>)) fdata {
+/* data used for function types */
+struct alignas(std::max_align_t) fdata {
     void (*sym)();
     ffi_cif cif;
     ast::c_value args[];
+};
+
+/* data used for large (generally struct) types */
+template<typename T>
+struct alignas(std::max_align_t) sdata {
+    T val;
 };
 
 void make_cdata(
