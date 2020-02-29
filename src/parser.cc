@@ -16,10 +16,11 @@ namespace parser {
 /* define all keywords our subset of C understands */
 
 /* stdint types might as well also be builtin... */
-#define KEYWORDS KW(const), KW(enum), KW(extern), KW(sizeof), KW(struct), \
-    KW(typedef), KW(signed), KW(unsigned), KW(volatile), KW(void), \
+#define KEYWORDS KW(alignof), KW(const), KW(enum), KW(extern), KW(sizeof), \
+    KW(struct), KW(typedef), KW(signed), KW(unsigned), KW(volatile), \
+    KW(void), \
     \
-    KW(__const__), KW(__sizeof__), KW(__volatile__), \
+    KW(__alignof__), KW(__const__), KW(__volatile__), \
     \
     KW(bool), KW(char), KW(char16_t), KW(char32_t), KW(short), KW(int), \
     KW(long), KW(wchar_t), KW(float), KW(double), \

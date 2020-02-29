@@ -63,15 +63,15 @@ C language syntax support.
   - [ ] `_Complex`
   - [ ] `complex double`
   - [ ] `complex float`
-- [ ] Type qualifiers:
+- [x] Type qualifiers:
   - [x] `signed`, `unsigned`
   - [x] `const`
   - [x] `__const__`, `__volatile__` (GCC extension)
   - [x] `volatile`
 - [x] Pointers (`T *`)
 - [ ] C++ references (`T &`) (C++ extension)
-- [ ] Name lookups
-- [ ] `struct foo`, `enum foo`
+- [x] Name lookups
+- [x] `struct foo`, `enum foo`
 - [ ] vector types (GCC extension)
 - [ ] `struct`/`union` inside types
 - [ ] Arrays
