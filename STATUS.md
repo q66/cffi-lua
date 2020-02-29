@@ -159,8 +159,8 @@ The APIs the FFI should provide.
 
 ### ctype manipulation
 
-- [ ] `cffi.sizeof`
-- [ ] `cffi.alignof`
+- [x] `cffi.sizeof`
+- [x] `cffi.alignof`
 - [ ] `cffi.offsetof`
 - [ ] `cffi.istype` (type checking interface)
 

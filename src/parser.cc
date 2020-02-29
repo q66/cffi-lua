@@ -110,9 +110,12 @@ struct lex_state {
 
     lex_state(
         char const *str, const char *estr
-    ): stream(str), send(estr) {
+    ): stream(str), send(estr), p_buf{} {
         /* thread-local, initialize for parsing thread */
         init_kwmap();
+
+        /* this should be enough that we should never have to resize it */
+        p_buf.reserve(256);
 
         /* read first char */
         next_char();
@@ -167,12 +170,14 @@ private:
         return (c == '\n') || (c == '\r');
     }
 
-    void next_char() {
+    char next_char() {
+        char ret = current;
         if (stream == send) {
             current = '\0';
-            return;
+            return ret;
         }
         current = *(stream++);
+        return ret;
     }
 
     void next_line() {
@@ -278,13 +283,11 @@ private:
 
     template<size_t base, typename F, typename G>
     void read_int_core(F &&digf, G &&convf, lex_token &tok) {
-        /* first digit address */
-        char const *numbeg = (stream - 1);
+        p_buf.clear();
         do {
-            next_char();
+            p_buf.push_back(next_char());
         } while (digf(current));
-        /* one past last digit address */
-        char const *numend = (stream - 1);
+        char const *numbeg = &p_buf[0], *numend = &p_buf[p_buf.size()];
         /* go from the end */
         unsigned long long val = 0, mul = 1;
         do {
@@ -433,14 +436,12 @@ private:
                 if (isalpha(current) || (current == '_')) {
                     /* names, keywords */
                     /* what current pointed to */
-                    char const *beg = (stream - 1);
                     /* keep reading until we readh non-matching char */
+                    p_buf.clear();
                     do {
-                        next_char();
+                        p_buf.push_back(next_char());
                     } while (isalnum(current) || (current == '_'));
-                    /* current is a non-matching char */
-                    char const *end = (stream - 1);
-                    std::string name{beg, end};
+                    std::string name{p_buf.begin(), p_buf.end()};
                     /* could be a keyword? */
                     auto kwit = keyword_map.find(name);
                     tok.value_s = std::move(name);
@@ -462,6 +463,7 @@ private:
     char const *stream;
     char const *send;
 
+    std::vector<char> p_buf;
     std::unique_ptr<ast::c_object> p_staged;
 
 public:

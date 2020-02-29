@@ -251,23 +251,23 @@ struct ffi_module {
         return 0;
     }
 
+    /* either gets a ctype or makes a ctype from a string */
+    static ast::c_type const &check_ct(lua_State *L, int idx) {
+        if (luaL_testudata(L, idx, "cffi_ctype_handle")) {
+            lua_pushvalue(L, idx);
+        } else {
+            auto *ud = lua::newuserdata<ast::c_type>(L);
+            new (ud) ast::c_type{parser::parse_type(luaL_checkstring(L, idx))};
+            luaL_setmetatable(L, "cffi_ctype_handle");
+        }
+        return *lua::touserdata<ast::c_type>(L, -1);
+    }
+
     static int new_f(lua_State *L) {
         /* stack: <first arg> <other args> */
         int nargs = lua_gettop(L);
         /* first arg: ctype */
-        if (luaL_testudata(L, 1, "cffi_ctype_handle")) {
-            /* first arg is a ctype, duplicate it so
-             * we can call it without messing up args
-             */
-            lua_pushvalue(L, 1);
-        } else {
-            /* first arg is assumed to be a string, in that case do
-             * like a typeof below to get a ctype on top of the stack
-             */
-            auto *ud = lua::newuserdata<ast::c_type>(L);
-            new (ud) ast::c_type{parser::parse_type(luaL_checkstring(L, 1))};
-            luaL_setmetatable(L, "cffi_ctype_handle");
-        }
+        check_ct(L, 1);
         /* stack: <first arg> <other args> <ctype> */
         lua_insert(L, 2);
         /* stack: <first arg> <ctype> <other args> */
@@ -292,6 +292,18 @@ struct ffi_module {
             new (ud) ast::c_type{parser::parse_type(luaL_checkstring(L, 1))};
         }
         luaL_setmetatable(L, "cffi_ctype_handle");
+        return 1;
+    }
+
+    static int sizeof_f(lua_State *L) {
+        auto &ct = check_ct(L, 1);
+        lua_pushinteger(L, ct.libffi_type()->size);
+        return 1;
+    }
+
+    static int alignof_f(lua_State *L) {
+        auto &ct = check_ct(L, 1);
+        lua_pushinteger(L, ct.libffi_type()->alignment);
         return 1;
     }
 
@@ -436,6 +448,10 @@ struct ffi_module {
             /* data handling */
             {"new", new_f},
             {"typeof", typeof_f},
+
+            /* type info */
+            {"sizeof", sizeof_f},
+            {"alignof", alignof_f},
 
             /* utilities */
             {"errno", errno_f},

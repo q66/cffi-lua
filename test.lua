@@ -79,6 +79,8 @@ print("typeof(foo) == " .. tostring(pt))
 print("instantiated via ctor == " .. tostring(pt()))
 print("instantiated via string == " .. tostring(ffi.new("char *")))
 print("instantiated via ffi.new(ct) == " .. tostring(ffi.new(pt)))
+print("size == " .. ffi.sizeof(pt))
+print("alignment == " .. ffi.alignof(pt))
 print()
 
 print("# enum constants")
