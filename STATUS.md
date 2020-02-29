@@ -213,7 +213,7 @@ This deals with Lua version compatibility.
 
 Build system enhancements TODO.
 
-- [ ] Lua version option
+- [x] Lua version option
 - [ ] Test suite
 
 ## Code

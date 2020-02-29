@@ -30,7 +30,52 @@ configure_file(output: 'config.h', configuration: config_h)
 add_global_arguments('-DHAVE_CONFIG_H=1', language: 'cpp')
 
 ffi_dep = dependency('libffi')
-lua_dep = dependency('lua')
+
+luaver = get_option('lua_version')
+if luaver == '5.4'
+    lua_dep = dependency('lua5.4', required: false)
+    if not lua_dep.found()
+        lua_dep = dependency('lua-5.4', required: false)
+        if not lua_dep.found()
+            lua_dep = dependency('lua54', required: false)
+        endif
+    endif
+elif luaver == '5.3'
+    lua_dep = dependency('lua5.3', required: false)
+    if not lua_dep.found()
+        lua_dep = dependency('lua-5.3', required: false)
+        if not lua_dep.found()
+            lua_dep = dependency('lua53', required: false)
+        endif
+    endif
+elif luaver == '5.2'
+    lua_dep = dependency('lua5.2', required: false)
+    if not lua_dep.found()
+        lua_dep = dependency('lua-5.2', required: false)
+        if not lua_dep.found()
+            lua_dep = dependency('lua52', required: false)
+        endif
+    endif
+elif luaver == '5.1'
+    lua_dep = dependency('lua5.1', required: false)
+    if not lua_dep.found()
+        lua_dep = dependency('lua-5.1', required: false)
+        if not lua_dep.found()
+            lua_dep = dependency('lua51', required: false)
+        endif
+    endif
+else
+    lua_dep = dependency('lua')
+    luaver = lua_dep.version()
+endif
+
+if luaver != 'auto' and not lua_dep.found()
+    lua_dep = dependency('lua')
+endif
+
+if not lua_dep.version().startswith(luaver)
+    error('required lua version not found (got @0@)'.format(lua_dep.version()))
+endif
 
 cffi_src = [
     'src/main.cc',
