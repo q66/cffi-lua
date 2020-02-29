@@ -370,7 +370,18 @@ private:
             case '/': {
                 next_char();
                 if (current == '*') {
-                    /* C style comment, TODO */
+                    next_char();
+                    while (current) {
+                        if (current == '*') {
+                            next_char();
+                            if (current == '/') {
+                                next_char();
+                                goto cont;
+                            }
+                        }
+                        next_char();
+                    }
+                    syntax_error("unterminated comment");
                 } else if (current != '/') {
                     /* just / */
                     return '/';
@@ -380,6 +391,7 @@ private:
                 while (current && !is_newline(current)) {
                     next_char();
                 }
+cont:
                 continue;
             }
             /* =, == */
