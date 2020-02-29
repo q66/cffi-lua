@@ -488,6 +488,9 @@ struct c_type: c_object {
 
     ffi_type *libffi_type() const;
 
+    bool is_same(c_type const &other, bool ignore_cv = false) const;
+    bool converts_to(c_type const &other) const;
+
 private:
     /* maybe a pointer? */
     union {
@@ -556,6 +559,8 @@ struct c_function: c_object {
     ffi_type *libffi_type() const {
         return &ffi_type_pointer;
     }
+
+    bool is_same(c_function const &other) const;
 
 private:
     c_type p_result;
@@ -696,6 +701,8 @@ struct c_struct: c_object {
     ffi_type *libffi_type() const {
         return const_cast<ffi_type *>(&p_ffi_type);
     }
+
+    bool is_same(c_struct const &other) const;
 
 private:
     std::vector<field> p_fields;

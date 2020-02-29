@@ -282,6 +282,148 @@ ffi_type *c_type::libffi_type() const {
 
 #undef C_BUILTIN_CASE
 
+/* these sameness implementations are basic and non-compliant for now, just
+ * to have something to get started with, edge cases will be covered later
+ */
+
+bool c_type::is_same(c_type const &other, bool ignore_cv) const {
+    if (!ignore_cv && (cv() != other.cv())) {
+        return false;
+    }
+    /* again manually covering all cases to make sure we really have them */
+    switch (c_builtin(type())) {
+        case C_BUILTIN_VOID:
+        case C_BUILTIN_BOOL:
+            /* simple identity */
+            return type() == other.type();
+
+        case C_BUILTIN_FUNC:
+        case C_BUILTIN_FPTR:
+            if (type() != other.type()) {
+                return false;
+            }
+            return p_cfptr->is_same(*other.p_cfptr);
+
+        case C_BUILTIN_ENUM:
+            if (type() != other.type()) {
+                return false;
+            }
+            return (p_cenum == other.p_cenum);
+
+        case C_BUILTIN_STRUCT:
+            if (type() != other.type()) {
+                return false;
+            }
+            return p_crec->is_same(*other.p_crec);
+
+        case C_BUILTIN_PTR:
+            if (type() != other.type()) {
+                return false;
+            }
+            return p_cptr->is_same(*other.p_cptr);
+
+        case C_BUILTIN_CHAR:
+        case C_BUILTIN_SCHAR:
+        case C_BUILTIN_UCHAR:
+        case C_BUILTIN_SHORT:
+        case C_BUILTIN_USHORT:
+        case C_BUILTIN_INT:
+        case C_BUILTIN_UINT:
+        case C_BUILTIN_LONG:
+        case C_BUILTIN_ULONG:
+        case C_BUILTIN_LLONG:
+        case C_BUILTIN_ULLONG:
+        case C_BUILTIN_WCHAR:
+        case C_BUILTIN_CHAR16:
+        case C_BUILTIN_CHAR32:
+        case C_BUILTIN_INT8:
+        case C_BUILTIN_INT16:
+        case C_BUILTIN_INT32:
+        case C_BUILTIN_INT64:
+        case C_BUILTIN_UINT8:
+        case C_BUILTIN_UINT16:
+        case C_BUILTIN_UINT32:
+        case C_BUILTIN_UINT64:
+        case C_BUILTIN_SIZE:
+        case C_BUILTIN_SSIZE:
+        case C_BUILTIN_INTPTR:
+        case C_BUILTIN_UINTPTR:
+        case C_BUILTIN_PTRDIFF:
+        case C_BUILTIN_TIME:
+        case C_BUILTIN_FLOAT:
+        case C_BUILTIN_DOUBLE:
+        case C_BUILTIN_LDOUBLE:
+            /* basic scalars use builtin libffi types */
+            return libffi_type() == other.libffi_type();
+
+        case C_BUILTIN_INVALID:
+            break;
+    }
+
+    assert(false);
+    return false;
+}
+
+static bool type_converts_to(c_type const &a, c_type const &b, bool ref) {
+    if (ref) {
+        /* if the new type has weaker cv, don't convert */
+        if ((a.cv() & C_CV_CONST) && !(b.cv() & C_CV_CONST)) {
+            return false;
+        }
+        if ((a.cv() & C_CV_VOLATILE) && !(b.cv() & C_CV_VOLATILE)) {
+            return false;
+        }
+    }
+    if (a.type() == C_BUILTIN_PTR) {
+        if (b.type() != C_BUILTIN_PTR) {
+            return false;
+        }
+        return type_converts_to(a.ptr_base(), b.ptr_base(), true);
+    }
+    /* converting between voidptrs is ok in C always */
+    if (ref && ((a.type() == C_BUILTIN_VOID) || (b.type() == C_BUILTIN_VOID))) {
+        return true;
+    }
+    return a.is_same(b);
+}
+
+bool c_type::converts_to(c_type const &other) const {
+    return type_converts_to(*this, other, false);
+}
+
+bool c_function::is_same(c_function const &other) const {
+    if (!p_result.is_same(other.p_result)) {
+        return false;
+    }
+    if (p_params.size() != other.p_params.size()) {
+        return false;
+    }
+    for (size_t i = 0; i < p_params.size(); ++i) {
+        if (!p_params[i].type().is_same(other.p_params[i].type())) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool c_struct::is_same(c_struct const &other) const {
+    if (p_ffi_type.size != other.p_ffi_type.size) {
+        return false;
+    }
+    if (p_ffi_type.alignment != other.p_ffi_type.alignment) {
+        return false;
+    }
+    if (p_fields.size() != other.p_fields.size()) {
+        return false;
+    }
+    for (size_t i = 0; i < p_fields.size(); ++i) {
+        if (!p_fields[i].type.is_same(other.p_fields[i].type)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 /* lua is not thread safe, so the FFI doesn't need to be either */
 
 /* the list of declarations; actually stored */

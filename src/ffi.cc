@@ -335,24 +335,35 @@ void *lua_check_cdata(
             }
             break;
         case LUA_TUSERDATA:
-        case LUA_TLIGHTUSERDATA:
-            switch (tp.type()) {
-                case ast::C_BUILTIN_PTR:
-                    if (luaL_testudata(L, index, "cffi_cdata_handle")) {
-                        /* special handling for cdata */
-                        /* FIXME: check type conversions... */
-                        return &(stor->ptr = lua::touserdata<
-                            ffi::cdata<ast::c_value>
-                        >(L, index)->val.ptr);
-                    } else {
-                        return &(stor->ptr = lua_touserdata(L, index));
-                    }
-                default:
+            if (luaL_testudata(L, index, "cffi_cdata_handle")) {
+                /* special handling for cdata */
+                auto &cd = *lua::touserdata<ffi::cdata<ast::c_value>>(L, index);
+                if (!cd.decl.converts_to(tp)) {
                     luaL_error(
-                        L, "cannot convert 'string' to '%s'",
+                        L, "cannot convert '%s' to '%s'",
+                        cd.decl.serialize().c_str(),
                         tp.serialize().c_str()
                     );
-                    break;
+                }
+                return &cd.val;
+            } else if (tp.type() == ast::C_BUILTIN_PTR) {
+                /* unqualified void pointer converts to any pointer in C */
+                return &(stor->ptr = lua_touserdata(L, index));
+            } else {
+                luaL_error(
+                    L, "cannot convert 'userdata' to '%s'",
+                    tp.serialize().c_str()
+                );
+            }
+            break;
+        case LUA_TLIGHTUSERDATA:
+            if (tp.type() == ast::C_BUILTIN_PTR) {
+                return &(stor->ptr = lua_touserdata(L, index));
+            } else {
+                luaL_error(
+                    L, "cannot convert 'lightuserdata' to '%s'",
+                    tp.serialize().c_str()
+                );
             }
             break;
         case LUA_TTABLE:
