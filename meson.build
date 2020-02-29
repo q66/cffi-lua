@@ -33,7 +33,9 @@ ffi_dep = dependency('libffi')
 
 luaver = get_option('lua_version')
 
-if luaver != 'auto'
+if luaver == 'luajit'
+    lua_dep = dependency('luajit')
+elif luaver != 'auto' and luaver != 'custom'
     lua_dep = dependency('lua' + luaver, required: false)
     if not lua_dep.found()
         lua_dep = dependency('lua-' + luaver, required: false)
@@ -44,13 +46,14 @@ if luaver != 'auto'
     if not lua_dep.found()
         lua_dep = dependency('lua')
     endif
+    if not lua_dep.version().startswith(luaver)
+        error('required lua version not found (got @0@)'
+            .format(lua_dep.version()))
+    endif
+elif luaver == 'custom'
+    lua_dep = dependency('', required: false)
 else
     lua_dep = dependency('lua')
-    luaver = lua_dep.version()
-endif
-
-if not lua_dep.version().startswith(luaver)
-    error('required lua version not found (got @0@)'.format(lua_dep.version()))
 endif
 
 cffi_src = [

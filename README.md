@@ -26,7 +26,7 @@ The dependencies are kept intentionally minimal.
 
 - A Unix-like system
 - A C++ compiler supporting the right subset of C++14
-- Lua 5.1 or newer
+- Lua 5.1 or newer (tested up to 5.4) or equivalent (e.g. LuaJIT)
 - `libffi`
 - `meson`, `pkg-config`
 

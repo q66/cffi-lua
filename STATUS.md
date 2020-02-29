@@ -200,15 +200,6 @@ already (except on Windows).
 - [x] Little endian
 - [ ] Big endian (untested, may work)
 
-## Compatibility
-
-This deals with Lua version compatibility.
-
-- [x] Lua 5.1
-- [x] Lua 5.2
-- [x] Lua 5.3
-- [x] Lua 5.4
-
 ## Build system
 
 Build system enhancements TODO.

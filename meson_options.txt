@@ -1,5 +1,5 @@
 option('lua_version',
     type: 'combo',
-    choices: ['auto', '5.1', '5.2', '5.3', '5.4'],
-    description: 'The Lua version to use'
+    choices: ['auto', 'luajit', 'custom', '5.1', '5.2', '5.3', '5.4'],
+    description: 'The Lua version to use (custom == pass via CXXFLAGS/LDFLAGS)'
 )
