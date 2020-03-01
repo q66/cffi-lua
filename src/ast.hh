@@ -4,6 +4,7 @@
 #include <cstring>
 #include <cstddef>
 #include <cassert>
+#include <ctime>
 
 #include "libffi.hh"
 
@@ -306,6 +307,7 @@ union alignas(std::max_align_t) c_value {
     intptr_t ip;
     uintptr_t uip;
     ptrdiff_t pd;
+    time_t t;
     /* booleans */
     bool b;
     /* pointer types */

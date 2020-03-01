@@ -220,7 +220,16 @@ int lua_push_cdata(lua_State *L, ast::c_type const &tp, void *value) {
 
 template<typename T>
 static inline void *write_int(lua_State *L, int index, void *stor) {
-    lua_Integer v = lua_tointeger(L, index);
+    lua_Integer v = lua_isboolean(L, index) ?
+        lua_toboolean(L, index) : lua_tointeger(L, index);
+    *static_cast<T *>(stor) = T(v);
+    return stor;
+}
+
+template<typename T>
+static inline void *write_flt(lua_State *L, int index, void *stor) {
+    lua_Number v = lua_isboolean(L, index) ?
+        lua_toboolean(L, index) : lua_tonumber(L, index);
     *static_cast<T *>(stor) = T(v);
     return stor;
 }
@@ -228,7 +237,8 @@ static inline void *write_int(lua_State *L, int index, void *stor) {
 void *lua_check_cdata(
     lua_State *L, ast::c_type const &tp, ast::c_value *stor, int index
 ) {
-    switch (lua_type(L, index)) {
+    auto vtp = lua_type(L, index);
+    switch (vtp) {
         case LUA_TNIL:
             switch (tp.type()) {
                 case ast::C_BUILTIN_PTR:
@@ -241,25 +251,17 @@ void *lua_check_cdata(
                     break;
             }
             break;
-        case LUA_TBOOLEAN:
-            switch (tp.type()) {
-                case ast::C_BUILTIN_BOOL:
-                    stor->b = lua_toboolean(L, index);
-                    return &stor->b;
-                default:
-                    luaL_error(
-                        L, "cannot convert 'boolean' to '%s'",
-                        tp.serialize().c_str()
-                    );
-                    break;
-            }
-            break;
         case LUA_TNUMBER:
-            switch (tp.type()) {
+        case LUA_TBOOLEAN: {
+            switch (ast::c_builtin(tp.type())) {
                 case ast::C_BUILTIN_FLOAT:
-                    return &(stor->f = float(lua_tonumber(L, index)));
+                    return write_flt<float>(L, index, &stor->f);
                 case ast::C_BUILTIN_DOUBLE:
-                    return &(stor->d = double(lua_tonumber(L, index)));
+                    return write_flt<double>(L, index, &stor->d);
+                case ast::C_BUILTIN_LDOUBLE:
+                    return write_flt<long double>(L, index, &stor->ld);
+                case ast::C_BUILTIN_BOOL:
+                    return write_int<bool>(L, index, &stor->b);
                 case ast::C_BUILTIN_CHAR:
                     return write_int<char>(L, index, &stor->c);
                 case ast::C_BUILTIN_SCHAR:
@@ -314,25 +316,48 @@ void *lua_check_cdata(
                     return write_int<uintptr_t>(L, index, &stor->uip);
                 case ast::C_BUILTIN_PTRDIFF:
                     return write_int<ptrdiff_t>(L, index, &stor->pd);
-                default:
+                case ast::C_BUILTIN_TIME:
+                    if (!std::numeric_limits<time_t>::is_integer) {
+                        return write_flt<time_t>(L, index, &stor->t);
+                    }
+                    return write_int<time_t>(L, index, &stor->t);
+
+                case ast::C_BUILTIN_ENUM:
+                    /* TODO: large enums */
+                    return write_int<int>(L, index, &stor->i);
+
+                case ast::C_BUILTIN_VOID:
+                case ast::C_BUILTIN_PTR:
+                case ast::C_BUILTIN_FPTR:
+                case ast::C_BUILTIN_STRUCT:
                     luaL_error(
-                        L, "cannot convert 'number' to '%s'",
+                        L, "cannot convert '%s' to '%s'",
+                        lua_typename(L, lua_type(L, index)),
                         tp.serialize().c_str()
+                    );
+                    break;
+
+                case ast::C_BUILTIN_FUNC:
+                case ast::C_BUILTIN_INVALID:
+                    /* this should not happen */
+                    luaL_error(
+                        L, "bad argument type '%s'", tp.serialize().c_str()
                     );
                     break;
             }
             break;
+        }
         case LUA_TSTRING:
-            switch (tp.type()) {
-                case ast::C_BUILTIN_PTR:
-                    return &(stor->str = lua_tostring(L, index));
-                default:
-                    luaL_error(
-                        L, "cannot convert 'string' to '%s'",
-                        tp.serialize().c_str()
-                    );
-                    break;
+            if (
+                (tp.type() == ast::C_BUILTIN_PTR) &&
+                (tp.ptr_base().type() == ast::C_BUILTIN_CHAR) &&
+                (tp.ptr_base().cv() & ast::C_CV_CONST)) {
+            } {
+                return &(stor->str = lua_tostring(L, index));
             }
+            luaL_error(
+                L, "cannot convert 'string' to '%s'", tp.serialize().c_str()
+            );
             break;
         case LUA_TUSERDATA:
             if (luaL_testudata(L, index, "cffi_cdata_handle")) {
