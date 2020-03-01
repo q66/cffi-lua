@@ -2,6 +2,7 @@
 #define FFI_HH
 
 #include <cstddef>
+#include <list>
 
 #include "libffi.hh"
 
@@ -33,10 +34,15 @@ struct closure_data {
     ffi_closure *closure = nullptr;
     lua_State *L = nullptr;
     int fref = LUA_REFNIL;
-
+    std::list<closure_data **> refs{};
     ~closure_data() {
         if (!closure) {
             return;
+        }
+        /* invalidate any registered references to the closure data */
+        while (!refs.empty()) {
+            *refs.front() = nullptr;
+            refs.pop_front();
         }
         luaL_unref(L, LUA_REGISTRYINDEX, fref);
         ffi_closure_free(closure);

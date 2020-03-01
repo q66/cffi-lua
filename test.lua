@@ -122,6 +122,8 @@ cb("hello world")
 print("freeing callback via copy...")
 local cb2 = ffi.new("void (*)(char const *x)", cb)
 cb2:free()
+print("attempt to call now invalid callback:")
+print(pcall(cb, "hello world"))
 print()
 
 print("## END TESTS ##")

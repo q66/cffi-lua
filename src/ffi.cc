@@ -67,6 +67,7 @@ void make_cdata_func(
         /* no funcptr means we're setting up a callback */
         if (cd) {
             /* copying existing callback reference */
+            cd->refs.push_front(&fud->val.cd);
             fud->val.cd = cd;
             return;
         }
@@ -93,7 +94,8 @@ void make_cdata_func(
             );
         }
         cd->L = L;
-        /* make a handle to it for easy access */
+        /* register this reference within the closure */
+        cd->refs.push_front(&fud->val.cd);
         fud->val.cd = cd;
     }
 }

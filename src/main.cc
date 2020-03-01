@@ -106,6 +106,10 @@ struct fd2 {
 struct cdata_meta {
     static int gc(lua_State *L) {
         auto &cd = *lua::touserdata<ffi::cdata<ffi::fdata>>(L, 1);
+        if (cd.decl.closure() && cd.val.cd) {
+            /* this is O(n) which sucks a little */
+            cd.val.cd->refs.remove(&cd.val.cd);
+        }
         using T = ast::c_type;
         cd.decl.~T();
         return 0;
@@ -119,20 +123,21 @@ struct cdata_meta {
     }
 
     static int call(lua_State *L) {
-        auto *decl = lua::touserdata<ast::c_type>(L, 1);
-        switch (decl->type()) {
+        auto &fd = *lua::touserdata<ffi::cdata<ffi::fdata>>(L, 1);
+        switch (fd.decl.type()) {
             case ast::C_BUILTIN_FPTR:
             case ast::C_BUILTIN_FUNC:
                 break;
             default: {
-                auto s = decl->serialize();
+                auto s = fd.decl.serialize();
                 luaL_error(L, "'%s' is not callable", s.c_str());
                 break;
             }
         }
-        return ffi::call_cif(
-            *lua::touserdata<ffi::cdata<ffi::fdata>>(L, 1), L
-        );
+        if (fd.decl.closure() && !fd.val.cd) {
+            luaL_error(L, "bad callback");
+        }
+        return ffi::call_cif(fd, L);
     }
 
     template<typename F>
@@ -160,6 +165,9 @@ struct cdata_meta {
             luaL_checkudata(L, 1, "cffi_cdata_handle")
         );
         luaL_argcheck(L, cd.decl.closure(), 1, "not a callback");
+        if (!cd.val.cd) {
+            luaL_error(L, "bad callback");
+        }
         delete cd.val.cd;
         return 0;
     }
@@ -169,6 +177,9 @@ struct cdata_meta {
             luaL_checkudata(L, 1, "cffi_cdata_handle")
         );
         luaL_argcheck(L, cd.decl.closure(), 1, "not a callback");
+        if (!cd.val.cd) {
+            luaL_error(L, "bad callback");
+        }
         if (!lua_isfunction(L, 2)) {
             lua::type_error(L, 2, "function");
         }
