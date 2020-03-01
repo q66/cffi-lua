@@ -1,6 +1,7 @@
 #include <limits>
 #include <type_traits>
 
+#include "platform.hh"
 #include "ffi.hh"
 
 namespace ffi {
@@ -174,7 +175,25 @@ int call_cif(cdata<fdata> &fud, lua_State *L) {
     }
 
     ffi_call(&fud.val.cif, fud.val.sym, &pvals[nargs], vals);
-    return lua_push_cdata(L, func.result(), &pvals[nargs]);
+    void *retp = &pvals[nargs];
+#ifdef FFI_BIG_ENDIAN
+    /* for small return types, ffi_arg must be used to hold the result,
+     * and it is assumed that they will be accessed like integers via
+     * the ffi_arg; that also means that on big endian systems the
+     * value will be stored in the latter part of the memory...
+     *
+     * we're taking an address to the beginning in general, so make
+     * a special case here; only small types will have this problem
+     *
+     * there shouldn't be any other places that make this assumption
+     */
+    auto rsz = func.result().libffi_type()->size;
+    if (rsz < sizeof(ffi_arg)) {
+        auto *p = static_cast<unsigned char *>(retp);
+        retp = p + sizeof(ffi_arg) - rsz;
+    }
+#endif
+    return lua_push_cdata(L, func.result(), retp);
 }
 
 template<typename T>

@@ -198,7 +198,7 @@ already (except on Windows).
 - [ ] Windows
 - [ ] macOS (untested, may work)
 - [x] Little endian
-- [ ] Big endian (untested, may work)
+- [x] Big endian
 
 ## Build system
 
