@@ -26,7 +26,8 @@ static void cb_bind(ffi_cif *cif, void *ret, void *args[], void *data) {
 }
 
 void make_cdata_func(
-    lua_State *L, void (*funp)(), ast::c_function const &func, int cbt
+    lua_State *L, void (*funp)(), ast::c_function const &func, int cbt,
+    closure_data *cd
 ) {
     size_t nargs = func.params().size();
 
@@ -45,7 +46,6 @@ void make_cdata_func(
      *         void *valp1;    // &val1
      *         void *valpN;    // &val2
      *         void *valpN;    // &valN
-     *         struct closure_data {...}; // only for closures
      *     } val;
      * }
      */
@@ -65,7 +65,12 @@ void make_cdata_func(
 
     if (!funp) {
         /* no funcptr means we're setting up a callback */
-        closure_data *cd = new closure_data{};
+        if (cd) {
+            /* copying existing callback reference */
+            fud->val.cd = cd;
+            return;
+        }
+        cd = new closure_data{};
         /* allocate a closure in it */
         cd->closure = static_cast<ffi_closure *>(ffi_closure_alloc(
             sizeof(ffi_closure), reinterpret_cast<void **>(&fud->val.sym)

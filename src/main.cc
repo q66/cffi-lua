@@ -286,6 +286,16 @@ struct ctype_meta {
         }
         if (decl.type() == ast::C_BUILTIN_FPTR) {
             if (fref == LUA_REFNIL) {
+                if (luaL_testudata(L, 2, "cffi_cdata_handle")) {
+                    /* special handling for closures */
+                    auto &cd = *lua::touserdata<ffi::cdata<ffi::fdata>>(L, 2);
+                    if (cd.decl.closure()) {
+                        ffi::make_cdata_func(
+                            L, nullptr, decl.function(), decl.type(), cd.val.cd
+                        );
+                        return 1;
+                    }
+                }
                 using FP = void (*)();
                 ffi::make_cdata_func(
                     L, *reinterpret_cast<FP *>(cdp), decl.function(),

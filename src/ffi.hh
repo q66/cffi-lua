@@ -63,7 +63,7 @@ void make_cdata(
 
 void make_cdata_func(
     lua_State *L, void (*funp)(), ast::c_function const &func,
-    int cbt = ast::C_BUILTIN_FUNC
+    int cbt = ast::C_BUILTIN_FUNC, closure_data *cd = nullptr
 );
 
 bool prepare_cif(cdata<fdata> &fud);
