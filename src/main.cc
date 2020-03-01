@@ -106,10 +106,6 @@ struct fd2 {
 struct cdata_meta {
     static int gc(lua_State *L) {
         auto &cd = *lua::touserdata<ffi::cdata<ffi::fdata>>(L, 1);
-        if (cd.decl.closure()) {
-            /* FIXME: only for now, later callbacks will be permanent */
-            cd.val.free_closure();
-        }
         using T = ast::c_type;
         cd.decl.~T();
         return 0;
@@ -159,7 +155,55 @@ struct cdata_meta {
         func(*cd, static_cast<void *>(&ptr[sidx * type->size]));
     }
 
+    static int cb_free(lua_State *L) {
+        auto &cd = *static_cast<ffi::cdata<ffi::fdata> *>(
+            luaL_checkudata(L, 1, "cffi_cdata_handle")
+        );
+        luaL_argcheck(L, cd.decl.closure(), 1, "not a callback");
+        delete cd.val.cd;
+        return 0;
+    }
+
+    static int cb_set(lua_State *L) {
+        auto &cd = *static_cast<ffi::cdata<ffi::fdata> *>(
+            luaL_checkudata(L, 1, "cffi_cdata_handle")
+        );
+        luaL_argcheck(L, cd.decl.closure(), 1, "not a callback");
+        if (!lua_isfunction(L, 2)) {
+            lua::type_error(L, 2, "function");
+        }
+        luaL_unref(L, LUA_REGISTRYINDEX, cd.val.cd->fref);
+        lua_pushvalue(L, 2);
+        cd.val.cd->fref = luaL_ref(L, LUA_REGISTRYINDEX);
+        return 0;
+    }
+
     static int index(lua_State *L) {
+        auto *fcd = lua::touserdata<ffi::cdata<ast::c_value>>(L, 1);
+        if (fcd->decl.closure()) {
+            /* callbacks have some methods */
+            char const *mname = lua_tostring(L, 2);
+            /* if we had more methods, we'd do a table */
+            if (!strcmp(mname, "free")) {
+                lua_pushcfunction(L, cb_free);
+                return 1;
+            } else if (!strcmp(mname, "set")) {
+                lua_pushcfunction(L, cb_set);
+                return 1;
+            } else if (!mname) {
+                luaL_error(
+                    L, "'%s' cannot be indexed with '%s'",
+                    fcd->decl.serialize().c_str(),
+                    lua_typename(L, lua_type(L, 2))
+                );
+            } else {
+                luaL_error(
+                    L, "'%s' has no member named '%s'",
+                    fcd->decl.serialize().c_str(), mname
+                );
+            }
+            return 0;
+        }
         index_common(L, [L](auto &cd, void *val) {
             ffi::lua_push_cdata(L, cd.decl.ptr_base(), val);
         });

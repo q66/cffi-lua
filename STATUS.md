@@ -184,8 +184,8 @@ The APIs the FFI should provide.
 ### Callbacks
 
 - [x] Minimal functionality
-- [ ] `cb:free`
-- [ ] `cb:set`
+- [x] `cb:free`
+- [x] `cb:set`
 
 ## Portability
 

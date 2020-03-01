@@ -30,9 +30,17 @@ struct cdata {
 };
 
 struct closure_data {
-    ffi_closure *closure;
-    lua_State *L;
-    int fref;
+    ffi_closure *closure = nullptr;
+    lua_State *L = nullptr;
+    int fref = LUA_REFNIL;
+
+    ~closure_data() {
+        if (!closure) {
+            return;
+        }
+        luaL_unref(L, LUA_REGISTRYINDEX, fref);
+        ffi_closure_free(closure);
+    }
 };
 
 /* data used for function types */
@@ -41,14 +49,6 @@ struct alignas(std::max_align_t) fdata {
     closure_data *cd; /* only for callbacks, otherwise nullptr */
     ffi_cif cif;
     ast::c_value args[];
-
-    void free_closure() {
-        if (cd) {
-            luaL_unref(cd->L, LUA_REGISTRYINDEX, cd->fref);
-            ffi_closure_free(cd->closure);
-            cd = nullptr;
-        }
-    }
 };
 
 /* data used for large (generally struct) types */

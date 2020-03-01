@@ -76,6 +76,14 @@ static T *touserdata(lua_State *L, int index) {
     return static_cast<T *>(lua_touserdata(L, index));
 }
 
+static inline int type_error(lua_State *L, int narg, char const *tname) {
+    lua_pushfstring(
+        L, "%s expected, got %s", tname, lua_typename(L, lua_type(L, narg))
+    );
+    luaL_argcheck(L, false, narg, lua_tostring(L, -1));
+    return 0;
+}
+
 } /* namespace lua */
 
 #endif /* LUA_HH */

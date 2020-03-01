@@ -50,8 +50,7 @@ void make_cdata_func(
      * }
      */
     auto *fud = lua::newuserdata<ffi::cdata<ffi::fdata>>(
-        L, sizeof(ast::c_value[1 + nargs]) + sizeof(void *[2 * nargs]) +
-        ((funp == nullptr) ? sizeof(closure_data) : 0)
+        L, sizeof(ast::c_value[1 + nargs]) + sizeof(void *[2 * nargs])
     );
     luaL_setmetatable(L, "cffi_cdata_handle");
 
@@ -66,33 +65,31 @@ void make_cdata_func(
 
     if (!funp) {
         /* no funcptr means we're setting up a callback */
-        /* first fetch the closure data part */
-        auto &cd = *reinterpret_cast<closure_data *>(&reinterpret_cast<void **>(
-            &fud->val.args[nargs + 1]
-        )[nargs * 2]);
+        closure_data *cd = new closure_data{};
         /* allocate a closure in it */
-        cd.closure = static_cast<ffi_closure *>(ffi_closure_alloc(
+        cd->closure = static_cast<ffi_closure *>(ffi_closure_alloc(
             sizeof(ffi_closure), reinterpret_cast<void **>(&fud->val.sym)
         ));
-        if (!cd.closure) {
+        if (!cd->closure) {
+            delete cd;
             luaL_error(
                 L, "failed allocating callback for '%s'",
                 func.serialize().c_str()
             );
         }
         if (ffi_prep_closure_loc(
-            cd.closure, &fud->val.cif, cb_bind, fud,
+            cd->closure, &fud->val.cif, cb_bind, fud,
             reinterpret_cast<void *>(fud->val.sym)
         ) != FFI_OK) {
-            fud->val.free_closure();
+            delete cd;
             luaL_error(
                 L, "failed initializing closure for '%s'",
                 func.serialize().c_str()
             );
         }
-        cd.L = L;
+        cd->L = L;
         /* make a handle to it for easy access */
-        fud->val.cd = &cd;
+        fud->val.cd = cd;
     }
 }
 
