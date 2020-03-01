@@ -313,6 +313,7 @@ union alignas(std::max_align_t) c_value {
     /* pointer types */
     char const *str;
     void *ptr;
+    void (*fptr)();
 };
 
 struct c_expr {
