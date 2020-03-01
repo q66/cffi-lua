@@ -318,10 +318,9 @@ struct ctype_meta {
                 cd.val.cd->fref = fref;
             }
         } else {
-            /* FIXME: allocations of large cdata */
             auto *cd = lua::newuserdata<ffi::cdata<ast::c_value>>(L);
             new (&cd->decl) ast::c_type{decl};
-            memcpy(&cd->val, cdp, sizeof(ast::c_value));
+            memcpy(&cd->val, cdp, cd->decl.libffi_type()->size);
             luaL_setmetatable(L, "cffi_cdata_handle");
         }
         return 1;
