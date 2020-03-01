@@ -67,9 +67,9 @@ void make_cdata_func(
     if (!funp) {
         /* no funcptr means we're setting up a callback */
         /* first fetch the closure data part */
-        closure_data &cd = reinterpret_cast<closure_data *>(
+        auto &cd = *reinterpret_cast<closure_data *>(&reinterpret_cast<void **>(
             &fud->val.args[nargs + 1]
-        )[nargs * 2];
+        )[nargs * 2]);
         /* allocate a closure in it */
         cd.closure = static_cast<ffi_closure *>(ffi_closure_alloc(
             sizeof(ffi_closure), reinterpret_cast<void **>(&fud->val.sym)

@@ -3,7 +3,7 @@
 This is a portable C FFI for Lua, based on `libffi` and aiming to be mostly
 compatible with LuaJIT FFI, but written from scratch. Compatibility is
 preserved where reasonable, but not where not easily implementable (e.g.
-the parser extensions for 64-bit `cdata` and so on). It's alos meant to be
+the parser extensions for 64-bit `cdata` and so on). It's also meant to be
 compatible with all current Lua versions and work on every OS/architecture
 combo that `libffi` supports.
 
