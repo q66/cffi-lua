@@ -102,4 +102,20 @@ local scd = ffi.new("int", 10);
 print("int(10) == " .. tostring(scd))
 print()
 
+print("# Function pointers")
+local fp = ffi.new("int (*)(char const *s)", ffi.C.puts)
+print("original puts == " .. tostring(ffi.C.puts))
+print("pointer to puts == " .. tostring(fp))
+print("calling with 'hello world'")
+fp("hello world")
+print()
+
+print("# Callbacks")
+local cb = ffi.new("void (*)(char const *x)", function(str)
+    print("this is a callback, called from C...")
+    print("passed data: " .. ffi.string(str) .. " (" .. tostring(str) .. ")")
+end)
+cb("hello world")
+print()
+
 print("## END TESTS ##")

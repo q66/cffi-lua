@@ -192,8 +192,9 @@ enum c_cv {
     C_CV_VOLATILE = 1 << 9,
 };
 
-enum c_type_ownership {
-    C_TYPE_WEAK = 1 << 16
+enum c_type_flags {
+    C_TYPE_WEAK = 1 << 16,
+    C_TYPE_CLOSURE = 1 << 17
 };
 
 enum class c_object_type {
@@ -436,9 +437,12 @@ struct c_type: c_object {
         p_type{C_BUILTIN_PTR | C_TYPE_WEAK | uint32_t(qual)}
     {}
 
-    c_type(c_function const *ctp, int qual, int cbt = C_BUILTIN_FPTR):
+    c_type(
+        c_function const *ctp, int qual, int cbt = C_BUILTIN_FPTR,
+        bool cb = false
+    ):
         c_object{}, p_cfptr{ctp},
-        p_type{cbt | C_TYPE_WEAK | uint32_t(qual)}
+        p_type{cbt | C_TYPE_WEAK | (cb ? C_TYPE_CLOSURE : 0) | uint32_t(qual)}
     {}
 
     c_type(c_struct const *ctp, int qual):
@@ -474,7 +478,11 @@ struct c_type: c_object {
     }
 
     bool owns() const {
-        return !bool(p_type & (0xFF << 16));
+        return !bool(p_type & C_TYPE_WEAK);
+    }
+
+    bool closure() const {
+        return p_type & C_TYPE_CLOSURE;
     }
 
     void cv(int qual) {

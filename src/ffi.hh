@@ -17,18 +17,38 @@ struct cdata {
     T val;
 
     void *get_addr() {
-        if (decl.type() == ast::C_BUILTIN_PTR) {
-            return *reinterpret_cast<void **>(&val);
+        switch (decl.type()) {
+            case ast::C_BUILTIN_PTR:
+            case ast::C_BUILTIN_FUNC:
+            case ast::C_BUILTIN_FPTR:
+                return *reinterpret_cast<void **>(&val);
+            default:
+                break;
         }
         return &val;
     }
 };
 
+struct closure_data {
+    ffi_closure *closure;
+    lua_State *L;
+    int fref;
+};
+
 /* data used for function types */
 struct alignas(std::max_align_t) fdata {
     void (*sym)();
+    closure_data *cd; /* only for callbacks, otherwise nullptr */
     ffi_cif cif;
     ast::c_value args[];
+
+    void free_closure() {
+        if (cd) {
+            luaL_unref(cd->L, LUA_REGISTRYINDEX, cd->fref);
+            ffi_closure_free(cd->closure);
+            cd = nullptr;
+        }
+    }
 };
 
 /* data used for large (generally struct) types */
@@ -39,6 +59,11 @@ struct alignas(std::max_align_t) sdata {
 
 void make_cdata(
     lua_State *L, lib::handle dl, ast::c_object const *obj, char const *name
+);
+
+void make_cdata_func(
+    lua_State *L, void (*funp)(), ast::c_function const &func,
+    int cbt = ast::C_BUILTIN_FUNC
 );
 
 bool prepare_cif(cdata<fdata> &fud);

@@ -69,6 +69,7 @@ C language syntax support.
   - [x] `__const__`, `__volatile__` (GCC extension)
   - [x] `volatile`
 - [x] Pointers (`T *`)
+- [x] Function pointers (`T (*)()`)
 - [ ] C++ references (`T &`) (C++ extension)
 - [x] Name lookups
 - [x] `struct foo`, `enum foo`
@@ -182,7 +183,7 @@ The APIs the FFI should provide.
 
 ### Callbacks
 
-- [ ] Minimal functionality
+- [x] Minimal functionality
 - [ ] `cb:free`
 - [ ] `cb:set`
 

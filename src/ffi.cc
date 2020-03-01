@@ -5,8 +5,28 @@
 
 namespace ffi {
 
-static void make_cdata_func(
-    lua_State *L, void (*funp)(), ast::c_function const &func
+static void cb_bind(ffi_cif *cif, void *ret, void *args[], void *data) {
+    auto &fud = *static_cast<ffi::cdata<ffi::fdata> *>(data);
+    auto &fun = fud.decl.function();
+    auto &pars = fun.params();
+    size_t nargs = pars.size();
+
+    closure_data &cd = *fud.val.cd;
+    lua_rawgeti(cd.L, LUA_REGISTRYINDEX, cd.fref);
+    for (size_t i = 0; i < nargs; ++i) {
+        lua_push_cdata(cd.L, pars[i].type(), args[i]);
+    }
+    lua_call(cd.L, nargs, 1);
+
+    if (fun.result().type() != ast::C_BUILTIN_VOID) {
+        ast::c_value stor;
+        void *rp = lua_check_cdata(cd.L, fun.result(), &stor, -1);
+        memcpy(ret, rp, cif->rtype->size);
+    }
+}
+
+void make_cdata_func(
+    lua_State *L, void (*funp)(), ast::c_function const &func, int cbt
 ) {
     size_t nargs = func.params().size();
 
@@ -25,21 +45,54 @@ static void make_cdata_func(
      *         void *valp1;    // &val1
      *         void *valpN;    // &val2
      *         void *valpN;    // &valN
+     *         struct closure_data {...}; // only for closures
      *     } val;
      * }
      */
     auto *fud = lua::newuserdata<ffi::cdata<ffi::fdata>>(
-        L, sizeof(ast::c_value[1 + nargs]) + sizeof(void *[2 * nargs])
+        L, sizeof(ast::c_value[1 + nargs]) + sizeof(void *[2 * nargs]) +
+        ((funp == nullptr) ? sizeof(closure_data) : 0)
     );
     luaL_setmetatable(L, "cffi_cdata_handle");
 
-    new (&fud->decl) ast::c_type{&func, 0, ast::C_BUILTIN_FUNC};
+    new (&fud->decl) ast::c_type{&func, 0, cbt, funp == nullptr};
     fud->val.sym = funp;
 
     if (!ffi::prepare_cif(*fud)) {
         luaL_error(
             L, "unexpected failure setting up '%s'", func.name.c_str()
         );
+    }
+
+    if (!funp) {
+        /* no funcptr means we're setting up a callback */
+        /* first fetch the closure data part */
+        closure_data &cd = reinterpret_cast<closure_data *>(
+            &fud->val.args[nargs + 1]
+        )[nargs * 2];
+        /* allocate a closure in it */
+        cd.closure = static_cast<ffi_closure *>(ffi_closure_alloc(
+            sizeof(ffi_closure), reinterpret_cast<void **>(&fud->val.sym)
+        ));
+        if (!cd.closure) {
+            luaL_error(
+                L, "failed allocating callback for '%s'",
+                func.serialize().c_str()
+            );
+        }
+        if (ffi_prep_closure_loc(
+            cd.closure, &fud->val.cif, cb_bind, fud,
+            reinterpret_cast<void *>(fud->val.sym)
+        ) != FFI_OK) {
+            fud->val.free_closure();
+            luaL_error(
+                L, "failed initializing closure for '%s'",
+                func.serialize().c_str()
+            );
+        }
+        cd.L = L;
+        /* make a handle to it for easy access */
+        fud->val.cd = &cd;
     }
 }
 
@@ -246,7 +299,8 @@ int lua_push_cdata(lua_State *L, ast::c_type const &tp, void *value) {
 
         case ast::C_BUILTIN_FPTR: {
             make_cdata_func(
-                L, reinterpret_cast<ast::c_value *>(value)->fptr, tp.function()
+                L, reinterpret_cast<ast::c_value *>(value)->fptr,
+                tp.function(), ast::C_BUILTIN_FPTR
             );
             return 1;
         }

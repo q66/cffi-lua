@@ -638,7 +638,9 @@ static std::unique_ptr<ast::c_expr> expr_dup(ast::c_expr &&exp) {
 static ast::c_expr parse_cexpr(lex_state &ls);
 static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec);
 
-static ast::c_type parse_type(lex_state &ls, bool allow_void = false);
+static ast::c_type parse_type(
+    lex_state &ls, bool allow_void = false, std::string *fpname = nullptr
+);
 
 static ast::c_expr parse_cexpr_simple(lex_state &ls) {
     auto unop = get_unop(ls.t.token);
@@ -789,9 +791,61 @@ static int parse_cv(lex_state &ls) {
     return quals;
 }
 
+static std::vector<ast::c_param> parse_paramlist(lex_state &ls) {
+    int linenum = ls.line_number;
+    ls.get();
+
+    std::vector<ast::c_param> params;
+
+    if (ls.t.token == ')') {
+        goto done_params;
+    }
+
+    for (;;) {
+        auto pt = parse_type(ls, params.size() == 0);
+        if (pt.type() == ast::C_BUILTIN_VOID) {
+            break;
+        }
+        if (test_next(ls, ',')) {
+            /* unnamed param */
+            continue;
+        }
+        check(ls, TOK_NAME);
+        params.emplace_back(ls.t.value_s, std::move(pt));
+        ls.get();
+        if (!test_next(ls, ',')) {
+            break;
+        }
+    }
+
+done_params:
+    check_match(ls, ')', '(', linenum);
+
+    return params;
+}
+
 static ast::c_type parse_type_ptr(
-    lex_state &ls, ast::c_type tp, bool allow_void
+    lex_state &ls, ast::c_type tp, bool allow_void, std::string *fpname
 ) {
+    if (ls.t.token == '(') {
+        /* function pointer */
+        ls.get();
+        check_next(ls, '*');
+        int pcv = parse_cv(ls);
+        if (fpname) {
+            check(ls, TOK_NAME);
+            *fpname = ls.t.value_s;
+            ls.get();
+        }
+        check_next(ls, ')');
+        auto *cf = new ast::c_function{
+            ast::request_name(), std::move(tp), parse_paramlist(ls)
+        };
+        ls.store_decl(cf);
+        ast::c_type ftp{cf, pcv};
+        return ftp;
+    }
+
     for (;;) {
         /* right-side cv */
         tp.cv(parse_cv(ls));
@@ -799,7 +853,9 @@ static ast::c_type parse_type_ptr(
          * anything void-based must be a pointer
          */
         if (!allow_void && (tp.type() == ast::C_BUILTIN_VOID)) {
-            check(ls, '*');
+            if (ls.t.token != '(') {
+                check(ls, '*');
+            }
         }
         /* pointers plus their right side qualifiers */
         if (ls.t.token == '*') {
@@ -825,7 +881,9 @@ enum type_signedness {
  * about the real signatures, only about their sizes and signedness and so
  * on to provide to the codegen) but it's a start
  */
-static ast::c_type parse_type(lex_state &ls, bool allow_void) {
+static ast::c_type parse_type(
+    lex_state &ls, bool allow_void, std::string *fpn
+) {
     /* left-side cv */
     int quals = parse_cv(ls);
     int squals = 0;
@@ -886,15 +944,15 @@ qualified:
                 ast::c_type tp{decl->as<ast::c_typedef>().type()};
                 /* merge qualifiers */
                 tp.cv(quals);
-                return parse_type_ptr(ls, std::move(tp), allow_void);
+                return parse_type_ptr(ls, std::move(tp), allow_void, fpn);
             }
             case ast::c_object_type::STRUCT: {
                 auto &tp = decl->as<ast::c_struct>();
-                return parse_type_ptr(ls, ast::c_type{&tp, quals}, true);
+                return parse_type_ptr(ls, ast::c_type{&tp, quals}, true, fpn);
             }
             case ast::c_object_type::ENUM: {
                 auto &tp = decl->as<ast::c_enum>();
-                return parse_type_ptr(ls, ast::c_type{&tp, quals}, true);
+                return parse_type_ptr(ls, ast::c_type{&tp, quals}, true, fpn);
             }
             default: {
                 std::string buf;
@@ -1034,18 +1092,20 @@ qualified:
 
 newtype:
     assert(cbt != ast::C_BUILTIN_INVALID);
-    return parse_type_ptr(ls, ast::c_type{tname, cbt, quals}, allow_void);
+    return parse_type_ptr(ls, ast::c_type{tname, cbt, quals}, allow_void, fpn);
 }
 
 /* two syntaxes allowed by C:
  * typedef FROM TO;
  * FROM typedef TO;
  */
-static void parse_typedef(lex_state &ls, ast::c_type &&tp) {
+static void parse_typedef(lex_state &ls, ast::c_type &&tp, std::string &aname) {
     /* the new type name */
-    check(ls, TOK_NAME);
-    std::string aname = ls.t.value_s;
-    ls.get();
+    if (aname.empty()) {
+        check(ls, TOK_NAME);
+        aname = ls.t.value_s;
+        ls.get();
+    }
 
     ls.store_decl(new ast::c_typedef{std::move(aname), std::move(tp)});
 }
@@ -1068,10 +1128,14 @@ static void parse_struct(lex_state &ls) {
     std::vector<ast::c_struct::field> fields;
 
     while (ls.t.token != '}') {
-        auto ft = parse_type(ls);
-        check(ls, TOK_NAME);
-        fields.emplace_back(ls.t.value_s, std::move(ft));
-        ls.get();
+        std::string fname;
+        auto ft = parse_type(ls, false, &fname);
+        if (fname.empty()) {
+            check(ls, TOK_NAME);
+            fname = ls.t.value_s;
+            ls.get();
+        }
+        fields.emplace_back(std::move(fname), std::move(ft));
         check_next(ls, ';');
     }
 
@@ -1124,11 +1188,12 @@ static void parse_enum(lex_state &ls) {
 }
 
 static void parse_decl(lex_state &ls) {
+    std::string dname;
     switch (ls.t.token) {
         case TOK_typedef: {
             /* syntax 1: typedef FROM TO; */
             ls.get();
-            parse_typedef(ls, parse_type(ls, true));
+            parse_typedef(ls, parse_type(ls, true, &dname), dname);
             return;
         }
         case TOK_struct:
@@ -1143,17 +1208,22 @@ static void parse_decl(lex_state &ls) {
             break;
     }
 
-    auto tp = parse_type(ls, true);
+    auto tp = parse_type(ls, true, &dname);
     if (ls.t.token == TOK_typedef) {
         /* weird ass infix syntax: FROM typedef TO; */
         ls.get();
-        parse_typedef(ls, std::move(tp));
+        parse_typedef(ls, std::move(tp), dname);
         return;
     }
 
-    check(ls, TOK_NAME);
-    std::string dname = ls.t.value_s;
-    ls.get();
+    bool fptr = false;
+    if (dname.empty()) {
+        check(ls, TOK_NAME);
+        dname = ls.t.value_s;
+        ls.get();
+    } else {
+        fptr = true;
+    }
 
     /* leftmost type is plain void; so it must be a function */
     if (tp.type() == ast::C_BUILTIN_VOID) {
@@ -1168,37 +1238,13 @@ static void parse_decl(lex_state &ls) {
         return;
     }
 
-    int linenum = ls.line_number;
-    ls.get();
-
-    std::vector<ast::c_param> params;
-
-    if (ls.t.token == ')') {
-        goto done_params;
+    if (fptr) {
+        /* T (*name)(params)(params); */
+        ls.syntax_error("function declaration returning a function");
     }
-
-    for (;;) {
-        auto pt = parse_type(ls, params.size() == 0);
-        if (pt.type() == ast::C_BUILTIN_VOID) {
-            break;
-        }
-        if (test_next(ls, ',')) {
-            /* unnamed param */
-            continue;
-        }
-        check(ls, TOK_NAME);
-        params.emplace_back(ls.t.value_s, std::move(pt));
-        ls.get();
-        if (!test_next(ls, ',')) {
-            break;
-        }
-    }
-
-done_params:
-    check_match(ls, ')', '(', linenum);
 
     ls.store_decl(new ast::c_function{
-        std::move(dname), std::move(tp), std::move(params)
+        std::move(dname), std::move(tp), parse_paramlist(ls)
     });
 }
 

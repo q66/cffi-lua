@@ -105,7 +105,11 @@ struct fd2 {
  */
 struct cdata_meta {
     static int gc(lua_State *L) {
-        auto &cd = *lua::touserdata<ffi::cdata<ast::c_value>>(L, 1);
+        auto &cd = *lua::touserdata<ffi::cdata<ffi::fdata>>(L, 1);
+        if (cd.decl.closure()) {
+            /* FIXME: only for now, later callbacks will be permanent */
+            cd.val.free_closure();
+        }
         using T = ast::c_type;
         cd.decl.~T();
         return 0;
@@ -223,15 +227,38 @@ struct ctype_meta {
             }
         }
         ast::c_value stor{};
+        void *cdp = nullptr;
+        int fref = LUA_REFNIL;
         if (lua_gettop(L) >= 2) {
-            ffi::lua_check_cdata(L, decl, &stor, 2);
+            if ((decl.type() == ast::C_BUILTIN_FPTR) && lua_isfunction(L, 2)) {
+                lua_pushvalue(L, 2);
+                fref = luaL_ref(L, LUA_REGISTRYINDEX);
+            } else {
+                cdp = ffi::lua_check_cdata(L, decl, &stor, 2);
+            }
         } else {
             memset(&stor, 0, sizeof(stor));
+            cdp = &stor;
         }
-        auto *cd = lua::newuserdata<ffi::cdata<ast::c_value>>(L);
-        new (&cd->decl) ast::c_type{decl};
-        memcpy(&cd->val, &stor, sizeof(stor));
-        luaL_setmetatable(L, "cffi_cdata_handle");
+        if (decl.type() == ast::C_BUILTIN_FPTR) {
+            if (fref == LUA_REFNIL) {
+                using FP = void (*)();
+                ffi::make_cdata_func(
+                    L, *reinterpret_cast<FP *>(cdp), decl.function(),
+                    decl.type()
+                );
+            } else {
+                ffi::make_cdata_func(L, nullptr, decl.function(), decl.type());
+                auto &cd = *lua::touserdata<ffi::cdata<ffi::fdata>>(L, -1);
+                cd.val.cd->fref = fref;
+            }
+        } else {
+            /* FIXME: allocations of large cdata */
+            auto *cd = lua::newuserdata<ffi::cdata<ast::c_value>>(L);
+            new (&cd->decl) ast::c_type{decl};
+            memcpy(&cd->val, cdp, sizeof(ast::c_value));
+            luaL_setmetatable(L, "cffi_cdata_handle");
+        }
         return 1;
     }
 

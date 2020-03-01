@@ -299,7 +299,13 @@ bool c_type::is_same(c_type const &other, bool ignore_cv) const {
 
         case C_BUILTIN_FUNC:
         case C_BUILTIN_FPTR:
-            if (type() != other.type()) {
+            if (
+                /* FIXME: should not be equal but we still need
+                 * to handle converting from func to funcptr
+                 */
+                (other.type() != C_BUILTIN_FUNC) &&
+                (other.type() != C_BUILTIN_FPTR)
+            ) {
                 return false;
             }
             return p_cfptr->is_same(*other.p_cfptr);
