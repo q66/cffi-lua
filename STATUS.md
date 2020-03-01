@@ -117,15 +117,14 @@ Implements the functionality provided by the parser.
 - [ ] Variadic function calls
 - [x] Variable reads and assignments
 - [x] Integers up to 32 bits, `float`, `double`
-- [ ] `long double`
-- [ ] 64-bit integers
-- [ ] `time_t`
+- [x] `long double`
+- [x] 64-bit integers
+- [x] `time_t`
 - [ ] Complex types
 - [x] Pointers
 - [ ] C++ references
 - [x] Enums (except large enums beyond `int`)
-- [ ] Correct type conversions (partial)
-- [ ] Safer handling of value conversions
+- [x] Type conversions
 - [x] Typedefs
 - [ ] Structs
   - [ ] Bitfields

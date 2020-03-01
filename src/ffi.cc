@@ -126,9 +126,38 @@ int call_cif(cdata<fdata> &fud, lua_State *L) {
 }
 
 template<typename T>
-static inline void push_int(lua_State *L, void *value) {
-    using U = T *;
-    lua_pushinteger(L, lua_Integer(*U(value)));
+static inline void push_int(lua_State *L, ast::c_type const &tp, void *value) {
+    if (
+        /* assumes radix-2 floats... */
+        std::numeric_limits<T>::digits <=
+        std::numeric_limits<lua_Number>::digits
+    ) {
+        using U = T *;
+        lua_pushinteger(L, lua_Integer(*U(value)));
+        return;
+    }
+    /* doesn't fit into the range, so make scalar cdata */
+    auto *cd = lua::newuserdata<ffi::cdata<ast::c_value>>(L);
+    new (&cd->decl) ast::c_type{tp};
+    memcpy(&cd->val, value, sizeof(T));
+    luaL_setmetatable(L, "cffi_cdata_handle");
+}
+
+template<typename T>
+static inline void push_flt(lua_State *L, ast::c_type const &tp, void *value) {
+    if (
+        /* probably not the best check */
+        std::numeric_limits<T>::max() <=
+        std::numeric_limits<lua_Number>::max()
+    ) {
+        using U = T *;
+        lua_pushnumber(L, lua_Number(*U(value)));
+        return;
+    }
+    auto *cd = lua::newuserdata<ffi::cdata<ast::c_value>>(L);
+    new (&cd->decl) ast::c_type{tp};
+    memcpy(&cd->val, value, sizeof(T));
+    luaL_setmetatable(L, "cffi_cdata_handle");
 }
 
 int lua_push_cdata(lua_State *L, ast::c_type const &tp, void *value) {
@@ -138,67 +167,79 @@ int lua_push_cdata(lua_State *L, ast::c_type const &tp, void *value) {
             return 0;
         /* convert to lua boolean */
         case ast::C_BUILTIN_BOOL:
-            lua_pushboolean(L, *static_cast<unsigned char *>(value));
+            lua_pushboolean(L, *static_cast<bool *>(value));
             return 1;
         /* convert to lua number */
         case ast::C_BUILTIN_FLOAT:
-            lua_pushnumber(L, lua_Number(*static_cast<float *>(value)));
+            push_flt<float>(L, tp, value); return 1;
             return 1;
         case ast::C_BUILTIN_DOUBLE:
-            lua_pushnumber(L, lua_Number(*static_cast<double *>(value)));
+            push_flt<double>(L, tp, value); return 1;
             return 1;
         case ast::C_BUILTIN_LDOUBLE:
-            lua_pushnumber(L, lua_Number(*static_cast<long double *>(value)));
-            return 1;
+            push_flt<long double>(L, tp, value); return 1;
         case ast::C_BUILTIN_CHAR:
-            push_int<char>(L, value); return 1;
+            push_int<char>(L, tp, value); return 1;
         case ast::C_BUILTIN_SCHAR:
-            push_int<signed char>(L, value); return 1;
+            push_int<signed char>(L, tp, value); return 1;
         case ast::C_BUILTIN_UCHAR:
-            push_int<unsigned char>(L, value); return 1;
+            push_int<unsigned char>(L, tp, value); return 1;
         case ast::C_BUILTIN_SHORT:
-            push_int<short>(L, value); return 1;
+            push_int<short>(L, tp, value); return 1;
         case ast::C_BUILTIN_USHORT:
-            push_int<unsigned short>(L, value); return 1;
+            push_int<unsigned short>(L, tp, value); return 1;
         case ast::C_BUILTIN_INT:
-            push_int<int>(L, value); return 1;
+            push_int<int>(L, tp, value); return 1;
         case ast::C_BUILTIN_UINT:
-            push_int<unsigned int>(L, value); return 1;
+            push_int<unsigned int>(L, tp, value); return 1;
         case ast::C_BUILTIN_INT8:
-            push_int<int8_t>(L, value); return 1;
+            push_int<int8_t>(L, tp, value); return 1;
         case ast::C_BUILTIN_UINT8:
-            push_int<uint8_t>(L, value); return 1;
+            push_int<uint8_t>(L, tp, value); return 1;
         case ast::C_BUILTIN_INT16:
-            push_int<int16_t>(L, value); return 1;
+            push_int<int16_t>(L, tp, value); return 1;
         case ast::C_BUILTIN_UINT16:
-            push_int<uint16_t>(L, value); return 1;
+            push_int<uint16_t>(L, tp, value); return 1;
         case ast::C_BUILTIN_INT32:
-            push_int<int32_t>(L, value); return 1;
+            push_int<int32_t>(L, tp, value); return 1;
         case ast::C_BUILTIN_UINT32:
-            push_int<uint32_t>(L, value); return 1;
+            push_int<uint32_t>(L, tp, value); return 1;
         case ast::C_BUILTIN_WCHAR:
-            push_int<wchar_t>(L, value); return 1;
+            push_int<wchar_t>(L, tp, value); return 1;
         case ast::C_BUILTIN_CHAR16:
-            push_int<char16_t>(L, value); return 1;
+            push_int<char16_t>(L, tp, value); return 1;
         case ast::C_BUILTIN_CHAR32:
-            push_int<char16_t>(L, value); return 1;
+            push_int<char16_t>(L, tp, value); return 1;
         case ast::C_BUILTIN_LONG:
+            push_int<long>(L, tp, value); return 1;
         case ast::C_BUILTIN_ULONG:
+            push_int<unsigned long>(L, tp, value); return 1;
         case ast::C_BUILTIN_LLONG:
+            push_int<long long>(L, tp, value); return 1;
         case ast::C_BUILTIN_ULLONG:
+            push_int<unsigned long long>(L, tp, value); return 1;
         case ast::C_BUILTIN_INT64:
+            push_int<int64_t>(L, tp, value); return 1;
         case ast::C_BUILTIN_UINT64:
+            push_int<uint64_t>(L, tp, value); return 1;
         case ast::C_BUILTIN_SIZE:
+            push_int<size_t>(L, tp, value); return 1;
         case ast::C_BUILTIN_SSIZE:
+            push_int<ssize_t>(L, tp, value); return 1;
         case ast::C_BUILTIN_INTPTR:
+            push_int<intptr_t>(L, tp, value); return 1;
         case ast::C_BUILTIN_UINTPTR:
+            push_int<uintptr_t>(L, tp, value); return 1;
         case ast::C_BUILTIN_PTRDIFF:
+            push_int<ptrdiff_t>(L, tp, value); return 1;
         case ast::C_BUILTIN_TIME:
-        case ast::C_BUILTIN_STRUCT:
-        case ast::C_BUILTIN_ENUM:
-        case ast::C_BUILTIN_FUNC:
-        case ast::C_BUILTIN_FPTR:
-            luaL_error(L, "NYI"); return 0;
+            if (!std::numeric_limits<time_t>::is_integer) {
+                push_flt<time_t>(L, tp, value);
+            } else {
+                push_int<time_t>(L, tp, value);
+            }
+            return 1;
+
         case ast::C_BUILTIN_PTR: {
             /* pointers should be handled like large cdata, as they need
              * to be represented as userdata objects on lua side either way
@@ -210,6 +251,12 @@ int lua_push_cdata(lua_State *L, ast::c_type const &tp, void *value) {
             return 1;
         }
 
+        case ast::C_BUILTIN_STRUCT:
+        case ast::C_BUILTIN_ENUM:
+        case ast::C_BUILTIN_FPTR:
+            luaL_error(L, "NYI"); return 0;
+
+        case ast::C_BUILTIN_FUNC:
         case ast::C_BUILTIN_INVALID:
             break;
     }
