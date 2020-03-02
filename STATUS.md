@@ -188,12 +188,13 @@ The APIs the FFI should provide.
 
 ## Portability
 
-The main testing environment is `ppc64le` Linux. Other environments are
-currently not tested. The code is written to be portable and likely works
-already (except on Windows).
+Windows support is currently missing in the code, but otherwise the other
+platforms below have been tested. Architectures currently tested include
+`ppc64le`, `ppc64` and `x86_64`. Others should also work, as long as
+supported by `libffi`.
 
 - [x] Linux
-- [x] FreeBSD (other BSDs may also work; patches welcome)
+- [x] FreeBSD (other BSDs may also work; patches welcome if not)
 - [ ] Windows
 - [x] macOS (dependencies from homebrew; `libffi` needs `PKG_CONFIG_PATH`)
 - [x] Little endian
