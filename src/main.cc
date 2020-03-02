@@ -57,13 +57,9 @@ struct lib_meta {
             return 0;
         }
 
-        /* FIXME: find a nicer way to get the data written...
-         * the union cast is moderately unsafe but should work as long
-         * as the typechecking is right, and if it's not, oh well
-         */
+        size_t rsz;
         ffi::lua_check_cdata(
-            L, decl->as<ast::c_variable>().type(),
-            static_cast<ast::c_value *>(symp), 3
+            L, decl->as<ast::c_variable>().type(), symp, 3, rsz
         );
         return 0;
     }
@@ -226,9 +222,8 @@ struct cdata_meta {
 
     static int newindex(lua_State *L) {
         index_common(L, [L](auto &cd, void *val) {
-            ffi::lua_check_cdata(
-                L, cd.decl.ptr_base(), static_cast<ast::c_value *>(val), 3
-            );
+            size_t rsz;
+            ffi::lua_check_cdata(L, cd.decl.ptr_base(), val, 3, rsz);
         });
         return 0;
     }
@@ -287,16 +282,18 @@ struct ctype_meta {
         ast::c_value stor{};
         void *cdp = nullptr;
         int fref = LUA_REFNIL;
+        size_t rsz = 0;
         if (lua_gettop(L) >= 2) {
             if ((decl.type() == ast::C_BUILTIN_FPTR) && lua_isfunction(L, 2)) {
                 lua_pushvalue(L, 2);
                 fref = luaL_ref(L, LUA_REGISTRYINDEX);
             } else {
-                cdp = ffi::lua_check_cdata(L, decl, &stor, 2);
+                cdp = ffi::lua_check_cdata(L, decl, &stor, 2, rsz);
             }
         } else {
             memset(&stor, 0, sizeof(stor));
             cdp = &stor;
+            rsz = sizeof(stor);
         }
         if (decl.type() == ast::C_BUILTIN_FPTR) {
             if (fref == LUA_REFNIL) {
@@ -322,7 +319,7 @@ struct ctype_meta {
             }
         } else {
             auto &cd = ffi::newcdata<ast::c_value>(L, decl);
-            memcpy(&cd.val, cdp, cd.decl.libffi_type()->size);
+            memcpy(&cd.val, cdp, rsz);
         }
         return 1;
     }

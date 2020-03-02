@@ -15,6 +15,7 @@ namespace ffi {
 template<typename T>
 struct cdata {
     ast::c_type decl;
+    size_t val_sz;
     int gc_ref;
     T val;
     void *get_addr() {
@@ -68,6 +69,7 @@ static inline cdata<T> &newcdata(
     lua_State *L, ast::c_type &&tp, size_t extra = 0
 ) {
     auto *cd = lua::newuserdata<cdata<T>>(L, extra);
+    cd->val_sz = sizeof(T) + extra;
     new (&cd->decl) ast::c_type{std::move(tp)};
     cd->gc_ref = LUA_REFNIL;
     lua::mark_cdata(L);
@@ -109,9 +111,23 @@ void make_cdata_func(
 bool prepare_cif(cdata<fdata> &fud);
 int call_cif(cdata<fdata> &fud, lua_State *L);
 
+/* this pushes a value from `value` on the Lua stack; its type
+ * and necessary conversions are done based on the info in `tp`
+ */
 int lua_push_cdata(lua_State *L, ast::c_type const &tp, void *value);
+
+/* this returns a pointer to a C value counterpart of the Lua value
+ * on the stack (as given by `index`)
+ *
+ * necessary conversions are done according to `tp`; `stor` is used to
+ * write scalar values (therefore its alignment and size must be enough
+ * to fit the converted value - the ast::c_value type can store any scalar
+ * so you can use that) while non-scalar values may have their address
+ * returned directly
+ */
 void *lua_check_cdata(
-    lua_State *L, ast::c_type const &tp, ast::c_value *stor, int index
+    lua_State *L, ast::c_type const &tp, void *stor, int index,
+    size_t &dsz
 );
 
 } /* namespace ffi */
