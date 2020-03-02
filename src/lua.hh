@@ -1,7 +1,23 @@
 #ifndef LUA_HH
 #define LUA_HH
 
+#include "platform.hh"
+
+#if defined(FFI_DIAGNOSTIC_PRAGMA_CLANG)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wold-style-cast"
+#elif defined(FFI_DIAGNOSTIC_PRAGMA_GCC)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#endif
+
 #include <lua.hpp>
+
+#if defined(FFI_DIAGNOSTIC_PRAGMA_CLANG)
+#pragma clang diagnostic pop
+#elif defined(FFI_DIAGNOSTIC_PRAGMA_GCC)
+#pragma GCC diagnostic pop
+#endif
 
 #if LUA_VERSION_NUM < 501
 

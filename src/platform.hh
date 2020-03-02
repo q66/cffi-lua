@@ -240,4 +240,16 @@ static_assert(
 #  define FFI_USE_DLFCN 1
 #endif
 
+/* some compiler bits */
+
+#if defined(__GNUC__)
+#if (__GNUC__ >= 5) || ((__GNUC__ == 4) && (__GNUC_MINOR__ >= 6))
+#define FFI_DIAGNOSTIC_PRAGMA_GCC 1
+#endif
+#endif
+
+#if defined(__clang__)
+#define FFI_DIAGNOSTIC_PRAGMA_CLANG 1
+#endif
+
 #endif /* PLATFORM_HH */
