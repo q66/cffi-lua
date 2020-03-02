@@ -6,6 +6,7 @@
 #include <cassert>
 #include <ctime>
 
+#include "lua.hh"
 #include "libffi.hh"
 
 #include <string>
@@ -762,12 +763,36 @@ struct redefine_error: public std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
-/* takes unique ownership of the pointer */
-void add_decl(c_object *decl);
+struct decl_store {
+    decl_store() {}
+    decl_store(decl_store &ds): p_base(&ds) {}
+    ~decl_store() {
+        drop();
+    }
 
-c_object const *lookup_decl(std::string const &name);
+    decl_store &operator=(decl_store const &) = delete;
 
-std::string request_name();
+    /* takes ownership of the pointer */
+    void add(c_object *decl);
+    void commit();
+    void drop();
+
+    c_object const *lookup(std::string const &name) const;
+
+    std::string request_name() const;
+
+    static decl_store &get_main(lua_State *L) {
+        lua_getfield(L, LUA_REGISTRYINDEX, lua::CFFI_DECL_STOR);
+        auto *ds = lua::touserdata<decl_store>(L, -1);
+        assert(ds);
+        lua_pop(L, 1);
+        return *ds;
+    }
+private:
+    decl_store *p_base = nullptr;
+    std::vector<std::unique_ptr<c_object>> p_dlist{};
+    std::unordered_map<std::string, c_object const *> p_dmap{};
+};
 
 } /* namespace ast */
 

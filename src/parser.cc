@@ -97,9 +97,10 @@ struct lex_state_error: public std::runtime_error {
 struct lex_state {
     lex_state() = delete;
 
-    lex_state(
-        char const *str, const char *estr
-    ): stream(str), send(estr), p_buf{} {
+    lex_state(lua_State *L, char const *str, const char *estr):
+        stream(str), send(estr), p_buf{},
+        p_dstore{ast::decl_store::get_main(L)}
+    {
         /* thread-local, initialize for parsing thread */
         init_kwmap();
 
@@ -124,9 +125,7 @@ struct lex_state {
         next_char();
     }
 
-    ~lex_state() {
-        commit();
-    }
+    ~lex_state() {}
 
     int get() {
         if (lahead.token >= 0) {
@@ -141,22 +140,28 @@ struct lex_state {
         return (lahead.token = lex(t));
     }
 
-    void lex_error(std::string const &msg, int) {
+    void lex_error(std::string const &msg, int) const {
         throw lex_state_error{msg};
     }
 
-    void syntax_error(std::string const &msg) {
+    void syntax_error(std::string const &msg) const {
         lex_error(msg, t.token);
     }
 
     void store_decl(ast::c_object *obj) {
-        /* TODO: have a staging system */
-        ast::add_decl(obj);
+        p_dstore.add(obj);
     }
 
     void commit() {
-        /* nothing for now, objects are directly stored right now */
-        return;
+        p_dstore.commit();
+    }
+
+    ast::c_object const *lookup(std::string const &name) const {
+        return p_dstore.lookup(name);
+    }
+
+    std::string request_name() const {
+        return p_dstore.request_name();
     }
 
 private:
@@ -470,7 +475,7 @@ cont:
     char const *send;
 
     std::vector<char> p_buf;
-    std::unique_ptr<ast::c_object> p_staged;
+    ast::decl_store p_dstore;
 
 public:
     int line_number = 1;
@@ -827,7 +832,7 @@ static ast::c_type parse_type_ptr(
         }
         check_next(ls, ')');
         auto *cf = new ast::c_function{
-            ast::request_name(), std::move(tp), parse_paramlist(ls)
+            ls.request_name(), std::move(tp), parse_paramlist(ls)
         };
         ls.store_decl(cf);
         ast::c_type ftp{cf, pcv};
@@ -918,7 +923,7 @@ qualified:
     if (ls.t.token == TOK_NAME) {
         /* typedef, struct, enum, var, etc. */
         tname += ls.t.value_s;
-        auto *decl = ast::lookup_decl(tname);
+        auto *decl = ls.lookup(tname);
         if (!decl) {
             std::string buf;
             buf += "undeclared symbol '";
@@ -1107,7 +1112,7 @@ static void parse_struct(lex_state &ls) {
         sname += ls.t.value_s;
         ls.get();
     } else {
-        sname += ast::request_name();
+        sname += ls.request_name();
     }
 
     int linenum = ls.line_number;
@@ -1141,7 +1146,7 @@ static void parse_enum(lex_state &ls) {
         ename += ls.t.value_s;
         ls.get();
     } else {
-        ename += ast::request_name();
+        ename += ls.request_name();
     }
 
     int linenum = ls.line_number;
@@ -1251,37 +1256,41 @@ static void parse_decls(lex_state &ls) {
     }
 }
 
-void parse(char const *input, char const *iend) {
+void parse(lua_State *L, char const *input, char const *iend) {
     if (!iend) {
         iend = input + strlen(input);
     }
-    lex_state ls{input, iend};
+    lex_state ls{L, input, iend};
 
     /* read first token */
     ls.get();
 
     parse_decls(ls);
+    ls.commit();
 }
 
-ast::c_type parse_type(char const *input, char const *iend) {
+ast::c_type parse_type(lua_State *L, char const *input, char const *iend) {
     if (!iend) {
         iend = input + strlen(input);
     }
-    lex_state ls{input, iend};
+    lex_state ls{L, input, iend};
     ls.get();
-    return parse_type(ls);
+    auto tp = parse_type(ls);
+    ls.commit();
+    return tp;
 }
 
 ast::c_expr_type parse_number(
-    lex_token_u &v, char const *input, char const *iend
+    lua_State *L, lex_token_u &v, char const *input, char const *iend
 ) {
     if (!iend) {
         iend = input + strlen(input);
     }
-    lex_state ls{input, iend};
+    lex_state ls{L, input, iend};
     ls.get();
     check(ls, TOK_INTEGER);
     v = ls.t.value;
+    ls.commit();
     return ls.t.numtag;
 }
 

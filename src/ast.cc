@@ -430,22 +430,17 @@ bool c_struct::is_same(c_struct const &other) const {
     return true;
 }
 
-/* lua is not thread safe, so the FFI doesn't need to be either */
+/* decl store implementation, with overlaying for staging */
 
-/* the list of declarations; actually stored */
-static std::vector<std::unique_ptr<c_object>> decl_list;
-
-/* mapping for quick lookups */
-static std::unordered_map<std::string, c_object const *> decl_map;
-
-void add_decl(c_object *decl) {
-    if (decl_map.find(decl->name) != decl_map.end()) {
+void decl_store::add(c_object *decl) {
+    if (lookup(decl->name)) {
+        delete decl;
         throw redefine_error{decl->name};
     }
 
-    decl_list.emplace_back(decl);
-    auto &d = *decl_list.back();
-    decl_map.emplace(d.name, &d);
+    p_dlist.emplace_back(decl);
+    auto &d = *p_dlist.back();
+    p_dmap.emplace(d.name, &d);
 
     /* enums: register fields as constant values
      * FIXME: don't hardcode like this
@@ -454,25 +449,55 @@ void add_decl(c_object *decl) {
         for (auto &fld: d.as<c_enum>().fields()) {
             c_value val;
             val.i = fld.value;
-            add_decl(
+            add(
                 new c_constant{fld.name, c_type{"int", C_BUILTIN_INT, 0}, val}
             );
         }
     }
 }
 
-c_object const *lookup_decl(std::string const &name) {
-    auto it = decl_map.find(name);
-    if (it == decl_map.end()) {
-        return nullptr;
+void decl_store::commit() {
+    /* this should only ever be used when staging */
+    assert(p_base);
+    /* reserve all space at once */
+    p_base->p_dlist.reserve(p_base->p_dlist.size() + p_dlist.size());
+    /* move all */
+    for (auto &u: p_dlist) {
+        p_base->p_dlist.push_back(std::move(u));
     }
-    return it->second;
+    /* set up mappings in base */
+    for (auto const &p: p_dmap) {
+        p_base->p_dmap.emplace(p);
+    }
+    drop();
 }
 
-std::string request_name() {
+void decl_store::drop() {
+    p_dmap.clear();
+    p_dlist.clear();
+}
+
+c_object const *decl_store::lookup(std::string const &name) const {
+    auto it = p_dmap.find(name);
+    if (it != p_dmap.cend()) {
+        return it->second;
+    }
+    if (p_base) {
+        return p_base->lookup(name);
+    }
+    return nullptr;
+}
+
+std::string decl_store::request_name() const {
     char buf[32];
     /* could do something better, this will do to avoid clashes for now... */
-    snprintf(buf, sizeof(buf), "%zu", decl_list.size());
+    size_t n = 0;
+    decl_store const *pb = this;
+    do {
+        n += pb->p_dlist.size();
+        pb = pb->p_base;
+    } while (pb);
+    snprintf(buf, sizeof(buf), "%zu", n);
     return std::string{static_cast<char const *>(buf)};
 }
 

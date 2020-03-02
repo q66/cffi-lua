@@ -85,6 +85,7 @@ namespace lua {
 static constexpr char const CFFI_CDATA_MT[] = "cffi_cdata_handle";
 static constexpr char const CFFI_CTYPE_MT[] = "cffi_ctype_handle";
 static constexpr char const CFFI_LIB_MT[] = "cffi_lib_handle";
+static constexpr char const CFFI_DECL_STOR[] = "cffi_decl_stor";
 
 template<typename T>
 static T *newuserdata(lua_State *L, size_t extra = 0) {

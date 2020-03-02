@@ -32,7 +32,8 @@ struct lib_meta {
     static int index(lua_State *L) {
         auto dl = *lua::touserdata<lib::handle>(L, 1);
         char const *sname = luaL_checkstring(L, 2);
-        ffi::make_cdata(L, dl, ast::lookup_decl(sname), sname);
+        auto &ds = ast::decl_store::get_main(L);
+        ffi::make_cdata(L, dl, ds.lookup(sname), sname);
         return 1;
     }
 
@@ -40,7 +41,8 @@ struct lib_meta {
         auto dl = *lua::touserdata<lib::handle>(L, 1);
         char const *sname = luaL_checkstring(L, 2);
 
-        auto const *decl = ast::lookup_decl(sname);
+        auto &ds = ast::decl_store::get_main(L);
+        auto const *decl = ds.lookup(sname);
         if (!decl) {
             luaL_error(
                 L, "missing declaration for symbol '%s'", decl->name.c_str()
@@ -345,7 +347,7 @@ struct ctype_meta {
 /* the ffi module itself */
 struct ffi_module {
     static int cdef_f(lua_State *L) {
-        parser::parse(luaL_checkstring(L, 1));
+        parser::parse(L, luaL_checkstring(L, 1));
         return 0;
     }
 
@@ -355,7 +357,9 @@ struct ffi_module {
             lua_pushvalue(L, idx);
         } else {
             auto *ud = lua::newuserdata<ast::c_type>(L);
-            new (ud) ast::c_type{parser::parse_type(luaL_checkstring(L, idx))};
+            new (ud) ast::c_type{
+                parser::parse_type(L, luaL_checkstring(L, idx))
+            };
             lua::mark_ctype(L);
         }
         return *lua::touserdata<ast::c_type>(L, -1);
@@ -387,7 +391,9 @@ struct ffi_module {
         if (ffi::iscdata(L, 1)) {
             new (ud) ast::c_type{ffi::tocdata<ast::c_value>(L, 1).decl};
         } else {
-            new (ud) ast::c_type{parser::parse_type(luaL_checkstring(L, 1))};
+            new (ud) ast::c_type{
+                parser::parse_type(L, luaL_checkstring(L, 1))
+            };
         }
         lua::mark_ctype(L);
         return 1;
@@ -534,7 +540,7 @@ struct ffi_module {
         /* TODO: accept expressions */
         char const *str = luaL_checkstring(L, 1);
         parser::lex_token_u outv;
-        auto v = parser::parse_number(outv, str, str + lua_rawlen(L, 1));
+        auto v = parser::parse_number(L, outv, str, str + lua_rawlen(L, 1));
         switch (v) {
             case ast::c_expr_type::INT:
                 new_scalar(L, ast::C_BUILTIN_INT, "int").i = outv.i;
@@ -656,7 +662,31 @@ struct ffi_module {
         lua_setfield(L, -2, "abi");
     }
 
+    static void setup_dstor(lua_State *L) {
+        /* our declaration storage is a userdata in the registry */
+        auto *ud = lua::newuserdata<ast::decl_store>(L);
+        new (ud) ast::decl_store{};
+        /* stack: dstor */
+        lua_newtable(L);
+        /* stack: dstor, mt */
+        lua_pushcfunction(L, [](lua_State *LL) -> int {
+            using T = ast::decl_store;
+            auto *ds = lua::touserdata<T>(LL, 1);
+            ds->~T();
+            return 0;
+        });
+        /* stack: dstor, mt, __gc */
+        lua_setfield(L, -2, "__gc");
+        /* stack: dstor, __mt */
+        lua_setmetatable(L, -2);
+        /* stack: dstor */
+        lua_setfield(L, LUA_REGISTRYINDEX, lua::CFFI_DECL_STOR);
+        /* stack: empty */
+    }
+
     static void open(lua_State *L) {
+        setup_dstor(L); /* declaration store */
+
         setup(L); /* push table to stack */
 
         /* lib handles */

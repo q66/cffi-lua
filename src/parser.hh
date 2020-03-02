@@ -7,6 +7,7 @@
 #include <vector>
 #include <memory>
 
+#include "lua.hh"
 #include "ast.hh"
 
 namespace parser {
@@ -23,26 +24,28 @@ union lex_token_u {
     double d;
 };
 
-void parse(char const *input, char const *iend = nullptr);
+void parse(lua_State *L, char const *input, char const *iend = nullptr);
 
-static inline void parse(std::string const &input) {
-    parse(input.c_str(), input.c_str() + input.size());
+static inline void parse(lua_State *L, std::string const &input) {
+    parse(L, input.c_str(), input.c_str() + input.size());
 }
 
-ast::c_type parse_type(char const *input, char const *iend = nullptr);
+ast::c_type parse_type(
+    lua_State *L, char const *input, char const *iend = nullptr
+);
 
-static inline ast::c_type parse_type(std::string const &input) {
-    return parse_type(input.c_str(), input.c_str() + input.size());
+static inline ast::c_type parse_type(lua_State *L, std::string const &input) {
+    return parse_type(L, input.c_str(), input.c_str() + input.size());
 }
 
 ast::c_expr_type parse_number(
-    lex_token_u &v, char const *input, char const *iend = nullptr
+    lua_State *L, lex_token_u &v, char const *input, char const *iend = nullptr
 );
 
 static inline ast::c_expr_type parse_number(
-    lex_token_u &v, std::string const &input
+    lua_State *L, lex_token_u &v, std::string const &input
 ) {
-    return parse_number(v, input.c_str(), input.c_str() + input.size());
+    return parse_number(L, v, input.c_str(), input.c_str() + input.size());
 }
 
 }; /* namespace parser */
