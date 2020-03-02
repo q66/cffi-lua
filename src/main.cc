@@ -106,6 +106,13 @@ struct fd2 {
 struct cdata_meta {
     static int gc(lua_State *L) {
         auto &cd = *lua::touserdata<ffi::cdata<ffi::fdata>>(L, 1);
+        if (cd.gc_ref != LUA_REFNIL) {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, cd.gc_ref); /* the finalizer */
+            lua_pushvalue(L, 1); /* the cdata */
+            if (lua_pcall(L, 1, 0, 0)) {
+                lua_pop(L, 1);
+            }
+        }
         if (cd.decl.closure() && cd.val.cd) {
             /* this is O(n) which sucks a little */
             cd.val.cd->refs.remove(&cd.val.cd);
@@ -320,6 +327,7 @@ struct ctype_meta {
         } else {
             auto *cd = lua::newuserdata<ffi::cdata<ast::c_value>>(L);
             new (&cd->decl) ast::c_type{decl};
+            cd->gc_ref = LUA_REFNIL;
             memcpy(&cd->val, cdp, cd->decl.libffi_type()->size);
             luaL_setmetatable(L, "cffi_cdata_handle");
         }
@@ -392,6 +400,25 @@ struct ffi_module {
             new (ud) ast::c_type{parser::parse_type(luaL_checkstring(L, 1))};
         }
         luaL_setmetatable(L, "cffi_ctype_handle");
+        return 1;
+    }
+
+    static int gc_f(lua_State *L) {
+        auto &cd = *static_cast<ffi::cdata<ast::c_value> *>(
+            luaL_checkudata(L, 1, "cffi_cdata_handle")
+        );
+        if (lua_isnil(L, 2)) {
+            /* if nil and there is an existing finalizer, unset */
+            if (cd.gc_ref != LUA_REFNIL) {
+                luaL_unref(L, LUA_REGISTRYINDEX, cd.gc_ref);
+                cd.gc_ref = LUA_REFNIL;
+            }
+        } else {
+            /* new finalizer can be any type, it's pcall'd */
+            lua_pushvalue(L, 2);
+            cd.gc_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+        }
+        lua_pushvalue(L, 1); /* return the cdata */
         return 1;
     }
 
@@ -570,6 +597,7 @@ struct ffi_module {
             /* data handling */
             {"new", new_f},
             {"typeof", typeof_f},
+            {"gc", gc_f},
 
             /* type info */
             {"sizeof", sizeof_f},

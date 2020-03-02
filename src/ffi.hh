@@ -15,8 +15,8 @@ namespace ffi {
 template<typename T>
 struct cdata {
     ast::c_type decl;
+    int gc_ref;
     T val;
-
     void *get_addr() {
         switch (decl.type()) {
             case ast::C_BUILTIN_PTR:

@@ -56,6 +56,7 @@ void make_cdata_func(
     luaL_setmetatable(L, "cffi_cdata_handle");
 
     new (&fud->decl) ast::c_type{&func, 0, cbt, funp == nullptr};
+    fud->gc_ref = LUA_REFNIL;
     fud->val.sym = funp;
 
     if (!ffi::prepare_cif(*fud)) {
@@ -210,6 +211,7 @@ static inline int push_int(lua_State *L, ast::c_type const &tp, void *value) {
     /* doesn't fit into the range, so make scalar cdata */
     auto *cd = lua::newuserdata<ffi::cdata<ast::c_value>>(L);
     new (&cd->decl) ast::c_type{tp};
+    cd->gc_ref = LUA_REFNIL;
     memcpy(&cd->val, value, sizeof(T));
     luaL_setmetatable(L, "cffi_cdata_handle");
     return 1;
@@ -228,6 +230,7 @@ static inline int push_flt(lua_State *L, ast::c_type const &tp, void *value) {
     }
     auto *cd = lua::newuserdata<ffi::cdata<ast::c_value>>(L);
     new (&cd->decl) ast::c_type{tp};
+    cd->gc_ref = LUA_REFNIL;
     memcpy(&cd->val, value, sizeof(T));
     luaL_setmetatable(L, "cffi_cdata_handle");
     return 1;
@@ -315,6 +318,7 @@ int lua_push_cdata(lua_State *L, ast::c_type const &tp, void *value) {
              */
             auto *cd = lua::newuserdata<ffi::cdata<ast::c_value>>(L);
             new (&cd->decl) ast::c_type{tp};
+            cd->gc_ref = LUA_REFNIL;
             cd->val.ptr = reinterpret_cast<ast::c_value *>(value)->ptr;
             luaL_setmetatable(L, "cffi_cdata_handle");
             return 1;
