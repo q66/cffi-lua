@@ -172,8 +172,8 @@ The APIs the FFI should provide.
 - [x] `cffi.fill` (`memset`)
 - [ ] `cffi.tonumber` (`cdata`-aware `tonumber`)
 - [ ] `cffi.tostring` (`cdata`-aware `tostring`)
-- [ ] `cffi.ll` (64-bit signed integer construction)
-- [ ] `cffi.ull` (64-bit unsigned integer construction)
+- [ ] `cffi.int` (integer cdata construction)
+- [ ] `cffi.float` (floating point cdata construction)
 
 ### Target information
 
@@ -194,7 +194,7 @@ currently not tested. The code is written to be portable and likely works
 already (except on Windows).
 
 - [x] Linux
-- [ ] BSDs (untested, may work)
+- [x] FreeBSD (other BSDs may also work; patches welcome)
 - [ ] Windows
 - [ ] macOS (untested, may work)
 - [x] Little endian
