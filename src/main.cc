@@ -407,6 +407,25 @@ struct ffi_module {
         return 1;
     }
 
+    static int istype_f(lua_State *L) {
+        auto &ct = check_ct(L, 1);
+        if (!luaL_testudata(L, 2, "cffi_cdata_handle")) {
+            lua_pushboolean(L, false);
+            return 1;
+        }
+        auto &cd = *lua::touserdata<ffi::cdata<ast::c_value>>(L, 2);
+        if (ct.type() == ast::C_BUILTIN_STRUCT) {
+            /* if ct is a struct, accept pointers to the struct */
+            /* TODO: also applies to union */
+            if (cd.decl.type() == ast::C_BUILTIN_PTR) {
+                lua_pushboolean(L, ct.is_same(cd.decl.ptr_base(), true));
+                return 1;
+            }
+        }
+        lua_pushboolean(L, ct.is_same(cd.decl, true));
+        return 1;
+    }
+
     static int errno_f(lua_State *L) {
         int cur = errno;
         if (lua_gettop(L) >= 1) {
@@ -555,6 +574,7 @@ struct ffi_module {
             /* type info */
             {"sizeof", sizeof_f},
             {"alignof", alignof_f},
+            {"istype", istype_f},
 
             /* utilities */
             {"errno", errno_f},

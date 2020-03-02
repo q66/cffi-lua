@@ -162,7 +162,7 @@ The APIs the FFI should provide.
 - [x] `cffi.sizeof`
 - [x] `cffi.alignof`
 - [ ] `cffi.offsetof`
-- [ ] `cffi.istype` (type checking interface)
+- [x] `cffi.istype` (type checking interface)
 
 ### Utilities
 
