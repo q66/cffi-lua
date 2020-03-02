@@ -1,8 +1,12 @@
+# Project definition
+
 project('cffi-lua', ['cpp'],
     version: '0.0.1',
     default_options: ['buildtype=plain', 'cpp_std=c++14'],
     meson_version: '>=0.46'
 )
+
+# Default compiler warnings at least for gcc/clang
 
 cxx = meson.get_compiler('cpp')
 
@@ -12,6 +16,8 @@ if tgt_compiler_id == 'gcc' or tgt_compiler_id == 'clang'
 else
     extra_cxxflags = []
 endif
+
+# Configuration data; optional but helps
 
 config_h = configuration_data()
 
@@ -25,11 +31,9 @@ if cxx.has_header('endian.h')
     config_h.set10('HAVE_ENDIAN_H', true)
 endif
 
-configure_file(output: 'config.h', configuration: config_h)
-
 add_global_arguments('-DHAVE_CONFIG_H=1', language: 'cpp')
 
-ffi_dep = dependency('libffi')
+# Lua dependency checks
 
 luaver = get_option('lua_version')
 
@@ -55,6 +59,36 @@ elif luaver == 'custom'
 else
     lua_dep = dependency('lua')
 endif
+
+# Libffi dependency checks
+
+ffiver = get_option('libffi')
+
+if ffiver == 'custom'
+    ffi_dep = dependency('', required: false)
+else
+    ffi_dep = dependency('libffi')
+endif
+
+# Header checks
+
+if cxx.has_header('ffi.h', dependencies: ffi_dep)
+    config_h.set10('HAVE_FFI_H', true)
+elif cxx.has_header('ffi/ffi.h', dependencies: ffi_dep)
+    config_h.set10('HAVE_FFI_FFI_H', true)
+else
+    error('libffi header file not found')
+endif
+
+if not cxx.has_header('lua.hpp', dependencies: lua_dep)
+    error('lua header file not found')
+endif
+
+# Write configuration data
+
+configure_file(output: 'config.h', configuration: config_h)
+
+# Module build definition
 
 cffi_src = [
     'src/main.cc',
