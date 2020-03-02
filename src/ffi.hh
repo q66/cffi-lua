@@ -63,6 +63,40 @@ struct alignas(std::max_align_t) sdata {
     T val;
 };
 
+template<typename T>
+static inline cdata<T> &newcdata(
+    lua_State *L, ast::c_type &&tp, size_t extra = 0
+) {
+    auto *cd = lua::newuserdata<cdata<T>>(L, extra);
+    new (&cd->decl) ast::c_type{std::move(tp)};
+    cd->gc_ref = LUA_REFNIL;
+    lua::mark_cdata(L);
+    return *cd;
+}
+
+template<typename T>
+static inline cdata<T> &newcdata(
+    lua_State *L, ast::c_type const &tp, size_t extra = 0
+) {
+    return newcdata<T>(L, ast::c_type{tp}, extra);
+}
+
+static inline bool iscdata(lua_State *L, int idx) {
+    return luaL_testudata(L, idx, lua::CFFI_CDATA_MT);
+}
+
+template<typename T>
+static inline cdata<T> &checkcdata(lua_State *L, int idx) {
+    return *static_cast<cdata<T> *>(
+        luaL_checkudata(L, idx, lua::CFFI_CDATA_MT)
+    );
+}
+
+template<typename T>
+static inline cdata<T> &tocdata(lua_State *L, int idx) {
+    return *lua::touserdata<ffi::cdata<T>>(L, idx);
+}
+
 void make_cdata(
     lua_State *L, lib::handle dl, ast::c_object const *obj, char const *name
 );

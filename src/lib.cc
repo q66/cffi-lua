@@ -144,7 +144,7 @@ handle load(char const *path, lua_State *L, bool global) {
     handle h = open(resolve_name(L, path), global);
     lua_pop(L, 1);
     if (h) {
-        luaL_setmetatable(L, "cffi_lib_handle");
+        lua::mark_lib(L);
         return h;
     }
     char const *err = dlerror(), *e;
@@ -154,7 +154,7 @@ handle load(char const *path, lua_State *L, bool global) {
     ).empty()) {
         h = open(lds.c_str(), global);
         if (h) {
-            luaL_setmetatable(L, "cffi_lib_handle");
+            lua::mark_lib(L);
             return h;
         }
         err = dlerror();

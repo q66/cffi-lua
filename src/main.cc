@@ -69,7 +69,7 @@ struct lib_meta {
     }
 
     static void setup(lua_State *L) {
-        if (!luaL_newmetatable(L, "cffi_lib_handle")) {
+        if (!luaL_newmetatable(L, lua::CFFI_LIB_MT)) {
             luaL_error(L, "unexpected error: registry reinitialized");
         }
 
@@ -105,7 +105,7 @@ struct fd2 {
  */
 struct cdata_meta {
     static int gc(lua_State *L) {
-        auto &cd = *lua::touserdata<ffi::cdata<ffi::fdata>>(L, 1);
+        auto &cd = ffi::tocdata<ffi::fdata>(L, 1);
         if (cd.gc_ref != LUA_REFNIL) {
             lua_rawgeti(L, LUA_REGISTRYINDEX, cd.gc_ref); /* the finalizer */
             lua_pushvalue(L, 1); /* the cdata */
@@ -123,14 +123,14 @@ struct cdata_meta {
     }
 
     static int tostring(lua_State *L) {
-        auto &cd = *lua::touserdata<ffi::cdata<ast::c_value>>(L, 1);
+        auto &cd = ffi::tocdata<ast::c_value>(L, 1);
         auto s = cd.decl.serialize();
         lua_pushfstring(L, "cdata<%s>: %p", s.c_str(), cd.get_addr());
         return 1;
     }
 
     static int call(lua_State *L) {
-        auto &fd = *lua::touserdata<ffi::cdata<ffi::fdata>>(L, 1);
+        auto &fd = ffi::tocdata<ffi::fdata>(L, 1);
         switch (fd.decl.type()) {
             case ast::C_BUILTIN_FPTR:
             case ast::C_BUILTIN_FUNC:
@@ -149,28 +149,26 @@ struct cdata_meta {
 
     template<typename F>
     static void index_common(lua_State *L, F &&func) {
-        auto *cd = lua::touserdata<ffi::cdata<ast::c_value>>(L, 1);
+        auto &cd = ffi::tocdata<ast::c_value>(L, 1);
         /* TODO: add arrays */
-        switch (cd->decl.type()) {
+        switch (cd.decl.type()) {
             case ast::C_BUILTIN_PTR:
                 break;
             default: {
-                auto s = cd->decl.serialize();
+                auto s = cd.decl.serialize();
                 luaL_error(L, "'%s' is not indexable", s.c_str());
                 break;
             }
         }
         auto sidx = luaL_checkinteger(L, 2);
         luaL_argcheck(L, sidx >= 0, 2, "index is negative");
-        auto *ptr = reinterpret_cast<unsigned char *>(cd->val.ptr);
-        auto *type = cd->decl.ptr_base().libffi_type();
-        func(*cd, static_cast<void *>(&ptr[sidx * type->size]));
+        auto *ptr = reinterpret_cast<unsigned char *>(cd.val.ptr);
+        auto *type = cd.decl.ptr_base().libffi_type();
+        func(cd, static_cast<void *>(&ptr[sidx * type->size]));
     }
 
     static int cb_free(lua_State *L) {
-        auto &cd = *static_cast<ffi::cdata<ffi::fdata> *>(
-            luaL_checkudata(L, 1, "cffi_cdata_handle")
-        );
+        auto &cd = ffi::checkcdata<ffi::fdata>(L, 1);
         luaL_argcheck(L, cd.decl.closure(), 1, "not a callback");
         if (!cd.val.cd) {
             luaL_error(L, "bad callback");
@@ -180,9 +178,7 @@ struct cdata_meta {
     }
 
     static int cb_set(lua_State *L) {
-        auto &cd = *static_cast<ffi::cdata<ffi::fdata> *>(
-            luaL_checkudata(L, 1, "cffi_cdata_handle")
-        );
+        auto &cd = ffi::checkcdata<ffi::fdata>(L, 1);
         luaL_argcheck(L, cd.decl.closure(), 1, "not a callback");
         if (!cd.val.cd) {
             luaL_error(L, "bad callback");
@@ -197,8 +193,8 @@ struct cdata_meta {
     }
 
     static int index(lua_State *L) {
-        auto *fcd = lua::touserdata<ffi::cdata<ast::c_value>>(L, 1);
-        if (fcd->decl.closure()) {
+        auto &cd = ffi::tocdata<ast::c_value>(L, 1);
+        if (cd.decl.closure()) {
             /* callbacks have some methods */
             char const *mname = lua_tostring(L, 2);
             /* if we had more methods, we'd do a table */
@@ -211,19 +207,19 @@ struct cdata_meta {
             } else if (!mname) {
                 luaL_error(
                     L, "'%s' cannot be indexed with '%s'",
-                    fcd->decl.serialize().c_str(),
+                    cd.decl.serialize().c_str(),
                     lua_typename(L, lua_type(L, 2))
                 );
             } else {
                 luaL_error(
                     L, "'%s' has no member named '%s'",
-                    fcd->decl.serialize().c_str(), mname
+                    cd.decl.serialize().c_str(), mname
                 );
             }
             return 0;
         }
-        index_common(L, [L](auto &cd, void *val) {
-            ffi::lua_push_cdata(L, cd.decl.ptr_base(), val);
+        index_common(L, [L](auto &pcd, void *val) {
+            ffi::lua_push_cdata(L, pcd.decl.ptr_base(), val);
         });
         return 1;
     }
@@ -238,7 +234,7 @@ struct cdata_meta {
     }
 
     static void setup(lua_State *L) {
-        if (!luaL_newmetatable(L, "cffi_cdata_handle")) {
+        if (!luaL_newmetatable(L, lua::CFFI_CDATA_MT)) {
             luaL_error(L, "unexpected error: registry reinitialized");
         }
 
@@ -304,9 +300,9 @@ struct ctype_meta {
         }
         if (decl.type() == ast::C_BUILTIN_FPTR) {
             if (fref == LUA_REFNIL) {
-                if (luaL_testudata(L, 2, "cffi_cdata_handle")) {
+                if (ffi::iscdata(L, 2)) {
                     /* special handling for closures */
-                    auto &cd = *lua::touserdata<ffi::cdata<ffi::fdata>>(L, 2);
+                    auto &cd = ffi::tocdata<ffi::fdata>(L, 2);
                     if (cd.decl.closure()) {
                         ffi::make_cdata_func(
                             L, nullptr, decl.function(), decl.type(), cd.val.cd
@@ -321,21 +317,18 @@ struct ctype_meta {
                 );
             } else {
                 ffi::make_cdata_func(L, nullptr, decl.function(), decl.type());
-                auto &cd = *lua::touserdata<ffi::cdata<ffi::fdata>>(L, -1);
+                auto &cd = ffi::tocdata<ffi::fdata>(L, -1);
                 cd.val.cd->fref = fref;
             }
         } else {
-            auto *cd = lua::newuserdata<ffi::cdata<ast::c_value>>(L);
-            new (&cd->decl) ast::c_type{decl};
-            cd->gc_ref = LUA_REFNIL;
-            memcpy(&cd->val, cdp, cd->decl.libffi_type()->size);
-            luaL_setmetatable(L, "cffi_cdata_handle");
+            auto &cd = ffi::newcdata<ast::c_value>(L, decl);
+            memcpy(&cd.val, cdp, cd.decl.libffi_type()->size);
         }
         return 1;
     }
 
     static void setup(lua_State *L) {
-        if (!luaL_newmetatable(L, "cffi_ctype_handle")) {
+        if (!luaL_newmetatable(L, lua::CFFI_CTYPE_MT)) {
             luaL_error(L, "unexpected error: registry reinitialized");
         }
 
@@ -361,12 +354,12 @@ struct ffi_module {
 
     /* either gets a ctype or makes a ctype from a string */
     static ast::c_type const &check_ct(lua_State *L, int idx) {
-        if (luaL_testudata(L, idx, "cffi_ctype_handle")) {
+        if (luaL_testudata(L, idx, lua::CFFI_CTYPE_MT)) {
             lua_pushvalue(L, idx);
         } else {
             auto *ud = lua::newuserdata<ast::c_type>(L);
             new (ud) ast::c_type{parser::parse_type(luaL_checkstring(L, idx))};
-            luaL_setmetatable(L, "cffi_ctype_handle");
+            lua::mark_ctype(L);
         }
         return *lua::touserdata<ast::c_type>(L, -1);
     }
@@ -394,19 +387,17 @@ struct ffi_module {
 
     static int typeof_f(lua_State *L) {
         auto *ud = lua::newuserdata<ast::c_type>(L);
-        if (luaL_testudata(L, 1, "cffi_cdata_handle")) {
-            new (ud) ast::c_type{*lua::touserdata<ast::c_type>(L, 1)};
+        if (ffi::iscdata(L, 1)) {
+            new (ud) ast::c_type{ffi::tocdata<ast::c_value>(L, 1).decl};
         } else {
             new (ud) ast::c_type{parser::parse_type(luaL_checkstring(L, 1))};
         }
-        luaL_setmetatable(L, "cffi_ctype_handle");
+        lua::mark_ctype(L);
         return 1;
     }
 
     static int gc_f(lua_State *L) {
-        auto &cd = *static_cast<ffi::cdata<ast::c_value> *>(
-            luaL_checkudata(L, 1, "cffi_cdata_handle")
-        );
+        auto &cd = ffi::checkcdata<ast::c_value>(L, 1);
         if (lua_isnil(L, 2)) {
             /* if nil and there is an existing finalizer, unset */
             if (cd.gc_ref != LUA_REFNIL) {
@@ -436,11 +427,11 @@ struct ffi_module {
 
     static int istype_f(lua_State *L) {
         auto &ct = check_ct(L, 1);
-        if (!luaL_testudata(L, 2, "cffi_cdata_handle")) {
+        if (!ffi::iscdata(L, 2)) {
             lua_pushboolean(L, false);
             return 1;
         }
-        auto &cd = *lua::touserdata<ffi::cdata<ast::c_value>>(L, 2);
+        auto &cd = ffi::tocdata<ast::c_value>(L, 2);
         if (ct.type() == ast::C_BUILTIN_STRUCT) {
             /* if ct is a struct, accept pointers to the struct */
             /* TODO: also applies to union */
@@ -463,7 +454,7 @@ struct ffi_module {
     }
 
     static int string_f(lua_State *L) {
-        if (!luaL_testudata(L, 1, "cffi_cdata_handle")) {
+        if (!ffi::iscdata(L, 1)) {
             lua_pushfstring(
                 L, "cannot convert '%s' to 'char const *'",
                 luaL_typename(L, 1)
@@ -471,7 +462,7 @@ struct ffi_module {
             luaL_argcheck(L, false, 1, lua_tostring(L, -1));
         }
         /* FIXME: check argument type conversions */
-        auto &ud = *lua::touserdata<ffi::cdata<ast::c_value>>(L, 1);
+        auto &ud = ffi::tocdata<ast::c_value>(L, 1);
         if (lua_gettop(L) <= 1) {
             lua_pushstring(L, static_cast<char const *>(ud.val.ptr));
         } else {
@@ -485,16 +476,16 @@ struct ffi_module {
 
     /* FIXME: type conversions (constness etc.) */
     static void *check_voidptr(lua_State *L, int idx) {
-        if (luaL_testudata(L, idx, "cffi_cdata_handle")) {
-            auto &ud = *lua::touserdata<ffi::cdata<ast::c_value>>(L, idx);
-            if (ud.decl.type() != ast::C_BUILTIN_PTR) {
+        if (ffi::iscdata(L, idx)) {
+            auto &cd = ffi::tocdata<ast::c_value>(L, idx);
+            if (cd.decl.type() != ast::C_BUILTIN_PTR) {
                 lua_pushfstring(
                     L, "cannot convert '%s' to 'void *'",
-                    ud.decl.serialize().c_str()
+                    cd.decl.serialize().c_str()
                 );
                 luaL_argcheck(L, false, idx, lua_tostring(L, -1));
             }
-            return ud.val.ptr;
+            return cd.val.ptr;
         } else if (lua_isuserdata(L, idx)) {
             return lua_touserdata(L, idx);
         }
@@ -536,11 +527,10 @@ struct ffi_module {
     }
 
     static ast::c_value &new_scalar(lua_State *L, int cbt, std::string name) {
-        auto *cd = lua::newuserdata<ffi::cdata<ast::c_value>>(L);
-        new (&cd->decl) ast::c_type{std::move(name), cbt, 0};
-        cd->gc_ref = LUA_REFNIL;
-        luaL_setmetatable(L, "cffi_cdata_handle");
-        return cd->val;
+        auto &cd = ffi::newcdata<ast::c_value>(
+            L, ast::c_type{std::move(name), cbt, 0}
+        );
+        return cd.val;
     }
 
     static int eval_f(lua_State *L) {

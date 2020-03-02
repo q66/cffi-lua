@@ -82,6 +82,10 @@ static inline void luaL_newlib52(lua_State *L, luaL_Reg const l[]) {
 
 namespace lua {
 
+static constexpr char const CFFI_CDATA_MT[] = "cffi_cdata_handle";
+static constexpr char const CFFI_CTYPE_MT[] = "cffi_ctype_handle";
+static constexpr char const CFFI_LIB_MT[] = "cffi_lib_handle";
+
 template<typename T>
 static T *newuserdata(lua_State *L, size_t extra = 0) {
     return static_cast<T *>(lua_newuserdata(L, sizeof(T) + extra));
@@ -98,6 +102,18 @@ static inline int type_error(lua_State *L, int narg, char const *tname) {
     );
     luaL_argcheck(L, false, narg, lua_tostring(L, -1));
     return 0;
+}
+
+static inline void mark_cdata(lua_State *L) {
+    luaL_setmetatable(L, CFFI_CDATA_MT);
+}
+
+static inline void mark_ctype(lua_State *L) {
+    luaL_setmetatable(L, CFFI_CTYPE_MT);
+}
+
+static inline void mark_lib(lua_State *L) {
+    luaL_setmetatable(L, CFFI_LIB_MT);
 }
 
 } /* namespace lua */

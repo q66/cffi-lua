@@ -50,16 +50,13 @@ void make_cdata_func(
      *     } val;
      * }
      */
-    auto *fud = lua::newuserdata<ffi::cdata<ffi::fdata>>(
-        L, sizeof(ast::c_value[1 + nargs]) + sizeof(void *[2 * nargs])
+    auto &fud = newcdata<fdata>(
+        L, ast::c_type{&func, 0, cbt, funp == nullptr},
+        sizeof(ast::c_value[1 + nargs]) + sizeof(void *[2 * nargs])
     );
-    luaL_setmetatable(L, "cffi_cdata_handle");
+    fud.val.sym = funp;
 
-    new (&fud->decl) ast::c_type{&func, 0, cbt, funp == nullptr};
-    fud->gc_ref = LUA_REFNIL;
-    fud->val.sym = funp;
-
-    if (!ffi::prepare_cif(*fud)) {
+    if (!ffi::prepare_cif(fud)) {
         luaL_error(
             L, "unexpected failure setting up '%s'", func.name.c_str()
         );
@@ -69,14 +66,14 @@ void make_cdata_func(
         /* no funcptr means we're setting up a callback */
         if (cd) {
             /* copying existing callback reference */
-            cd->refs.push_front(&fud->val.cd);
-            fud->val.cd = cd;
+            cd->refs.push_front(&fud.val.cd);
+            fud.val.cd = cd;
             return;
         }
         cd = new closure_data{};
         /* allocate a closure in it */
         cd->closure = static_cast<ffi_closure *>(ffi_closure_alloc(
-            sizeof(ffi_closure), reinterpret_cast<void **>(&fud->val.sym)
+            sizeof(ffi_closure), reinterpret_cast<void **>(&fud.val.sym)
         ));
         if (!cd->closure) {
             delete cd;
@@ -86,8 +83,8 @@ void make_cdata_func(
             );
         }
         if (ffi_prep_closure_loc(
-            cd->closure, &fud->val.cif, cb_bind, fud,
-            reinterpret_cast<void *>(fud->val.sym)
+            cd->closure, &fud.val.cif, cb_bind, &fud,
+            reinterpret_cast<void *>(fud.val.sym)
         ) != FFI_OK) {
             delete cd;
             luaL_error(
@@ -97,8 +94,8 @@ void make_cdata_func(
         }
         cd->L = L;
         /* register this reference within the closure */
-        cd->refs.push_front(&fud->val.cd);
-        fud->val.cd = cd;
+        cd->refs.push_front(&fud.val.cd);
+        fud.val.cd = cd;
     }
 }
 
@@ -209,11 +206,8 @@ static inline int push_int(lua_State *L, ast::c_type const &tp, void *value) {
         return 1;
     }
     /* doesn't fit into the range, so make scalar cdata */
-    auto *cd = lua::newuserdata<ffi::cdata<ast::c_value>>(L);
-    new (&cd->decl) ast::c_type{tp};
-    cd->gc_ref = LUA_REFNIL;
-    memcpy(&cd->val, value, sizeof(T));
-    luaL_setmetatable(L, "cffi_cdata_handle");
+    auto &cd = newcdata<ast::c_value>(L, tp);
+    memcpy(&cd.val, value, sizeof(T));
     return 1;
 }
 
@@ -228,11 +222,8 @@ static inline int push_flt(lua_State *L, ast::c_type const &tp, void *value) {
         lua_pushnumber(L, lua_Number(*U(value)));
         return 1;
     }
-    auto *cd = lua::newuserdata<ffi::cdata<ast::c_value>>(L);
-    new (&cd->decl) ast::c_type{tp};
-    cd->gc_ref = LUA_REFNIL;
-    memcpy(&cd->val, value, sizeof(T));
-    luaL_setmetatable(L, "cffi_cdata_handle");
+    auto &cd = newcdata<ast::c_value>(L, tp);
+    memcpy(&cd.val, value, sizeof(T));
     return 1;
 }
 
@@ -312,30 +303,24 @@ int lua_push_cdata(lua_State *L, ast::c_type const &tp, void *value) {
             }
             return push_int<time_t>(L, tp, value);
 
-        case ast::C_BUILTIN_PTR: {
+        case ast::C_BUILTIN_PTR:
             /* pointers should be handled like large cdata, as they need
              * to be represented as userdata objects on lua side either way
              */
-            auto *cd = lua::newuserdata<ffi::cdata<ast::c_value>>(L);
-            new (&cd->decl) ast::c_type{tp};
-            cd->gc_ref = LUA_REFNIL;
-            cd->val.ptr = reinterpret_cast<ast::c_value *>(value)->ptr;
-            luaL_setmetatable(L, "cffi_cdata_handle");
+            newcdata<ast::c_value>(L, tp).val.ptr =
+                reinterpret_cast<ast::c_value *>(value)->ptr;
             return 1;
-        }
 
-        case ast::C_BUILTIN_FPTR: {
+        case ast::C_BUILTIN_FPTR:
             make_cdata_func(
                 L, reinterpret_cast<ast::c_value *>(value)->fptr,
                 tp.function(), ast::C_BUILTIN_FPTR
             );
             return 1;
-        }
 
-        case ast::C_BUILTIN_ENUM: {
+        case ast::C_BUILTIN_ENUM:
             /* TODO: large enums */
             return push_int<int>(L, tp, value);
-        }
 
         case ast::C_BUILTIN_STRUCT:
             luaL_error(L, "NYI"); return 0;
@@ -491,7 +476,7 @@ void *lua_check_cdata(
             );
             break;
         case LUA_TUSERDATA:
-            if (luaL_testudata(L, index, "cffi_cdata_handle")) {
+            if (ffi::iscdata(L, index)) {
                 /* special handling for cdata */
                 auto &cd = *lua::touserdata<ffi::cdata<ast::c_value>>(L, index);
                 if (!cd.decl.converts_to(tp)) {
