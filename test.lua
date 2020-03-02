@@ -130,4 +130,9 @@ print("attempt to call now invalid callback:")
 print(pcall(cb, "hello world"))
 print()
 
+print("# Scalar creation")
+local v = ffi.eval("0x1234ABCD5678FFFF")
+print("0x1234ABCD5678FFFF == " .. tostring(v))
+print()
+
 print("## END TESTS ##")

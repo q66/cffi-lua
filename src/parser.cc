@@ -69,18 +69,6 @@ static char const *tokens[] = {
 
 /* lexer */
 
-union lex_token_u {
-    char c;
-    signed int i;
-    signed long l;
-    signed long long ll;
-    unsigned int u;
-    unsigned long ul;
-    unsigned long long ull;
-    float f;
-    double d;
-};
-
 struct lex_token {
     int token = -1;
     ast::c_expr_type numtag = ast::c_expr_type::INVALID;
@@ -1275,10 +1263,6 @@ void parse(char const *input, char const *iend) {
     parse_decls(ls);
 }
 
-void parse(std::string const &input) {
-    parse(input.c_str(), input.c_str() + input.size());
-}
-
 ast::c_type parse_type(char const *input, char const *iend) {
     if (!iend) {
         iend = input + strlen(input);
@@ -1288,8 +1272,17 @@ ast::c_type parse_type(char const *input, char const *iend) {
     return parse_type(ls);
 }
 
-ast::c_type parse_type(std::string const &input) {
-    return parse_type(input.c_str(), input.c_str() + input.size());
+ast::c_expr_type parse_number(
+    lex_token_u &v, char const *input, char const *iend
+) {
+    if (!iend) {
+        iend = input + strlen(input);
+    }
+    lex_state ls{input, iend};
+    ls.get();
+    check(ls, TOK_INTEGER);
+    v = ls.t.value;
+    return ls.t.numtag;
 }
 
 } /* namespace parser */

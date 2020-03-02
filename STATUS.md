@@ -172,8 +172,7 @@ The APIs the FFI should provide.
 - [x] `cffi.fill` (`memset`)
 - [ ] `cffi.tonumber` (`cdata`-aware `tonumber`)
 - [ ] `cffi.tostring` (`cdata`-aware `tostring`)
-- [ ] `cffi.int` (integer cdata construction)
-- [ ] `cffi.float` (floating point cdata construction)
+- [x] `cffi.eval` (constant expression -> cdata)
 
 ### Target information
 

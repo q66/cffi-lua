@@ -535,6 +535,49 @@ struct ffi_module {
         return 0;
     }
 
+    static ast::c_value &new_scalar(lua_State *L, int cbt, std::string name) {
+        auto *cd = lua::newuserdata<ffi::cdata<ast::c_value>>(L);
+        new (&cd->decl) ast::c_type{std::move(name), cbt, 0};
+        cd->gc_ref = LUA_REFNIL;
+        luaL_setmetatable(L, "cffi_cdata_handle");
+        return cd->val;
+    }
+
+    static int eval_f(lua_State *L) {
+        /* TODO: accept expressions */
+        char const *str = luaL_checkstring(L, 1);
+        parser::lex_token_u outv;
+        auto v = parser::parse_number(outv, str, str + lua_rawlen(L, 1));
+        switch (v) {
+            case ast::c_expr_type::INT:
+                new_scalar(L, ast::C_BUILTIN_INT, "int").i = outv.i;
+                break;
+            case ast::c_expr_type::UINT:
+                new_scalar(L, ast::C_BUILTIN_UINT, "unsigned int").u = outv.u;
+                break;
+            case ast::c_expr_type::LONG:
+                new_scalar(L, ast::C_BUILTIN_LONG, "long").l = outv.l;
+                break;
+            case ast::c_expr_type::ULONG:
+                new_scalar(
+                    L, ast::C_BUILTIN_ULONG, "unsigned long"
+                ).ul = outv.ul;
+                break;
+            case ast::c_expr_type::LLONG:
+                new_scalar(L, ast::C_BUILTIN_LLONG, "long long").ll = outv.ll;
+                break;
+            case ast::c_expr_type::ULLONG:
+                new_scalar(
+                    L, ast::C_BUILTIN_ULLONG, "unsigned long long"
+                ).ull = outv.ull;
+                break;
+            default:
+                luaL_error(L, "NYI");
+                break;
+        }
+        return 1;
+    }
+
     static int abi_f(lua_State *L) {
         luaL_checkstring(L, 1);
         lua_pushvalue(L, 1);
@@ -609,6 +652,7 @@ struct ffi_module {
             {"string", string_f},
             {"copy", copy_f},
             {"fill", fill_f},
+            {"eval", eval_f},
 
             {NULL, NULL}
         };
