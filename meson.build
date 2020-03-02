@@ -64,7 +64,15 @@ cffi_src = [
     'src/ffi.cc'
 ]
 
+# follow what lua does, i.e. .so everywhere except windows
+plugin_suffix = 'so'
+
+if host_machine.system() == 'windows'
+    plugin_suffix = 'dll'
+endif
+
 cffi_lib = shared_module('cffi',
     cffi_src, dependencies: [ffi_dep, lua_dep],
-    cpp_args: extra_cxxflags, name_prefix: ''
+    cpp_args: extra_cxxflags, name_prefix: '',
+    name_suffix: plugin_suffix
 )

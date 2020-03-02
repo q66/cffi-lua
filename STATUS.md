@@ -196,7 +196,7 @@ already (except on Windows).
 - [x] Linux
 - [x] FreeBSD (other BSDs may also work; patches welcome)
 - [ ] Windows
-- [ ] macOS (untested, may work)
+- [x] macOS (dependencies from homebrew; `libffi` needs `PKG_CONFIG_PATH`)
 - [x] Little endian
 - [x] Big endian
 
