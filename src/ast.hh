@@ -27,6 +27,9 @@ enum c_builtin {
 
     C_BUILTIN_FUNC,
     C_BUILTIN_STRUCT,
+
+    /* everything past this matches type.scalar() */
+
     C_BUILTIN_ENUM,
 
     C_BUILTIN_CHAR,
@@ -489,6 +492,10 @@ struct c_type: c_object {
 
     bool closure() const {
         return p_type & C_TYPE_CLOSURE;
+    }
+
+    bool scalar() const {
+        return type() >= C_BUILTIN_ENUM;
     }
 
     void cv(int qual) {

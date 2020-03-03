@@ -550,58 +550,22 @@ struct ffi_module {
                 btp = tp->type();
                 val = cd.val.ptr;
             }
+            if (tp->scalar()) {
+                ffi::lua_push_cdata(L, *tp, val, true);
+                return 1;
+            }
             switch (btp) {
-                case ast::C_BUILTIN_INVALID:
-                case ast::C_BUILTIN_VOID:
-                case ast::C_BUILTIN_REF:
-                    /* these should be impossible */
-                    assert(false);
-                    lua_pushnil(L);
-                    return 1;
                 case ast::C_BUILTIN_PTR:
                 case ast::C_BUILTIN_FPTR:
                 case ast::C_BUILTIN_STRUCT:
                 case ast::C_BUILTIN_FUNC:
+                    /* these may appear */
                     lua_pushnil(L);
                     return 1;
-
-                case ast::C_BUILTIN_BOOL:
-                    lua_pushinteger(L, *static_cast<bool *>(val));
-                    return 1;
-                /* convert to lua number */
-                case ast::C_BUILTIN_FLOAT:
-                case ast::C_BUILTIN_DOUBLE:
-                case ast::C_BUILTIN_LDOUBLE:
-                case ast::C_BUILTIN_CHAR:
-                case ast::C_BUILTIN_SCHAR:
-                case ast::C_BUILTIN_UCHAR:
-                case ast::C_BUILTIN_SHORT:
-                case ast::C_BUILTIN_USHORT:
-                case ast::C_BUILTIN_INT:
-                case ast::C_BUILTIN_UINT:
-                case ast::C_BUILTIN_INT8:
-                case ast::C_BUILTIN_UINT8:
-                case ast::C_BUILTIN_INT16:
-                case ast::C_BUILTIN_UINT16:
-                case ast::C_BUILTIN_INT32:
-                case ast::C_BUILTIN_UINT32:
-                case ast::C_BUILTIN_WCHAR:
-                case ast::C_BUILTIN_CHAR16:
-                case ast::C_BUILTIN_CHAR32:
-                case ast::C_BUILTIN_LONG:
-                case ast::C_BUILTIN_ULONG:
-                case ast::C_BUILTIN_LLONG:
-                case ast::C_BUILTIN_ULLONG:
-                case ast::C_BUILTIN_INT64:
-                case ast::C_BUILTIN_UINT64:
-                case ast::C_BUILTIN_SIZE:
-                case ast::C_BUILTIN_SSIZE:
-                case ast::C_BUILTIN_INTPTR:
-                case ast::C_BUILTIN_UINTPTR:
-                case ast::C_BUILTIN_PTRDIFF:
-                case ast::C_BUILTIN_TIME:
-                case ast::C_BUILTIN_ENUM:
-                    ffi::lua_push_cdata(L, *tp, val, true);
+                default:
+                    /* these should not */
+                    assert(false);
+                    lua_pushnil(L);
                     return 1;
             }
         } else {
