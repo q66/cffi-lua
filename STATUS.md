@@ -16,7 +16,6 @@ C language syntax support.
 - [x] Extern variable declarations
 - [x] `typedef`
 - [x] Full `struct` (named or unnamed)
-  - [ ] Bitfields
 - [ ] Opaque `struct`
 - [ ] Opaque `enum` (extension)
 - [ ] Transparent `struct`/`union` inside `struct` (extension)
@@ -24,6 +23,10 @@ C language syntax support.
 - [x] `enum`
 - [ ] `union`
 - [ ] `static const` declarations inside `struct`/`union` (C++ extension)
+
+#### Wishlist
+
+- [ ] Struct bitfields
 
 ### Types
 
@@ -73,20 +76,28 @@ C language syntax support.
 - [x] C++ references (`T &`) (C++ extension)
 - [x] Name lookups
 - [x] `struct foo`, `enum foo`
-- [ ] vector types (GCC extension)
 - [ ] `struct`/`union` inside types
 - [ ] Arrays
 - [ ] Zero-sized arrays, structs, unions (GCC extension)
 - [ ] Variable length arrays and structs (C99)
+- [ ] `alignas`, `_Alignas`
 - [ ] `__attribute__` (GCC extension)
   - [ ] `aligned`
-  - [ ] `packed`
   - [ ] `mode`
-  - [ ] `vector_size`
   - [ ] `cdecl`
   - [ ] `fastcall`
   - [ ] `stdcall`
   - [ ] `thiscall`
+- [ ] `__declspec(align(n))` (MSVC)
+
+#### Wishlist
+
+These are implemented by LuaJIT, but not considered urgent.
+
+- [ ] vector types (GCC extension)
+- [ ] `__attribute__` (GCC extension)
+  - [ ] `packed`
+  - [ ] `vector_size`
 
 ### Operators
 
@@ -106,8 +117,12 @@ C language syntax support.
 - [ ] `__extension__` (GCC extension)
 - [ ] `__asm__("symbol")` (symbol redirection, GCC extension)
 - [ ] `__cdecl`, `__fastcall`, `__stdcall`, `__thiscall` (MSVC)
+
+#### Wishlist
+
+These are implemented by LuaJIT, but not considered urgent.
+
 - [ ] `__ptr32`, `__ptr64` (MSVC)
-- [ ] `__declspec(align(n))` (MSVC)
 - [ ] `#pragma pack` (MSVC)
 
 ## Backend
@@ -128,15 +143,28 @@ Implements the functionality provided by the parser.
 - [x] Type conversions
 - [x] Typedefs
 - [ ] Structs
-  - [ ] Bitfields
 - [ ] Unions
 - [ ] Arrays
-- [ ] Vectors
 - [ ] Alternate calling conventions
 - [ ] Constant expressions
   - [x] Simple integer expressions
   - [ ] Correct integer promotions
   - [ ] Non-integer type support
+- [ ] `cdata` arithmetic
+- [ ] correct `tostring` on integer `cdata`
+
+### Wishlist
+
+These are implemented by LuaJIT, but not considered urgent.
+
+Unions by value are not easily implementable with current `libffi`, as the
+feature depends on specifics of the ABI (various types may be passsed in
+different registers), and `libffi` has no builtin functionality to deal
+with unions.
+
+- [ ] Vectors
+- [ ] Unions as arguments/returns by value
+- [ ] Struct bitfields
 
 ## API
 
@@ -145,6 +173,7 @@ The APIs the FFI should provide.
 ### Symbols
 
 - [x] `cffi.cdef` (symbol definition)
+  - [ ] Parametrized types
 - [x] `cffi.C` (global namespace)
 - [x] `cffi.load` (library namespaces)
 
@@ -153,6 +182,7 @@ The APIs the FFI should provide.
 - [x] `cffi.new` (object allocation, minus missing features)
 - [x] `ctype` constructors (object allocation, minus missing features)
 - [x] `cffi.typeof` (`ctype` creation)
+  - [ ] Parametrized types
 - [ ] `cffi.cast` (`cdata` typecasts)
 - [ ] `cffi.metatype` (custom `ctype` metatables)
 - [x] `cffi.gc` (custom `cdata` finalizers)
