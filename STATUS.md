@@ -170,9 +170,10 @@ The APIs the FFI should provide.
 - [x] `cffi.string` (pointer/array to Lua string)
 - [x] `cffi.copy` (`memcpy`)
 - [x] `cffi.fill` (`memset`)
-- [ ] `cffi.tonumber` (`cdata`-aware `tonumber`)
-- [ ] `cffi.tostring` (`cdata`-aware `tostring`)
-- [x] `cffi.eval` (constant expression -> cdata)
+- [x] `cffi.tonumber` (`cdata`-aware `tonumber`)
+- [x] `cffi.toretval` (custom extension: cdata -> lua return value)
+- [x] `cffi.type` (`cdata`-aware `type`)
+- [x] `cffi.eval` (custom extension: constant expression -> cdata)
 
 ### Target information
 

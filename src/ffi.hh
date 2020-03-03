@@ -113,8 +113,12 @@ int call_cif(cdata<fdata> &fud, lua_State *L);
 
 /* this pushes a value from `value` on the Lua stack; its type
  * and necessary conversions are done based on the info in `tp`
+ *
+ * `lossy` implies that numbers will always be converted to a lua number
  */
-int lua_push_cdata(lua_State *L, ast::c_type const &tp, void *value);
+int lua_push_cdata(
+    lua_State *L, ast::c_type const &tp, void *value, bool lossy = false
+);
 
 /* this returns a pointer to a C value counterpart of the Lua value
  * on the stack (as given by `index`)

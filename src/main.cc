@@ -539,6 +539,87 @@ struct ffi_module {
         return cd.val;
     }
 
+    static int tonumber_f(lua_State *L) {
+        if (ffi::iscdata(L, 1)) {
+            auto &cd = ffi::tocdata<ast::c_value>(L, 1);
+            ast::c_type const *tp = &cd.decl;
+            void *val = &cd.val;
+            int btp = cd.decl.type();
+            if (btp == ast::C_BUILTIN_REF) {
+                tp = &cd.decl.ptr_base();
+                btp = tp->type();
+                val = cd.val.ptr;
+            }
+            switch (btp) {
+                case ast::C_BUILTIN_INVALID:
+                case ast::C_BUILTIN_VOID:
+                case ast::C_BUILTIN_REF:
+                    /* these should be impossible */
+                    assert(false);
+                    lua_pushnil(L);
+                    return 1;
+                case ast::C_BUILTIN_PTR:
+                case ast::C_BUILTIN_FPTR:
+                case ast::C_BUILTIN_STRUCT:
+                case ast::C_BUILTIN_FUNC:
+                    lua_pushnil(L);
+                    return 1;
+
+                case ast::C_BUILTIN_BOOL:
+                    lua_pushinteger(L, *static_cast<bool *>(val));
+                    return 1;
+                /* convert to lua number */
+                case ast::C_BUILTIN_FLOAT:
+                case ast::C_BUILTIN_DOUBLE:
+                case ast::C_BUILTIN_LDOUBLE:
+                case ast::C_BUILTIN_CHAR:
+                case ast::C_BUILTIN_SCHAR:
+                case ast::C_BUILTIN_UCHAR:
+                case ast::C_BUILTIN_SHORT:
+                case ast::C_BUILTIN_USHORT:
+                case ast::C_BUILTIN_INT:
+                case ast::C_BUILTIN_UINT:
+                case ast::C_BUILTIN_INT8:
+                case ast::C_BUILTIN_UINT8:
+                case ast::C_BUILTIN_INT16:
+                case ast::C_BUILTIN_UINT16:
+                case ast::C_BUILTIN_INT32:
+                case ast::C_BUILTIN_UINT32:
+                case ast::C_BUILTIN_WCHAR:
+                case ast::C_BUILTIN_CHAR16:
+                case ast::C_BUILTIN_CHAR32:
+                case ast::C_BUILTIN_LONG:
+                case ast::C_BUILTIN_ULONG:
+                case ast::C_BUILTIN_LLONG:
+                case ast::C_BUILTIN_ULLONG:
+                case ast::C_BUILTIN_INT64:
+                case ast::C_BUILTIN_UINT64:
+                case ast::C_BUILTIN_SIZE:
+                case ast::C_BUILTIN_SSIZE:
+                case ast::C_BUILTIN_INTPTR:
+                case ast::C_BUILTIN_UINTPTR:
+                case ast::C_BUILTIN_PTRDIFF:
+                case ast::C_BUILTIN_TIME:
+                case ast::C_BUILTIN_ENUM:
+                    ffi::lua_push_cdata(L, *tp, val, true);
+                    return 1;
+            }
+        } else {
+            lua_pushvalue(L, lua_upvalueindex(1));
+            lua_insert(L, 1);
+            lua_call(L, lua_gettop(L) - 1, LUA_MULTRET);
+            return lua_gettop(L);
+        }
+        assert(false);
+        return 0;
+    }
+
+    static int toretval_f(lua_State *L) {
+        auto &cd = ffi::checkcdata<ast::c_value>(L, 1);
+        ffi::lua_push_cdata(L, cd.decl, &cd.val);
+        return 1;
+    }
+
     static int eval_f(lua_State *L) {
         /* TODO: accept expressions */
         char const *str = luaL_checkstring(L, 1);
@@ -574,10 +655,20 @@ struct ffi_module {
         return 1;
     }
 
-    /* temporary until we have a better way to turn cdata into lua vals */
-    static int decay_f(lua_State *L) {
-        auto &cd = ffi::checkcdata<ast::c_value>(L, 1);
-        ffi::lua_push_cdata(L, cd.decl, &cd.val);
+    static int type_f(lua_State *L) {
+        if (lua_isuserdata(L, 1)) {
+            lua_getmetatable(L, 1);
+            lua_getfield(L, LUA_REGISTRYINDEX, lua::CFFI_CDATA_MT);
+            lua_getfield(L, LUA_REGISTRYINDEX, lua::CFFI_CTYPE_MT);
+            if (lua_rawequal(L, -2, -3) || lua_rawequal(L, -1, -3)) {
+                lua_pop(L, 3);
+                lua_pushliteral(L, "cdata");
+                return 1;
+            }
+            lua_pop(L, 3);
+        }
+        luaL_checkany(L, 1);
+        lua_pushstring(L, luaL_typename(L, 1));
         return 1;
     }
 
@@ -655,8 +746,9 @@ struct ffi_module {
             {"string", string_f},
             {"copy", copy_f},
             {"fill", fill_f},
+            {"toretval", toretval_f},
             {"eval", eval_f},
-            {"decay", decay_f},
+            {"type", type_f},
 
             {NULL, NULL}
         };
@@ -671,6 +763,10 @@ struct ffi_module {
         setup_abi(L);
         lua_pushcclosure(L, abi_f, 1);
         lua_setfield(L, -2, "abi");
+
+        lua_getglobal(L, "tonumber");
+        lua_pushcclosure(L, tonumber_f, 1);
+        lua_setfield(L, -2, "tonumber");
     }
 
     static void setup_dstor(lua_State *L) {
