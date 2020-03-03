@@ -499,6 +499,15 @@ void *lua_check_cdata(
                         tp.serialize().c_str()
                     );
                 }
+                if (tp.type() == ast::C_BUILTIN_REF) {
+                    if (
+                        (cd.decl.type() != ast::C_BUILTIN_PTR) &&
+                        (cd.decl.type() != ast::C_BUILTIN_REF)
+                    ) {
+                        dsz = sizeof(void *);
+                        return &(*static_cast<void **>(stor) = &cd.val);
+                    }
+                }
                 dsz = cd.val_sz;
                 return &cd.val;
             } else if (tp.type() == ast::C_BUILTIN_PTR) {

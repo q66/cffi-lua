@@ -292,20 +292,6 @@ struct ctype_meta {
                 fref = luaL_ref(L, LUA_REGISTRYINDEX);
             } else {
                 cdp = ffi::lua_check_cdata(L, decl, &stor, 2, rsz);
-                if (decl.type() == ast::C_BUILTIN_REF) {
-                    if (!ffi::iscdata(L, 2)) {
-                        luaL_error(
-                            L, "cannot take a reference to '%s'",
-                            lua_typename(L, lua_type(L, 2))
-                        );
-                    }
-                    auto &cd = ffi::tocdata<ast::c_value>(L, 2);
-                    if (cd.decl.type() != ast::C_BUILTIN_PTR) {
-                        stor.ptr = cdp;
-                        cdp = &stor;
-                        rsz = sizeof(stor);
-                    }
-                }
             }
         } else {
             memset(&stor, 0, sizeof(stor));
