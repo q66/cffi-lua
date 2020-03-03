@@ -21,6 +21,7 @@ enum c_builtin {
 
     C_BUILTIN_VOID,
 
+    C_BUILTIN_REF,
     C_BUILTIN_PTR,
     C_BUILTIN_FPTR,
 
@@ -85,6 +86,9 @@ template<> struct builtin_traits<C_BUILTIN_VOID>:
 
 template<> struct builtin_traits<C_BUILTIN_PTR>:
     detail::builtin_traits_base<void *> {};
+
+template<> struct builtin_traits<C_BUILTIN_REF>:
+    detail::builtin_traits_base<char &> {};
 
 template<> struct builtin_traits<C_BUILTIN_CHAR>:
     detail::builtin_traits_base<char> {};
@@ -427,16 +431,16 @@ struct c_type: c_object {
         p_type{uint32_t(cbt) | uint32_t(qual)}
     {}
 
-    c_type(c_type tp, int qual):
+    c_type(c_type tp, int qual, int cbt = C_BUILTIN_PTR):
         c_object{}, p_ptr{new c_type{std::move(tp)}},
-        p_type{C_BUILTIN_PTR | uint32_t(qual)}
+        p_type{cbt | uint32_t(qual)}
     {}
 
     c_type(c_function tp, int qual, int cbt = C_BUILTIN_FPTR);
 
-    c_type(c_type const *ctp, int qual):
+    c_type(c_type const *ctp, int qual, int cbt = C_BUILTIN_PTR):
         c_object{}, p_cptr{ctp},
-        p_type{C_BUILTIN_PTR | C_TYPE_WEAK | uint32_t(qual)}
+        p_type{cbt | C_TYPE_WEAK | uint32_t(qual)}
     {}
 
     c_type(

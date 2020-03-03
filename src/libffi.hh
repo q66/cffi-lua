@@ -53,6 +53,10 @@ template<typename T> struct ffi_traits<T *> {
     static ffi_type *type() { return &ffi_type_pointer; }
 };
 
+template<typename T> struct ffi_traits<T &> {
+    static ffi_type *type() { return &ffi_type_pointer; }
+};
+
 template<> struct ffi_traits<bool> {
     static ffi_type *type() { return &ffi_type_uchar; }
 };

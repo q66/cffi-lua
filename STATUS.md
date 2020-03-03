@@ -70,7 +70,7 @@ C language syntax support.
   - [x] `volatile`
 - [x] Pointers (`T *`)
 - [x] Function pointers (`T (*)()`)
-- [ ] C++ references (`T &`) (C++ extension)
+- [x] C++ references (`T &`) (C++ extension)
 - [x] Name lookups
 - [x] `struct foo`, `enum foo`
 - [ ] vector types (GCC extension)
@@ -123,7 +123,7 @@ Implements the functionality provided by the parser.
 - [x] `time_t`
 - [ ] Complex types
 - [x] Pointers
-- [ ] C++ references
+- [x] C++ references
 - [x] Enums (except large enums beyond `int`)
 - [x] Type conversions
 - [x] Typedefs

@@ -166,7 +166,7 @@ c_type::~c_type() {
     int tp = type();
     if ((tp == C_BUILTIN_FPTR) || (tp == C_BUILTIN_FUNC)) {
         delete p_fptr;
-    } else if (tp == C_BUILTIN_PTR) {
+    } else if ((tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_REF)) {
         delete p_ptr;
     }
 }
@@ -176,7 +176,7 @@ c_type::c_type(c_type const &v): c_object{v.name}, p_type{v.p_type} {
     int tp = type();
     if ((tp == C_BUILTIN_FPTR) || (tp == C_BUILTIN_FUNC)) {
         p_fptr = weak ? v.p_fptr : new c_function{*v.p_fptr};
-    } else if (tp == C_BUILTIN_PTR) {
+    } else if ((tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_REF)) {
         p_ptr = weak ? v.p_ptr : new c_type{*v.p_ptr};
     }
 }
@@ -196,6 +196,13 @@ void c_type::do_serialize(std::string &o) const {
                 o += ' ';
             }
             o += '*';
+            break;
+        case C_BUILTIN_REF:
+            p_ptr->do_serialize(o);
+            if (o.back() != '&') {
+                o += ' ';
+            }
+            o += '&';
             break;
         case C_BUILTIN_FPTR:
         case C_BUILTIN_FUNC:
@@ -221,6 +228,7 @@ ffi_type *c_type::libffi_type() const {
     switch (c_builtin(type())) {
         C_BUILTIN_CASE(VOID)
         C_BUILTIN_CASE(PTR)
+        C_BUILTIN_CASE(REF)
 
         case C_BUILTIN_FPTR:
         case C_BUILTIN_FUNC:
@@ -328,6 +336,12 @@ bool c_type::is_same(c_type const &other, bool ignore_cv) const {
             }
             return p_cptr->is_same(*other.p_cptr);
 
+        case C_BUILTIN_REF:
+            if (type() != other.type()) {
+                return false;
+            }
+            return p_cptr->is_same(*other.p_cptr);
+
         case C_BUILTIN_CHAR:
         case C_BUILTIN_SCHAR:
         case C_BUILTIN_UCHAR:
@@ -381,10 +395,19 @@ static bool type_converts_to(c_type const &a, c_type const &b, bool ref) {
         }
     }
     if (a.type() == C_BUILTIN_PTR) {
-        if (b.type() != C_BUILTIN_PTR) {
+        if ((b.type() != C_BUILTIN_PTR) && (b.type() != C_BUILTIN_REF)) {
             return false;
         }
         return type_converts_to(a.ptr_base(), b.ptr_base(), true);
+    } else if (a.type() == C_BUILTIN_REF) {
+        if (b.type() == C_BUILTIN_REF) {
+            return type_converts_to(a.ptr_base(), b.ptr_base(), false);
+        } else if (b.type() == C_BUILTIN_PTR) {
+            return type_converts_to(a.ptr_base(), b.ptr_base(), true);
+        }
+        return type_converts_to(a.ptr_base(), b, false);
+    } else if (b.type() == C_BUILTIN_REF) {
+        return type_converts_to(a, b.ptr_base(), false);
     }
     /* converting between voidptrs is ok in C always */
     if (ref && ((a.type() == C_BUILTIN_VOID) || (b.type() == C_BUILTIN_VOID))) {

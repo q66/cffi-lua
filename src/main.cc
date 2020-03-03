@@ -151,6 +151,7 @@ struct cdata_meta {
         /* TODO: add arrays */
         switch (cd.decl.type()) {
             case ast::C_BUILTIN_PTR:
+            case ast::C_BUILTIN_REF:
                 break;
             default: {
                 auto s = cd.decl.serialize();
@@ -291,6 +292,20 @@ struct ctype_meta {
                 fref = luaL_ref(L, LUA_REGISTRYINDEX);
             } else {
                 cdp = ffi::lua_check_cdata(L, decl, &stor, 2, rsz);
+                if (decl.type() == ast::C_BUILTIN_REF) {
+                    if (!ffi::iscdata(L, 2)) {
+                        luaL_error(
+                            L, "cannot take a reference to '%s'",
+                            lua_typename(L, lua_type(L, 2))
+                        );
+                    }
+                    auto &cd = ffi::tocdata<ast::c_value>(L, 2);
+                    if (cd.decl.type() != ast::C_BUILTIN_PTR) {
+                        stor.ptr = cdp;
+                        cdp = &stor;
+                        rsz = sizeof(stor);
+                    }
+                }
             }
         } else {
             memset(&stor, 0, sizeof(stor));
@@ -436,9 +451,10 @@ struct ffi_module {
         }
         auto &cd = ffi::tocdata<ast::c_value>(L, 2);
         if (ct.type() == ast::C_BUILTIN_STRUCT) {
-            /* if ct is a struct, accept pointers to the struct */
+            /* if ct is a struct, accept pointers/refs to the struct */
             /* TODO: also applies to union */
-            if (cd.decl.type() == ast::C_BUILTIN_PTR) {
+            auto ctp = cd.decl.type();
+            if ((ctp == ast::C_BUILTIN_PTR) || (ctp == ast::C_BUILTIN_REF)) {
                 lua_pushboolean(L, ct.is_same(cd.decl.ptr_base(), true));
                 return 1;
             }
@@ -481,7 +497,8 @@ struct ffi_module {
     static void *check_voidptr(lua_State *L, int idx) {
         if (ffi::iscdata(L, idx)) {
             auto &cd = ffi::tocdata<ast::c_value>(L, idx);
-            if (cd.decl.type() != ast::C_BUILTIN_PTR) {
+            auto ctp = cd.decl.type();
+            if ((ctp != ast::C_BUILTIN_PTR) && (ctp != ast::C_BUILTIN_REF)) {
                 lua_pushfstring(
                     L, "cannot convert '%s' to 'void *'",
                     cd.decl.serialize().c_str()
@@ -571,6 +588,13 @@ struct ffi_module {
         return 1;
     }
 
+    /* temporary until we have a better way to turn cdata into lua vals */
+    static int decay_f(lua_State *L) {
+        auto &cd = ffi::checkcdata<ast::c_value>(L, 1);
+        ffi::lua_push_cdata(L, cd.decl, &cd.val);
+        return 1;
+    }
+
     static int abi_f(lua_State *L) {
         luaL_checkstring(L, 1);
         lua_pushvalue(L, 1);
@@ -646,6 +670,7 @@ struct ffi_module {
             {"copy", copy_f},
             {"fill", fill_f},
             {"eval", eval_f},
+            {"decay", decay_f},
 
             {NULL, NULL}
         };

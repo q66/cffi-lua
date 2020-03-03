@@ -820,36 +820,42 @@ done_params:
 static ast::c_type parse_type_ptr(
     lex_state &ls, ast::c_type tp, bool allow_void, std::string *fpname
 ) {
-    if (ls.t.token == '(') {
-        /* function pointer */
-        ls.get();
-        check_next(ls, '*');
-        int pcv = parse_cv(ls);
-        if (fpname) {
-            check(ls, TOK_NAME);
-            *fpname = ls.t.value_s;
-            ls.get();
-        }
-        check_next(ls, ')');
-        auto *cf = new ast::c_function{
-            ls.request_name(), std::move(tp), parse_paramlist(ls)
-        };
-        ls.store_decl(cf);
-        ast::c_type ftp{cf, pcv};
-        return ftp;
-    }
-
     for (;;) {
         /* right-side cv */
         tp.cv(parse_cv(ls));
+
+        if (ls.t.token == '(') {
+            /* function pointer */
+            ls.get();
+            check_next(ls, '*');
+            int pcv = parse_cv(ls);
+            if (fpname) {
+                check(ls, TOK_NAME);
+                *fpname = ls.t.value_s;
+                ls.get();
+            }
+            check_next(ls, ')');
+            auto *cf = new ast::c_function{
+                ls.request_name(), std::move(tp), parse_paramlist(ls)
+            };
+            ls.store_decl(cf);
+            ast::c_type ftp{cf, pcv};
+            return ftp;
+        }
+
         /* for contexts where void is not allowed,
          * anything void-based must be a pointer
          */
         if (!allow_void && (tp.type() == ast::C_BUILTIN_VOID)) {
-            if (ls.t.token != '(') {
-                check(ls, '*');
-            }
+            check(ls, '*');
         }
+
+        if (ls.t.token == '&') {
+            /* C++ reference */
+            ls.get();
+            return ast::c_type{std::move(tp), 0, ast::C_BUILTIN_REF};
+        }
+
         /* pointers plus their right side qualifiers */
         if (ls.t.token == '*') {
             ls.get();

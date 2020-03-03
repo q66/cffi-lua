@@ -306,6 +306,7 @@ int lua_push_cdata(lua_State *L, ast::c_type const &tp, void *value) {
             return push_int<time_t>(L, tp, value);
 
         case ast::C_BUILTIN_PTR:
+        case ast::C_BUILTIN_REF:
             /* pointers should be handled like large cdata, as they need
              * to be represented as userdata objects on lua side either way
              */
@@ -452,6 +453,7 @@ void *lua_check_cdata(
 
                 case ast::C_BUILTIN_VOID:
                 case ast::C_BUILTIN_PTR:
+                case ast::C_BUILTIN_REF:
                 case ast::C_BUILTIN_FPTR:
                 case ast::C_BUILTIN_STRUCT:
                     luaL_error(
