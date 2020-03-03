@@ -78,17 +78,8 @@ C language syntax support.
 - [x] `struct foo`, `enum foo`
 - [ ] `struct`/`union` inside types
 - [ ] Arrays
-- [ ] Zero-sized arrays, structs, unions (GCC extension)
 - [ ] Variable length arrays and structs (C99)
 - [ ] `alignas`, `_Alignas`
-- [ ] `__attribute__` (GCC extension)
-  - [ ] `aligned`
-  - [ ] `mode`
-  - [ ] `cdecl`
-  - [ ] `fastcall`
-  - [ ] `stdcall`
-  - [ ] `thiscall`
-- [ ] `__declspec(align(n))` (MSVC)
 
 #### Wishlist
 
@@ -114,8 +105,17 @@ These are implemented by LuaJIT, but not considered urgent.
 
 ### Assorted extensions
 
+- [ ] Zero-sized arrays, structs, unions (GCC extension)
 - [ ] `__extension__` (GCC extension)
 - [ ] `__asm__("symbol")` (symbol redirection, GCC extension)
+- [ ] `__attribute__` (GCC extension)
+  - [ ] `aligned`
+  - [ ] `mode`
+  - [ ] `cdecl`
+  - [ ] `fastcall`
+  - [ ] `stdcall`
+  - [ ] `thiscall`
+- [ ] `__declspec(align(n))` (MSVC)
 - [ ] `__cdecl`, `__fastcall`, `__stdcall`, `__thiscall` (MSVC)
 
 #### Wishlist
@@ -151,7 +151,7 @@ Implements the functionality provided by the parser.
   - [ ] Correct integer promotions
   - [ ] Non-integer type support
 - [ ] `cdata` arithmetic
-- [ ] correct `tostring` on integer `cdata`
+- [x] correct `tostring` on integer `cdata`
 
 ### Wishlist
 

@@ -122,6 +122,25 @@ struct cdata_meta {
 
     static int tostring(lua_State *L) {
         auto &cd = ffi::tocdata<ast::c_value>(L, 1);
+        auto const *tp = &cd.decl;
+        ast::c_value const *val = &cd.val;
+        if (tp->type() == ast::C_BUILTIN_REF) {
+            tp = &tp->ptr_base();
+            val = static_cast<ast::c_value const *>(cd.val.ptr);
+        }
+        /* 64-bit integers */
+        /* XXX: special printing for lua builds with non-double numbers? */
+        if (tp->integer() && (tp->libffi_type()->size == 8)) {
+            char buf[32];
+            int written;
+            if (tp->is_unsigned()) {
+                written = snprintf(buf, sizeof(buf), "%lluULL", val->ull);
+            } else {
+                written = snprintf(buf, sizeof(buf), "%lldLL", val->ll);
+            }
+            lua_pushlstring(L, buf, written);
+            return 1;
+        }
         auto s = cd.decl.serialize();
         lua_pushfstring(L, "cdata<%s>: %p", s.c_str(), cd.get_addr());
         return 1;

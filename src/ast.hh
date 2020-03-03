@@ -9,6 +9,7 @@
 #include "lua.hh"
 #include "libffi.hh"
 
+#include <limits>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -496,6 +497,26 @@ struct c_type: c_object {
 
     bool scalar() const {
         return type() >= C_BUILTIN_ENUM;
+    }
+
+    bool integer() const {
+        if (!scalar() || (type() > C_BUILTIN_TIME)) {
+            return false;
+        }
+        if (type() == C_BUILTIN_TIME) {
+            return std::numeric_limits<time_t>::is_integer;
+        }
+        return true;
+    }
+
+    bool is_unsigned() const {
+        auto *p = libffi_type();
+        return (
+            (p == &ffi_type_uint8) ||
+            (p == &ffi_type_uint16) ||
+            (p == &ffi_type_uint32) ||
+            (p == &ffi_type_uint64)
+        );
     }
 
     void cv(int qual) {
