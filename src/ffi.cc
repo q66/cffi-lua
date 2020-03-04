@@ -189,7 +189,7 @@ int call_cif(cdata<fdata> &fud, lua_State *L) {
      *
      * there shouldn't be any other places that make this assumption
      */
-    auto rsz = func.result().libffi_type()->size;
+    auto rsz = func.result().alloc_size();
     if (rsz < sizeof(ffi_arg)) {
         auto *p = static_cast<unsigned char *>(retp);
         retp = p + sizeof(ffi_arg) - rsz;

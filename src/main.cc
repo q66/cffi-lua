@@ -134,7 +134,7 @@ struct cdata_meta {
         }
         /* 64-bit integers */
         /* XXX: special printing for lua builds with non-double numbers? */
-        if (tp->integer() && (tp->libffi_type()->size == 8)) {
+        if (tp->integer() && (tp->alloc_size() == 8)) {
             char buf[32];
             int written;
             if (tp->is_unsigned()) {
@@ -173,7 +173,7 @@ struct cdata_meta {
                 cdp = ffi::lua_check_cdata(L, decl, &stor, 2, rsz);
             }
         } else {
-            rsz = decl.libffi_type()->size;
+            rsz = decl.alloc_size();
         }
         if (decl.type() == ast::C_BUILTIN_FPTR) {
             if (fref == LUA_REFNIL) {

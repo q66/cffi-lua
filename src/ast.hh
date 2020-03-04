@@ -538,6 +538,8 @@ struct c_type: c_object {
 
     ffi_type *libffi_type() const;
 
+    size_t alloc_size() const;
+
     bool is_same(c_type const &other, bool ignore_cv = false) const;
     bool converts_to(c_type const &other) const;
 
@@ -586,6 +588,10 @@ struct c_param: c_object {
         return p_type.libffi_type();
     }
 
+    size_t alloc_size() const {
+        return p_type.alloc_size();
+    }
+
 private:
     c_type p_type;
 };
@@ -618,6 +624,10 @@ struct c_function: c_object {
         return &ffi_type_pointer;
     }
 
+    size_t alloc_size() const {
+        return sizeof(void *);
+    }
+
     bool is_same(c_function const &other) const;
 
 private:
@@ -644,6 +654,10 @@ struct c_variable: c_object {
 
     ffi_type *libffi_type() const {
         return p_type.libffi_type();
+    }
+
+    size_t alloc_size() const {
+        return p_type.alloc_size();
     }
 
 private:
@@ -675,6 +689,10 @@ struct c_constant: c_object {
         return p_type.libffi_type();
     }
 
+    size_t alloc_size() const {
+        return p_type.alloc_size();
+    }
+
 private:
     c_type p_type;
     c_value p_value;
@@ -700,6 +718,10 @@ struct c_typedef: c_object {
 
     ffi_type *libffi_type() const {
         return p_type.libffi_type();
+    }
+
+    size_t alloc_size() const {
+        return p_type.alloc_size();
     }
 
 private:
@@ -761,6 +783,15 @@ struct c_struct: c_object {
         return const_cast<ffi_type *>(&p_ffi_type);
     }
 
+    size_t alloc_size() const {
+        size_t s = libffi_type()->size;
+        if (!s) {
+            /* zero sized structs must allocate at least a byte */
+            return 1;
+        }
+        return s;
+    }
+
     bool is_same(c_struct const &other) const;
 
     ptrdiff_t field_offset(std::string const &fname, c_type const *&fld) const;
@@ -800,6 +831,10 @@ struct c_enum: c_object {
     ffi_type *libffi_type() const {
         /* TODO: support for large enums */
         return &ffi_type_sint;
+    }
+
+    size_t alloc_size() const {
+        return sizeof(int);
     }
 
 private:

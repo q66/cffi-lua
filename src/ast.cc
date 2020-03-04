@@ -293,6 +293,21 @@ ffi_type *c_type::libffi_type() const {
     return nullptr;
 }
 
+size_t c_type::alloc_size() const {
+    switch (c_builtin(type())) {
+        case C_BUILTIN_FPTR:
+        case C_BUILTIN_FUNC:
+            return p_fptr->alloc_size();
+        case C_BUILTIN_STRUCT:
+            return p_crec->alloc_size();
+        case C_BUILTIN_ENUM:
+            return p_cenum->alloc_size();
+        default:
+            break;
+    }
+    return libffi_type()->size;
+}
+
 #undef C_BUILTIN_CASE
 
 /* these sameness implementations are basic and non-compliant for now, just
