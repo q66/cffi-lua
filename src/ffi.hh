@@ -12,11 +12,14 @@
 
 namespace ffi {
 
+/* placeholder for no-value cdata */
+struct noval {};
+
 template<typename T>
 struct cdata {
     ast::c_type decl;
-    size_t val_sz;
     int gc_ref;
+    size_t val_sz;
     T val;
     void *get_addr() {
         switch (decl.type()) {
@@ -29,6 +32,11 @@ struct cdata {
         }
         return &val;
     }
+};
+
+struct ctype {
+    ast::c_type decl;
+    int ct_tag;
 };
 
 struct closure_data {
@@ -83,15 +91,44 @@ static inline cdata<T> &newcdata(
     return newcdata<T>(L, ast::c_type{tp}, extra);
 }
 
+template<typename ...A>
+static inline ctype &newctype(lua_State *L, A &&...args) {
+    auto *cd = lua::newuserdata<ctype>(L);
+    cd->ct_tag = lua::CFFI_CTYPE_TAG;
+    new (&cd->decl) ast::c_type{std::forward<A>(args)...};
+    lua::mark_cdata(L);
+    return *cd;
+}
+
 static inline bool iscdata(lua_State *L, int idx) {
     return luaL_testudata(L, idx, lua::CFFI_CDATA_MT);
 }
 
 template<typename T>
+static inline bool isctype(cdata<T> const &cd) {
+    return cd.gc_ref == lua::CFFI_CTYPE_TAG;
+}
+
+template<typename T>
 static inline cdata<T> &checkcdata(lua_State *L, int idx) {
-    return *static_cast<cdata<T> *>(
+    auto ret = static_cast<cdata<T> *>(
         luaL_checkudata(L, idx, lua::CFFI_CDATA_MT)
     );
+    if (isctype(*ret)) {
+        lua::type_error(L, idx, "cdata");
+    }
+    return *ret;
+}
+
+template<typename T>
+static inline cdata<T> *testcdata(lua_State *L, int idx) {
+    auto ret = static_cast<cdata<T> *>(
+        luaL_testudata(L, idx, lua::CFFI_CDATA_MT)
+    );
+    if (!ret || isctype(*ret)) {
+        return nullptr;
+    }
+    return ret;
 }
 
 template<typename T>
