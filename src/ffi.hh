@@ -101,6 +101,16 @@ static inline ctype &newctype(lua_State *L, A &&...args) {
 }
 
 static inline bool iscdata(lua_State *L, int idx) {
+    auto *p = static_cast<ctype *>(luaL_testudata(L, idx, lua::CFFI_CDATA_MT));
+    return p && (p->ct_tag != lua::CFFI_CTYPE_TAG);
+}
+
+static inline bool isctype(lua_State *L, int idx) {
+    auto *p = static_cast<ctype *>(luaL_testudata(L, idx, lua::CFFI_CDATA_MT));
+    return p && (p->ct_tag == lua::CFFI_CTYPE_TAG);
+}
+
+static inline bool iscval(lua_State *L, int idx) {
     return luaL_testudata(L, idx, lua::CFFI_CDATA_MT);
 }
 

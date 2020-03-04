@@ -349,7 +349,7 @@ struct ffi_module {
 
     /* either gets a ctype or makes a ctype from a string */
     static ast::c_type const &check_ct(lua_State *L, int idx) {
-        if (ffi::iscdata(L, idx)) {
+        if (ffi::iscval(L, idx)) {
             auto &cd = ffi::tocdata<ffi::noval>(L, idx);
             if (ffi::isctype(cd)) {
                 lua_pushvalue(L, idx);
@@ -424,10 +424,6 @@ struct ffi_module {
             return 1;
         }
         auto &cd = ffi::tocdata<ast::c_value>(L, 2);
-        if (ffi::isctype(cd)) {
-            lua_pushboolean(L, false);
-            return 1;
-        }
         if (ct.type() == ast::C_BUILTIN_STRUCT) {
             /* if ct is a struct, accept pointers/refs to the struct */
             /* TODO: also applies to union */
@@ -451,7 +447,7 @@ struct ffi_module {
     }
 
     static int string_f(lua_State *L) {
-        if (!ffi::iscdata(L, 1)) {
+        if (!ffi::iscval(L, 1)) {
             lua_pushfstring(
                 L, "cannot convert '%s' to 'char const *'",
                 luaL_typename(L, 1)
@@ -478,7 +474,7 @@ struct ffi_module {
 
     /* FIXME: type conversions (constness etc.) */
     static void *check_voidptr(lua_State *L, int idx) {
-        if (ffi::iscdata(L, idx)) {
+        if (ffi::iscval(L, idx)) {
             auto &cd = ffi::tocdata<ast::c_value>(L, idx);
             if (ffi::isctype(cd)) {
                 luaL_argcheck(
@@ -622,7 +618,7 @@ struct ffi_module {
     }
 
     static int type_f(lua_State *L) {
-        if (ffi::iscdata(L, 1)) {
+        if (ffi::iscval(L, 1)) {
             lua_pushliteral(L, "cdata");
             return 1;
         }
