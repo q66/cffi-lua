@@ -388,6 +388,32 @@ struct ffi_module {
         return 1;
     }
 
+    static int addressof_f(lua_State *L) {
+        auto &cd = ffi::checkcdata<ast::c_value>(L, 1);
+        if (cd.decl.type() == ast::C_BUILTIN_REF) {
+            /* refs are turned into pointers with the same addr like C++ */
+            ffi::newcdata<ast::c_value>(L, cd.decl.as_type(ast::C_BUILTIN_PTR));
+        } else {
+            /* otherwise just make a cdata pointing to whatever it was */
+            ffi::newcdata<ast::c_value>(L, ast::c_type{cd.decl, 0}).val.ptr =
+                &cd.val;
+        }
+        return 1;
+    }
+
+    static int ref_f(lua_State *L) {
+        auto &cd = ffi::checkcdata<ast::c_value>(L, 1);
+        if (cd.decl.type() == ast::C_BUILTIN_REF) {
+            /* just return itself */
+            lua_pushvalue(L, 1);
+        } else {
+            ffi::newcdata<ast::c_value>(L, ast::c_type{
+                cd.decl, 0, ast::C_BUILTIN_REF
+            }).val.ptr = cd.get_addr();
+        }
+        return 1;
+    }
+
     static int gc_f(lua_State *L) {
         auto &cd = ffi::checkcdata<ast::c_value>(L, 1);
         if (lua_isnil(L, 2)) {
@@ -689,6 +715,8 @@ struct ffi_module {
             /* data handling */
             {"new", new_f},
             {"typeof", typeof_f},
+            {"addressof", addressof_f},
+            {"ref", ref_f},
             {"gc", gc_f},
 
             /* type info */

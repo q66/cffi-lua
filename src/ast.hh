@@ -536,6 +536,14 @@ struct c_type: c_object {
     bool is_same(c_type const &other, bool ignore_cv = false) const;
     bool converts_to(c_type const &other) const;
 
+    /* only use this with ref and ptr types */
+    c_type as_type(int cbt) const {
+        auto ret = c_type{*this};
+        ret.p_type ^= ret.type();
+        ret.p_type |= cbt;
+        return ret;
+    }
+
 private:
     /* maybe a pointer? */
     union {
