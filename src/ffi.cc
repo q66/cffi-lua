@@ -495,7 +495,7 @@ void *lua_check_cdata(
             );
             break;
         case LUA_TUSERDATA:
-            if (ffi::iscdata(L, index)) {
+            if (iscdata(L, index)) {
                 /* special handling for cdata */
                 auto &cd = *lua::touserdata<ffi::cdata<ast::c_value>>(L, index);
                 if (!cd.decl.converts_to(tp)) {
@@ -521,6 +521,11 @@ void *lua_check_cdata(
                 dsz = sizeof(void *);
                 return &(
                     *static_cast<void **>(stor) = lua_touserdata(L, index)
+                );
+            } else if (isctype(L, index)) {
+                luaL_error(
+                    L, "cannot convert 'ctype' to '%s'",
+                    tp.serialize().c_str()
                 );
             } else {
                 luaL_error(
