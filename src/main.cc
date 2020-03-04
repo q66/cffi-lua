@@ -233,19 +233,23 @@ struct cdata_meta {
         if (ffi::isctype(cd)) {
             luaL_error(L, "'ctype' is not indexable");
         }
-        /* TODO: add arrays */
+        /* TODO: add arrays, FIXME: cdata indexes */
+        auto sidx = luaL_checkinteger(L, 2);
         switch (cd.decl.type()) {
             case ast::C_BUILTIN_PTR:
-            case ast::C_BUILTIN_REF:
+                luaL_argcheck(L, sidx >= 0, 2, "index is negative");
                 break;
+            case ast::C_BUILTIN_REF:
+                luaL_argcheck(L, sidx == 0, 2, "references are not indexable");
+                /* no need to deal with the type size nonsense */
+                func(cd, cd.val.ptr);
+                return;
             default: {
                 auto s = cd.decl.serialize();
                 luaL_error(L, "'%s' is not indexable", s.c_str());
                 break;
             }
         }
-        auto sidx = luaL_checkinteger(L, 2);
-        luaL_argcheck(L, sidx >= 0, 2, "index is negative");
         auto *ptr = reinterpret_cast<unsigned char *>(cd.val.ptr);
         auto *type = cd.decl.ptr_base().libffi_type();
         func(cd, static_cast<void *>(&ptr[sidx * type->size]));
