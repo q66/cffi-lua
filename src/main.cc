@@ -751,9 +751,16 @@ struct ffi_module {
         lua_pushcclosure(L, abi_f, 1);
         lua_setfield(L, -2, "abi");
 
+        /* FIXME: relying on the global table being intact */
         lua_getglobal(L, "tonumber");
         lua_pushcclosure(L, tonumber_f, 1);
         lua_setfield(L, -2, "tonumber");
+
+        /* NULL = (void *)0 */
+        ffi::newcdata<ast::c_value>(L, ast::c_type{
+            ast::c_type{"void", ast::C_BUILTIN_VOID, 0}, 0
+        }).val.ptr = nullptr;
+        lua_setfield(L, -2, "nullptr");
     }
 
     static void setup_dstor(lua_State *L) {
@@ -781,15 +788,15 @@ struct ffi_module {
     static void open(lua_State *L) {
         setup_dstor(L); /* declaration store */
 
+        /* cdata handles */
+        cdata_meta::setup(L);
+
         setup(L); /* push table to stack */
 
-        /* lib handles */
+        /* lib handles, needs the module table on the stack */
         auto *c_ud = lua::newuserdata<lib::handle>(L);
         *c_ud = lib::load(nullptr, L, false);
         lib_meta::setup(L);
-
-        /* cdata handles */
-        cdata_meta::setup(L);
     }
 };
 

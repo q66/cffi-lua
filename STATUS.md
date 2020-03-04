@@ -206,6 +206,7 @@ The APIs the FFI should provide.
 - [x] `cffi.toretval` (custom extension: cdata -> lua return value)
 - [x] `cffi.type` (`cdata`-aware `type`)
 - [x] `cffi.eval` (custom extension: constant expression -> cdata)
+- [x] `cffi.nullptr` (custom extension: a `NULL` pointer constant for cmp)
 
 ### Target information
 
