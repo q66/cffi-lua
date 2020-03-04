@@ -142,7 +142,7 @@ Implements the functionality provided by the parser.
 - [x] Enums (except large enums beyond `int`)
 - [x] Type conversions
 - [x] Typedefs
-- [ ] Structs
+- [x] Structs
 - [ ] Unions
 - [ ] Arrays
 - [ ] Alternate calling conventions

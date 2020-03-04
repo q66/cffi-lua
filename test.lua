@@ -161,4 +161,35 @@ print("type of string: " .. ffi.type(foo))
 ffi.C.free(foo)
 print()
 
+ffi.cdef [[
+    /* include some paddings to make sure we can have large structs */
+    struct foo {
+        int x;
+        size_t pad1;
+        size_t pad2;
+        char y;
+        size_t pad3;
+        size_t pad4;
+        short z;
+        size_t pad5;
+        size_t pad6;
+        char const *w;
+    };
+]]
+
+print("# Structs")
+x = ffi.new("struct foo")
+print("new struct: " .. tostring(x))
+local s = "hello"
+x.x = 150
+x.y = 30
+x.z = 25
+x.w = s
+print("members: ")
+print("x: " .. x.x)
+print("y: " .. x.y)
+print("z: " .. x.z)
+print("w: " .. ffi.string(x.w))
+print()
+
 print("## END TESTS ##")

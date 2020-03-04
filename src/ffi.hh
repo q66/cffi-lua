@@ -13,7 +13,12 @@
 namespace ffi {
 
 /* placeholder for no-value cdata */
-struct noval {};
+struct alignas(std::max_align_t) noval {};
+
+/* for pointer cdata */
+struct alignas(std::max_align_t) ptrval {
+    void *ptr;
+};
 
 template<typename T>
 struct cdata {
@@ -89,6 +94,12 @@ static inline cdata<T> &newcdata(
     lua_State *L, ast::c_type const &tp, size_t extra = 0
 ) {
     return newcdata<T>(L, ast::c_type{tp}, extra);
+}
+
+static inline cdata<noval> &newcdata(
+    lua_State *L, ast::c_type const &tp, size_t vals
+) {
+    return newcdata<noval>(L, tp, vals - sizeof(noval));
 }
 
 template<typename ...A>

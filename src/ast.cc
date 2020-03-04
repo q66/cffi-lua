@@ -178,6 +178,8 @@ c_type::c_type(c_type const &v): c_object{v.name}, p_type{v.p_type} {
         p_fptr = weak ? v.p_fptr : new c_function{*v.p_fptr};
     } else if ((tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_REF)) {
         p_ptr = weak ? v.p_ptr : new c_type{*v.p_ptr};
+    } else if ((tp == C_BUILTIN_STRUCT) || (tp == C_BUILTIN_ENUM)) {
+        p_ptr = v.p_ptr;
     }
 }
 
@@ -209,6 +211,9 @@ void c_type::do_serialize(std::string &o) const {
             /* cv is handled by func serializer */
             p_fptr->do_serialize_full(o, (ttp == C_BUILTIN_FPTR), tcv);
             return;
+        case C_BUILTIN_STRUCT:
+            p_crec->do_serialize(o);
+            break;
         default:
             o += this->name;
             break;
@@ -451,6 +456,24 @@ bool c_struct::is_same(c_struct const &other) const {
         }
     }
     return true;
+}
+
+ptrdiff_t c_struct::field_offset(
+    std::string const &fname, c_type const *&fld
+) const {
+    ptrdiff_t base = 0;
+    for (size_t i = 0; i < p_fields.size(); ++i) {
+        auto *tp = p_elements[i];
+        size_t align = tp->alignment;
+        base = ((base + align - 1) / align) * align;
+        if (p_fields[i].name == fname) {
+            fld = &p_fields[i].type;
+            return base;
+        }
+        base += tp->size;
+    }
+    fld = nullptr;
+    return -1;
 }
 
 /* decl store implementation, with overlaying for staging */

@@ -9,6 +9,7 @@
 #include "lua.hh"
 #include "libffi.hh"
 
+#include <type_traits>
 #include <limits>
 #include <string>
 #include <vector>
@@ -164,7 +165,7 @@ template<> struct builtin_traits<C_BUILTIN_SIZE>:
     detail::builtin_traits_base<size_t> {};
 
 template<> struct builtin_traits<C_BUILTIN_SSIZE>:
-    detail::builtin_traits_base<ssize_t> {};
+    detail::builtin_traits_base<typename std::make_signed<size_t>::type> {};
 
 template<> struct builtin_traits<C_BUILTIN_INTPTR>:
     detail::builtin_traits_base<intptr_t> {};
@@ -314,7 +315,7 @@ union alignas(std::max_align_t) c_value {
     char32_t c32;
     /* other types */
     size_t sz;
-    ssize_t ssz;
+    typename std::make_signed<size_t>::type ssz;
     intptr_t ip;
     uintptr_t uip;
     ptrdiff_t pd;
@@ -531,6 +532,10 @@ struct c_type: c_object {
         return *p_fptr;
     }
 
+    c_struct const &record() const {
+        return *p_crec;
+    }
+
     ffi_type *libffi_type() const;
 
     bool is_same(c_type const &other, bool ignore_cv = false) const;
@@ -712,17 +717,19 @@ struct c_struct: c_object {
     };
 
     c_struct(std::string ename, std::vector<field> fields):
-        c_object{std::move(ename)}, p_fields{std::move(fields)},
-        p_elements{}, p_ffi_type{}
+        c_object{std::move(ename)}, p_fields{std::move(fields)}
     {
-        p_elements.reserve(p_fields.size());
+        p_elements = std::unique_ptr<ffi_type *[]>{
+            new ffi_type *[p_fields.size() + 1]
+        };
 
         p_ffi_type.size = p_ffi_type.alignment = 0;
         p_ffi_type.type = FFI_TYPE_STRUCT;
 
         for (size_t i = 0; i < p_fields.size(); ++i) {
-            p_elements.push_back(p_fields[i].type.libffi_type());
+            p_elements[i] = p_fields[i].type.libffi_type();
         }
+        p_elements[p_fields.size()] = nullptr;
 
         p_ffi_type.elements = &p_elements[0];
 
@@ -747,7 +754,6 @@ struct c_struct: c_object {
     }
 
     void do_serialize(std::string &o) const {
-        o += "struct ";
         o += this->name;
     }
 
@@ -757,10 +763,12 @@ struct c_struct: c_object {
 
     bool is_same(c_struct const &other) const;
 
+    ptrdiff_t field_offset(std::string const &fname, c_type const *&fld) const;
+
 private:
     std::vector<field> p_fields;
-    std::vector<ffi_type *> p_elements;
-    ffi_type p_ffi_type;
+    std::unique_ptr<ffi_type *[]> p_elements{};
+    ffi_type p_ffi_type{};
 };
 
 struct c_enum: c_object {
@@ -782,7 +790,6 @@ struct c_enum: c_object {
     }
 
     void do_serialize(std::string &o) const {
-        o += "enum ";
         o += this->name;
     }
 

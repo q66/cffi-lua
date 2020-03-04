@@ -6,6 +6,8 @@
 
 namespace ffi {
 
+using signed_size_t = typename std::make_signed<size_t>::type;
+
 static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
     auto &fud = *static_cast<ffi::cdata<ffi::fdata> *>(data);
     auto &fun = fud.decl.function();
@@ -210,7 +212,7 @@ static inline int push_int(
         return 1;
     }
     /* doesn't fit into the range, so make scalar cdata */
-    auto &cd = newcdata<ast::c_value>(L, tp);
+    auto &cd = newcdata<noval>(L, tp, sizeof(T));
     memcpy(&cd.val, value, sizeof(T));
     return 1;
 }
@@ -228,7 +230,7 @@ static inline int push_flt(
         lua_pushnumber(L, lua_Number(*U(value)));
         return 1;
     }
-    auto &cd = newcdata<ast::c_value>(L, tp);
+    auto &cd = newcdata<noval>(L, tp, sizeof(T));
     memcpy(&cd.val, value, sizeof(T));
     return 1;
 }
@@ -298,7 +300,7 @@ int lua_push_cdata(
         case ast::C_BUILTIN_SIZE:
             return push_int<size_t>(L, tp, value, lossy);
         case ast::C_BUILTIN_SSIZE:
-            return push_int<ssize_t>(L, tp, value, lossy);
+            return push_int<signed_size_t>(L, tp, value, lossy);
         case ast::C_BUILTIN_INTPTR:
             return push_int<intptr_t>(L, tp, value, lossy);
         case ast::C_BUILTIN_UINTPTR:
@@ -316,8 +318,8 @@ int lua_push_cdata(
             /* pointers should be handled like large cdata, as they need
              * to be represented as userdata objects on lua side either way
              */
-            newcdata<ast::c_value>(L, tp).val.ptr =
-                reinterpret_cast<ast::c_value *>(value)->ptr;
+            newcdata<ptrval>(L, tp).val.ptr =
+                reinterpret_cast<ptrval *>(value)->ptr;
             return 1;
 
         case ast::C_BUILTIN_FPTR:
@@ -440,7 +442,7 @@ void *lua_check_cdata(
                 case ast::C_BUILTIN_SIZE:
                     return write_int<size_t>(L, index, stor, dsz);
                 case ast::C_BUILTIN_SSIZE:
-                    return write_int<ssize_t>(L, index, stor, dsz);
+                    return write_int<signed_size_t>(L, index, stor, dsz);
                 case ast::C_BUILTIN_INTPTR:
                     return write_int<intptr_t>(L, index, stor, dsz);
                 case ast::C_BUILTIN_UINTPTR:

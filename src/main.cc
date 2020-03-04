@@ -161,10 +161,10 @@ struct cdata_meta {
                 break;
             }
         }
-        ast::c_value stor{};
         void *cdp = nullptr;
         int fref = LUA_REFNIL;
         size_t rsz = 0;
+        ast::c_value stor{};
         if (lua_gettop(L) >= 2) {
             if ((decl.type() == ast::C_BUILTIN_FPTR) && lua_isfunction(L, 2)) {
                 lua_pushvalue(L, 2);
@@ -173,9 +173,7 @@ struct cdata_meta {
                 cdp = ffi::lua_check_cdata(L, decl, &stor, 2, rsz);
             }
         } else {
-            memset(&stor, 0, sizeof(stor));
-            cdp = &stor;
-            rsz = sizeof(stor);
+            rsz = decl.libffi_type()->size;
         }
         if (decl.type() == ast::C_BUILTIN_FPTR) {
             if (fref == LUA_REFNIL) {
@@ -200,8 +198,12 @@ struct cdata_meta {
                 cd.val.cd->fref = fref;
             }
         } else {
-            auto &cd = ffi::newcdata<ast::c_value>(L, decl);
-            memcpy(&cd.val, cdp, rsz);
+            auto &cd = ffi::newcdata(L, decl, rsz);
+            if (!cdp) {
+                memset(&cd.val, 0, rsz);
+            } else {
+                memcpy(&cd.val, cdp, rsz);
+            }
         }
         return 1;
     }
@@ -234,25 +236,39 @@ struct cdata_meta {
             luaL_error(L, "'ctype' is not indexable");
         }
         /* TODO: add arrays, FIXME: cdata indexes */
-        auto sidx = luaL_checkinteger(L, 2);
         switch (cd.decl.type()) {
             case ast::C_BUILTIN_PTR:
-                luaL_argcheck(L, sidx >= 0, 2, "index is negative");
                 break;
-            case ast::C_BUILTIN_REF:
-                luaL_argcheck(L, sidx == 0, 2, "references are not indexable");
+            case ast::C_BUILTIN_REF: {
                 /* no need to deal with the type size nonsense */
-                func(cd, cd.val.ptr);
+                func(cd.decl.ptr_base(), cd.val.ptr);
                 return;
+            }
+            case ast::C_BUILTIN_STRUCT: {
+                char const *fname = luaL_checkstring(L, 2);
+                ast::c_type const *outf;
+                auto foff = cd.decl.record().field_offset(fname, outf);
+                if (foff < 0) {
+                    luaL_error(
+                        L, "'%s' has no member named '%s'",
+                        cd.decl.serialize().c_str(), fname
+                    );
+                }
+                func(*outf, &reinterpret_cast<unsigned char *>(
+                    &cd.val
+                )[foff]);
+                return;
+            }
             default: {
                 auto s = cd.decl.serialize();
                 luaL_error(L, "'%s' is not indexable", s.c_str());
                 break;
             }
         }
+        auto sidx = luaL_checkinteger(L, 2);
         auto *ptr = reinterpret_cast<unsigned char *>(cd.val.ptr);
         auto *type = cd.decl.ptr_base().libffi_type();
-        func(cd, static_cast<void *>(&ptr[sidx * type->size]));
+        func(cd.decl.ptr_base(), static_cast<void *>(&ptr[sidx * type->size]));
     }
 
     static int cb_free(lua_State *L) {
@@ -306,16 +322,16 @@ struct cdata_meta {
             }
             return 0;
         }
-        index_common(L, [L](auto &pcd, void *val) {
-            ffi::lua_push_cdata(L, pcd.decl.ptr_base(), val);
+        index_common(L, [L](auto &decl, void *val) {
+            ffi::lua_push_cdata(L, decl, val);
         });
         return 1;
     }
 
     static int newindex(lua_State *L) {
-        index_common(L, [L](auto &cd, void *val) {
+        index_common(L, [L](auto &decl, void *val) {
             size_t rsz;
-            ffi::lua_check_cdata(L, cd.decl.ptr_base(), val, 3, rsz);
+            ffi::lua_check_cdata(L, decl, val, 3, rsz);
         });
         return 0;
     }
@@ -396,10 +412,10 @@ struct ffi_module {
         auto &cd = ffi::checkcdata<ast::c_value>(L, 1);
         if (cd.decl.type() == ast::C_BUILTIN_REF) {
             /* refs are turned into pointers with the same addr like C++ */
-            ffi::newcdata<ast::c_value>(L, cd.decl.as_type(ast::C_BUILTIN_PTR));
+            ffi::newcdata<ffi::ptrval>(L, cd.decl.as_type(ast::C_BUILTIN_PTR));
         } else {
             /* otherwise just make a cdata pointing to whatever it was */
-            ffi::newcdata<ast::c_value>(L, ast::c_type{cd.decl, 0}).val.ptr =
+            ffi::newcdata<ffi::ptrval>(L, ast::c_type{cd.decl, 0}).val.ptr =
                 &cd.val;
         }
         return 1;
@@ -411,7 +427,7 @@ struct ffi_module {
             /* just return itself */
             lua_pushvalue(L, 1);
         } else {
-            ffi::newcdata<ast::c_value>(L, ast::c_type{
+            ffi::newcdata<ffi::ptrval>(L, ast::c_type{
                 cd.decl, 0, ast::C_BUILTIN_REF
             }).val.ptr = cd.get_addr();
         }
@@ -757,7 +773,7 @@ struct ffi_module {
         lua_setfield(L, -2, "tonumber");
 
         /* NULL = (void *)0 */
-        ffi::newcdata<ast::c_value>(L, ast::c_type{
+        ffi::newcdata<ffi::ptrval>(L, ast::c_type{
             ast::c_type{"void", ast::C_BUILTIN_VOID, 0}, 0
         }).val.ptr = nullptr;
         lua_setfield(L, -2, "nullptr");
