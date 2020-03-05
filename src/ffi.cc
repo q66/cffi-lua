@@ -17,14 +17,16 @@ static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
     closure_data &cd = *fud.val.cd;
     lua_rawgeti(cd.L, LUA_REGISTRYINDEX, cd.fref);
     for (size_t i = 0; i < nargs; ++i) {
-        lua_push_cdata(cd.L, pars[i].type(), args[i]);
+        lua_push_cdata(cd.L, pars[i].type(), args[i], RULE_PASS);
     }
     lua_call(cd.L, nargs, 1);
 
     if (fun.result().type() != ast::C_BUILTIN_VOID) {
         ast::c_value stor;
         size_t rsz;
-        void *rp = lua_check_cdata(cd.L, fun.result(), &stor, -1, rsz);
+        void *rp = lua_check_cdata(
+            cd.L, fun.result(), &stor, -1, rsz, RULE_RET
+        );
         memcpy(ret, rp, rsz);
     }
 }
@@ -123,13 +125,16 @@ void make_cdata(
             if (!symp) {
                 luaL_error(L, "undefined symbol: %s", name);
             }
-            lua_push_cdata(L, obj->as<ast::c_variable>().type(), symp);
+            lua_push_cdata(
+                L, obj->as<ast::c_variable>().type(), symp, RULE_RET
+            );
             return;
         }
         case ast::c_object_type::CONSTANT: {
             auto &cd = obj->as<ast::c_constant>();
             lua_push_cdata(
-                L, cd.type(), const_cast<ast::c_value *>(&cd.value())
+                L, cd.type(), const_cast<ast::c_value *>(&cd.value()),
+                RULE_CONV
             );
             return;
         }
@@ -172,7 +177,7 @@ int call_cif(cdata<fdata> &fud, lua_State *L) {
     for (size_t i = 0; i < pdecls.size(); ++i) {
         size_t rsz;
         vals[i] = lua_check_cdata(
-            L, pdecls[i].type(), &pvals[i], i + 2, rsz
+            L, pdecls[i].type(), &pvals[i], i + 2, rsz, RULE_PASS
         );
     }
 
@@ -195,7 +200,7 @@ int call_cif(cdata<fdata> &fud, lua_State *L) {
         retp = p + sizeof(ffi_arg) - rsz;
     }
 #endif
-    return lua_push_cdata(L, func.result(), retp);
+    return lua_push_cdata(L, func.result(), retp, RULE_RET);
 }
 
 template<typename T>
@@ -236,7 +241,7 @@ static inline int push_flt(
 }
 
 int lua_push_cdata(
-    lua_State *L, ast::c_type const &tp, void *value, bool lossy
+    lua_State *L, ast::c_type const &tp, void *value, int rule, bool lossy
 ) {
     switch (ast::c_builtin(tp.type())) {
         /* no retval */
@@ -313,8 +318,18 @@ int lua_push_cdata(
             }
             return push_int<time_t>(L, tp, value, lossy);
 
-        case ast::C_BUILTIN_PTR:
         case ast::C_BUILTIN_REF:
+            if (rule == RULE_CONV) {
+                /* for this rule, dereference and pass that */
+                return lua_push_cdata(
+                    L, tp.ptr_base(), reinterpret_cast<ptrval *>(value)->ptr,
+                    RULE_CONV, lossy
+                );
+            }
+            goto ptr_ref;
+
+        ptr_ref:
+        case ast::C_BUILTIN_PTR:
             /* pointers should be handled like large cdata, as they need
              * to be represented as userdata objects on lua side either way
              */
@@ -333,8 +348,12 @@ int lua_push_cdata(
             /* TODO: large enums */
             return push_int<int>(L, tp, value, lossy);
 
-        case ast::C_BUILTIN_STRUCT:
-            luaL_error(L, "NYI"); return 0;
+        case ast::C_BUILTIN_STRUCT: {
+            auto sz = tp.alloc_size();
+            auto &cd = newcdata(L, tp, sz);
+            memcpy(&cd.val, value, sz);
+            return 1;
+        }
 
         case ast::C_BUILTIN_FUNC:
         case ast::C_BUILTIN_INVALID:
@@ -365,22 +384,28 @@ static inline void *write_flt(lua_State *L, int index, void *stor, size_t &s) {
 
 void *lua_check_cdata(
     lua_State *L, ast::c_type const &tp, void *stor, int index,
-    size_t &dsz
+    size_t &dsz, int rule
 ) {
     auto vtp = lua_type(L, index);
     switch (vtp) {
         case LUA_TNIL:
             switch (tp.type()) {
+                case ast::C_BUILTIN_REF:
+                    if (rule == RULE_CAST) {
+                        goto likeptr;
+                    }
+                    break;
+                likeptr:
                 case ast::C_BUILTIN_PTR:
                     dsz = sizeof(void *);
                     return &(*static_cast<void **>(stor) = nullptr);
                 default:
-                    luaL_error(
-                        L, "cannot convert 'nil' to '%s'",
-                        tp.serialize().c_str()
-                    );
                     break;
             }
+            luaL_error(
+                L, "cannot convert 'nil' to '%s'",
+                tp.serialize().c_str()
+            );
             break;
         case LUA_TNUMBER:
         case LUA_TBOOLEAN: {
@@ -553,8 +578,16 @@ void *lua_check_cdata(
             luaL_error(L, "table initializers not yet implemented");
             break;
         case LUA_TFUNCTION:
-            luaL_error(L, "callbacks not yet implemented");
-            break;
+            if (tp.type() != ast::C_BUILTIN_FPTR) {
+                luaL_error(
+                    L, "cannot convert 'function' to '%s'",
+                    tp.serialize().c_str()
+                );
+            }
+            lua_pushvalue(L, index);
+            *static_cast<int *>(stor) = luaL_ref(L, LUA_REGISTRYINDEX);
+            /* we don't have a value to store */
+            return nullptr;
         default:
             luaL_error(
                 L, "'%s' cannot be used in FFI",

@@ -169,17 +169,25 @@ void make_cdata_func(
 bool prepare_cif(cdata<fdata> &fud);
 int call_cif(cdata<fdata> &fud, lua_State *L);
 
+enum conv_rule {
+    RULE_CONV = 0,
+    RULE_PASS,
+    RULE_CAST,
+    RULE_RET
+};
+
 /* this pushes a value from `value` on the Lua stack; its type
- * and necessary conversions are done based on the info in `tp`
+ * and necessary conversions are done based on the info in `tp` and `rule`
  *
  * `lossy` implies that numbers will always be converted to a lua number
  */
 int lua_push_cdata(
-    lua_State *L, ast::c_type const &tp, void *value, bool lossy = false
+    lua_State *L, ast::c_type const &tp, void *value, int rule,
+    bool lossy = false
 );
 
 /* this returns a pointer to a C value counterpart of the Lua value
- * on the stack (as given by `index`)
+ * on the stack (as given by `index`) while checking types (`rule`)
  *
  * necessary conversions are done according to `tp`; `stor` is used to
  * write scalar values (therefore its alignment and size must be enough
@@ -189,7 +197,7 @@ int lua_push_cdata(
  */
 void *lua_check_cdata(
     lua_State *L, ast::c_type const &tp, void *stor, int index,
-    size_t &dsz
+    size_t &dsz, int rule
 );
 
 } /* namespace ffi */
