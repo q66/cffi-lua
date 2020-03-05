@@ -31,7 +31,22 @@ static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
     }
 }
 
-void make_cdata_func(
+static bool prepare_cif(cdata<fdata> &fud) {
+    auto &func = fud.decl.function();
+    size_t nargs = func.params().size();
+
+    ffi_type **targs = reinterpret_cast<ffi_type **>(&fud.val.args[nargs + 1]);
+    for (size_t i = 0; i < nargs; ++i) {
+        targs[i] = func.params()[i].libffi_type();
+    }
+
+    return (ffi_prep_cif(
+        &fud.val.cif, FFI_DEFAULT_ABI, nargs,
+        func.result().libffi_type(), targs
+    ) == FFI_OK);
+}
+
+static void make_cdata_func(
     lua_State *L, void (*funp)(), ast::c_function const &func, int cbt,
     closure_data *cd
 ) {
@@ -102,67 +117,6 @@ void make_cdata_func(
         cd->refs.push_front(&fud.val.cd);
         fud.val.cd = cd;
     }
-}
-
-void make_cdata(
-    lua_State *L, lib::handle dl, ast::c_object const *obj, char const *name
-) {
-    auto tp = ast::c_object_type::INVALID;
-    if (obj) {
-        tp = obj->obj_type();
-    }
-    switch (tp) {
-        case ast::c_object_type::FUNCTION: {
-            auto funp = lib::get_func(dl, name);
-            if (!funp) {
-                luaL_error(L, "undefined symbol: %s", name);
-            }
-            make_cdata_func(L, funp, obj->as<ast::c_function>());
-            return;
-        }
-        case ast::c_object_type::VARIABLE: {
-            void *symp = lib::get_var(dl, name);
-            if (!symp) {
-                luaL_error(L, "undefined symbol: %s", name);
-            }
-            lua_push_cdata(
-                L, obj->as<ast::c_variable>().type(), symp, RULE_RET
-            );
-            return;
-        }
-        case ast::c_object_type::CONSTANT: {
-            auto &cd = obj->as<ast::c_constant>();
-            lua_push_cdata(
-                L, cd.type(), const_cast<ast::c_value *>(&cd.value()),
-                RULE_CONV
-            );
-            return;
-        }
-        default:
-            luaL_error(
-                L, "missing declaration for symbol '%s'", obj->name.c_str()
-            );
-            return;
-    }
-}
-
-bool prepare_cif(cdata<fdata> &fud) {
-    auto &func = fud.decl.function();
-    size_t nargs = func.params().size();
-
-    ffi_type **targs = reinterpret_cast<ffi_type **>(&fud.val.args[nargs + 1]);
-    for (size_t i = 0; i < nargs; ++i) {
-        targs[i] = func.params()[i].libffi_type();
-    }
-
-    if (ffi_prep_cif(
-        &fud.val.cif, FFI_DEFAULT_ABI, nargs,
-        func.result().libffi_type(), targs
-    ) != FFI_OK) {
-        return false;
-    }
-
-    return true;
 }
 
 int call_cif(cdata<fdata> &fud, lua_State *L) {
@@ -340,7 +294,7 @@ int lua_push_cdata(
         case ast::C_BUILTIN_FPTR:
             make_cdata_func(
                 L, reinterpret_cast<ast::c_value *>(value)->fptr,
-                tp.function(), ast::C_BUILTIN_FPTR
+                tp.function(), ast::C_BUILTIN_FPTR, nullptr
             );
             return 1;
 
@@ -597,6 +551,122 @@ void *lua_check_cdata(
     }
     assert(false);
     return nullptr;
+}
+
+void get_global(lua_State *L, lib::handle dl, const char *sname) {
+    auto &ds = ast::decl_store::get_main(L);
+    auto const *decl = ds.lookup(sname);
+
+    auto tp = ast::c_object_type::INVALID;
+    if (decl) {
+        tp = decl->obj_type();
+    }
+
+    switch (tp) {
+        case ast::c_object_type::FUNCTION: {
+            auto funp = lib::get_func(dl, sname);
+            if (!funp) {
+                luaL_error(L, "undefined symbol: %s", sname);
+            }
+            make_cdata_func(
+                L, funp, decl->as<ast::c_function>(),
+                ast::C_BUILTIN_FUNC, nullptr
+            );
+            return;
+        }
+        case ast::c_object_type::VARIABLE: {
+            void *symp = lib::get_var(dl, sname);
+            if (!symp) {
+                luaL_error(L, "undefined symbol: %s", sname);
+            }
+            lua_push_cdata(
+                L, decl->as<ast::c_variable>().type(), symp, RULE_RET
+            );
+            return;
+        }
+        case ast::c_object_type::CONSTANT: {
+            auto &cd = decl->as<ast::c_constant>();
+            lua_push_cdata(
+                L, cd.type(), const_cast<ast::c_value *>(&cd.value()),
+                RULE_CONV
+            );
+            return;
+        }
+        default:
+            luaL_error(
+                L, "missing declaration for symbol '%s'", sname
+            );
+            return;
+    }
+}
+
+void set_global(lua_State *L, lib::handle dl, char const *sname, int idx) {
+    auto &ds = ast::decl_store::get_main(L);
+    auto const *decl = ds.lookup(sname);
+    if (!decl) {
+        luaL_error(
+            L, "missing declaration for symbol '%s'", decl->name.c_str()
+        );
+        return;
+    }
+    if (decl->obj_type() != ast::c_object_type::VARIABLE) {
+        luaL_error(L, "symbol '%s' is not mutable", decl->name.c_str());
+    }
+
+    void *symp = lib::get_var(dl, sname);
+    if (!symp) {
+        luaL_error(L, "undefined symbol: %s", sname);
+        return;
+    }
+
+    size_t rsz;
+    lua_check_cdata(
+        L, decl->as<ast::c_variable>().type(), symp, idx, rsz, ffi::RULE_CONV
+    );
+}
+
+void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
+    switch (decl.type()) {
+        case ast::C_BUILTIN_FUNC:
+            luaL_error(L, "invalid C type");
+            break;
+        default:
+            break;
+    }
+    ast::c_value stor{};
+    void *cdp = nullptr;
+    size_t rsz = 0;
+    if (lua_type(L, idx) != LUA_TNONE) {
+        cdp = ffi::lua_check_cdata(L, decl, &stor, idx, rsz, rule);
+    } else {
+        rsz = decl.alloc_size();
+    }
+    if (decl.type() == ast::C_BUILTIN_FPTR) {
+        ffi::closure_data *cd = nullptr;
+        if (cdp && ffi::iscdata(L, idx)) {
+            /* special handling for closures */
+            auto &fcd = ffi::tocdata<ffi::fdata>(L, idx);
+            if (fcd.decl.closure()) {
+                cd = fcd.val.cd;
+                cdp = nullptr;
+            }
+        }
+        using FP = void (*)();
+        make_cdata_func(
+            L, cdp ? *reinterpret_cast<FP *>(cdp) : nullptr,
+            decl.function(), decl.type(), cd
+        );
+        if (!cdp && !cd) {
+            ffi::tocdata<ffi::fdata>(L, -1).val.cd->fref = stor.i;
+        }
+    } else {
+        auto &cd = ffi::newcdata(L, decl, rsz);
+        if (!cdp) {
+            memset(&cd.val, 0, rsz);
+        } else {
+            memcpy(&cd.val, cdp, rsz);
+        }
+    }
 }
 
 } /* namespace ffi */

@@ -157,16 +157,6 @@ static inline cdata<T> &tocdata(lua_State *L, int idx) {
     return *lua::touserdata<ffi::cdata<T>>(L, idx);
 }
 
-void make_cdata(
-    lua_State *L, lib::handle dl, ast::c_object const *obj, char const *name
-);
-
-void make_cdata_func(
-    lua_State *L, void (*funp)(), ast::c_function const &func,
-    int cbt = ast::C_BUILTIN_FUNC, closure_data *cd = nullptr
-);
-
-bool prepare_cif(cdata<fdata> &fud);
 int call_cif(cdata<fdata> &fud, lua_State *L);
 
 enum conv_rule {
@@ -199,6 +189,11 @@ void *lua_check_cdata(
     lua_State *L, ast::c_type const &tp, void *stor, int index,
     size_t &dsz, int rule
 );
+
+void get_global(lua_State *L, lib::handle dl, const char *sname);
+void set_global(lua_State *L, lib::handle dl, char const *sname, int idx);
+
+void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx);
 
 } /* namespace ffi */
 
