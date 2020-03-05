@@ -2,6 +2,8 @@
 #include <cctype>
 #include <cassert>
 
+#include <stack>
+#include <queue>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -817,6 +819,108 @@ done_params:
     return params;
 }
 
+/* this attempts to parse function pointers, including fptr-to-fptr-to-etc
+ * and references to function pointers and pointers to pointer to points to
+ * function pointers and all that nonsense in a compliant way... it's not
+ * pretty nor cheap but i did my best
+ */
+static ast::c_type parse_type_fptr(
+    lex_state &ls, ast::c_type tp, std::string *fpname
+) {
+    /*
+     * now the real fun begins, yay, statekeeping
+     *
+     * count the number of (* to see how many levels deep we go
+     *
+     * there can be cv-qualifiers following each *, and there can
+     * be more pointer stuff each with their own cv-qualifiers
+     * after that (e.g. pointer to function pointer); which means
+     * we need a queue (FIFO) of queues; each inner queue contains
+     * a list of '*' to appear, each '*' with its cv-qualifiers
+     *
+     * however, we don't literally need a queue of queues,
+     * a sentinel value between levels will do just fine
+     */
+    int fplevel = 0;
+    std::queue<unsigned char> pcvq;
+    while (ls.t.token == '(') { /* at least (* plus maybe cv and some * */
+        ls.get();
+        check(ls, '*'); /* we always need at least one */
+        pcvq.push(1 << 5); /* a tag denoting a level */
+        while (ls.t.token == '*') {
+            ls.get();
+            pcvq.push(parse_cv(ls) >> 8);
+        }
+        if (ls.t.token == '&') {
+            ls.get();
+            pcvq.push(1 << 4); /* reference is trailing and gets its own tag */
+        }
+        ++fplevel;
+    }
+    if (fpname) {
+        /* we're in a context where name can be provided, e.g. if
+         * parsing a typedef or a prototype, this will be the name
+         */
+        check(ls, TOK_NAME);
+        *fpname = ls.t.value_s;
+        ls.get();
+    }
+    /* now to deal with arglists; the first arglist to come syntactically
+     * is actually the outermost arglist, e.g. when declaring a prototype
+     * of a function that returns a fptr that returns a fptr that returns
+     * a fptr, the first arglist is the arglist of the function, the
+     * second arglist is the arglist of the fptr it returns, etc.
+     *
+     * in order to keep track of this bullshit, we need... a stack (LIFO)
+     * and use the previous level counter to check how many we need
+     */
+    std::stack<std::vector<ast::c_param>> arglst;
+    for (; fplevel > 0; --fplevel) {
+        check_next(ls, ')');
+        check(ls, '('); /* starts the arglist */
+        arglst.push(parse_paramlist(ls));
+    }
+    /* we've got all the arglists; on top of the stack there is the arglist
+     * we need for the result of result of result of result of result of ...
+     * so register those and turn them into return types until we have nothing
+     */
+    for (; !arglst.empty(); arglst.pop()) {
+        auto *cf = new ast::c_function{
+            ls.request_name(), std::move(tp), std::move(arglst.top())
+        };
+        ls.store_decl(cf);
+        pcvq.pop(); /* remove the level tag */
+        /* replace what was previously tp; this will become either the
+         * final returned type, or the return type for the function
+         * pointer in the outer level
+         */
+        using CT = ast::c_type;
+        tp.~CT();
+        new (&tp) ast::c_type{cf, pcvq.front()};
+        /* and pop one level from the pointer queue for the current level */
+        pcvq.pop();
+        /* now wrap it in as many pointers left as necessary */
+        for (; !pcvq.empty(); pcvq.pop()) {
+            int cv = pcvq.front();
+            if (cv & (1 << 5)) {
+                /* new level */
+                break;
+            }
+            int cbt = ast::C_BUILTIN_PTR;
+            if (cv & (1 << 4)) {
+                cbt = ast::C_BUILTIN_REF;
+                cv = 0;
+            }
+            ast::c_type ptp{std::move(tp), cv << 8, cbt};
+            tp.~CT();
+            new (&tp) ast::c_type{std::move(ptp)};
+        }
+    }
+    assert(pcvq.empty()); /* just in case */
+    /* and this is finally over */
+    return tp;
+}
+
 static ast::c_type parse_type_ptr(
     lex_state &ls, ast::c_type tp, bool allow_void, std::string *fpname
 ) {
@@ -826,21 +930,7 @@ static ast::c_type parse_type_ptr(
 
         if (ls.t.token == '(') {
             /* function pointer */
-            ls.get();
-            check_next(ls, '*');
-            int pcv = parse_cv(ls);
-            if (fpname) {
-                check(ls, TOK_NAME);
-                *fpname = ls.t.value_s;
-                ls.get();
-            }
-            check_next(ls, ')');
-            auto *cf = new ast::c_function{
-                ls.request_name(), std::move(tp), parse_paramlist(ls)
-            };
-            ls.store_decl(cf);
-            ast::c_type ftp{cf, pcv};
-            return ftp;
+            return parse_type_fptr(ls, std::move(tp), fpname);
         }
 
         /* for contexts where void is not allowed,
