@@ -96,11 +96,19 @@ struct lex_state_error: public std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
+enum parse_mode {
+    PARSE_MODE_DEFAULT,
+    PARSE_MODE_NOTCDEF
+};
+
 struct lex_state {
     lex_state() = delete;
 
-    lex_state(lua_State *L, char const *str, const char *estr):
-        stream(str), send(estr), p_buf{},
+    lex_state(
+        lua_State *L, char const *str, const char *estr,
+        int pmode = PARSE_MODE_DEFAULT
+    ):
+        p_mode(pmode), stream(str), send(estr), p_buf{},
         p_dstore{ast::decl_store::get_main(L)}
     {
         /* thread-local, initialize for parsing thread */
@@ -168,6 +176,10 @@ struct lex_state {
 
     std::string request_name() const {
         return p_dstore.request_name();
+    }
+
+    int mode() const {
+        return p_mode;
     }
 
 private:
@@ -476,6 +488,7 @@ cont:
     }
 
     int current = -1;
+    int p_mode = PARSE_MODE_DEFAULT;
 
     char const *stream;
     char const *send;
@@ -641,7 +654,8 @@ static ast::c_type parse_type(
     lex_state &ls, bool allow_void = false, std::string *fpname = nullptr
 );
 
-static ast::c_struct const &parse_struct(lex_state &ls, bool allow_name);
+static ast::c_struct const &parse_struct(lex_state &ls);
+static ast::c_enum const &parse_enum(lex_state &ls);
 
 static ast::c_expr parse_cexpr_simple(lex_state &ls) {
     auto unop = get_unop(ls.t.token);
@@ -1016,13 +1030,12 @@ static ast::c_type parse_type(
         goto newtype;
     } else if (ls.t.token == TOK_struct) {
         return parse_type_ptr(
-            ls, ast::c_type{&parse_struct(ls, true), quals}, true, fpn
+            ls, ast::c_type{&parse_struct(ls), quals}, true, fpn
         );
     } else if (ls.t.token == TOK_enum) {
-        tname = ls.t.value_s;
-        ls.get();
-        tname += ' ';
-        check(ls, TOK_NAME);
+        return parse_type_ptr(
+            ls, ast::c_type{&parse_enum(ls), quals}, true, fpn
+        );
     }
 
 qualified:
@@ -1209,12 +1222,12 @@ static void parse_typedef(lex_state &ls, ast::c_type &&tp, std::string &aname) {
     ls.store_decl(new ast::c_typedef{std::move(aname), std::move(tp)});
 }
 
-static ast::c_struct const &parse_struct(lex_state &ls, bool allow_name) {
+static ast::c_struct const &parse_struct(lex_state &ls) {
     ls.get(); /* struct keyword */
 
     /* name is optional */
     std::string sname = "struct ";
-    if (allow_name && (ls.t.token == TOK_NAME)) {
+    if (ls.t.token == TOK_NAME) {
         sname += ls.t.value_s;
         ls.get();
     } else {
@@ -1266,7 +1279,7 @@ static ast::c_struct const &parse_struct(lex_state &ls, bool allow_name) {
     return *p;
 }
 
-static void parse_enum(lex_state &ls) {
+static ast::c_enum const &parse_enum(lex_state &ls) {
     ls.get();
 
     /* name is optional */
@@ -1279,7 +1292,16 @@ static void parse_enum(lex_state &ls) {
     }
 
     int linenum = ls.line_number;
-    check_next(ls, '{');
+
+    if (!test_next(ls, '{')) {
+        auto *oldecl = ls.lookup(ename);
+        if (!oldecl || (oldecl->obj_type() != ast::c_object_type::ENUM)) {
+            auto *p = new ast::c_enum{std::move(ename)};
+            ls.store_decl(p);
+            return *p;
+        }
+        return oldecl->as<ast::c_enum>();
+    }
 
     std::vector<ast::c_enum::field> fields;
 
@@ -1306,7 +1328,19 @@ static void parse_enum(lex_state &ls) {
 
     check_match(ls, '}', '{', linenum);
 
-    ls.store_decl(new ast::c_enum{std::move(ename), std::move(fields)});
+    auto *oldecl = ls.lookup(ename);
+    if (oldecl && (oldecl->obj_type() == ast::c_object_type::ENUM)) {
+        auto &st = oldecl->as<ast::c_enum>();
+        if (st.opaque()) {
+            /* previous declaration was opaque; prevent redef errors */
+            st.set_fields(std::move(fields));
+            return st;
+        }
+    }
+
+    auto *p = new ast::c_enum{std::move(ename), std::move(fields)};
+    ls.store_decl(p);
+    return *p;
 }
 
 static void parse_decl(lex_state &ls) {
@@ -1319,7 +1353,7 @@ static void parse_decl(lex_state &ls) {
             return;
         }
         case TOK_struct:
-            parse_struct(ls, true);
+            parse_struct(ls);
             return;
         case TOK_enum:
             parse_enum(ls);
@@ -1402,7 +1436,7 @@ ast::c_type parse_type(lua_State *L, char const *input, char const *iend) {
     if (!iend) {
         iend = input + strlen(input);
     }
-    lex_state ls{L, input, iend};
+    lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF};
     ls.get();
     auto tp = parse_type(ls);
     ls.commit();
@@ -1415,7 +1449,7 @@ ast::c_expr_type parse_number(
     if (!iend) {
         iend = input + strlen(input);
     }
-    lex_state ls{L, input, iend};
+    lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF};
     ls.get();
     check(ls, TOK_INTEGER);
     v = ls.t.value;

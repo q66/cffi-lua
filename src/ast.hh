@@ -778,6 +778,7 @@ struct c_struct: c_object {
 
     /* it is the responsibility of the caller to ensure we're not redefining */
     void set_fields(std::vector<field> fields);
+
 private:
     std::vector<field> p_fields{};
     std::unique_ptr<ffi_type *[]> p_elements{};
@@ -795,8 +796,12 @@ struct c_enum: c_object {
     };
 
     c_enum(std::string ename, std::vector<field> fields):
-        c_object{std::move(ename)}, p_fields{std::move(fields)}
-    {}
+        c_object{std::move(ename)}
+    {
+        set_fields(std::move(fields));
+    }
+
+    c_enum(std::string ename): c_object{std::move(ename)} {}
 
     c_object_type obj_type() const {
         return c_object_type::ENUM;
@@ -819,8 +824,22 @@ struct c_enum: c_object {
         return sizeof(int);
     }
 
+    bool opaque() const {
+        return p_opaque;
+    }
+
+    /* it is the responsibility of the caller to ensure we're not redefining */
+    void set_fields(std::vector<field> fields) {
+        assert(p_fields.empty());
+        assert(p_opaque);
+
+        p_fields = std::move(fields);
+        p_opaque = false;
+    }
+
 private:
-    std::vector<field> p_fields;
+    std::vector<field> p_fields{};
+    bool p_opaque = true;
 };
 
 struct redefine_error: public std::runtime_error {
