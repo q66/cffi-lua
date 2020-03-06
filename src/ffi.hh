@@ -171,7 +171,7 @@ enum conv_rule {
  *
  * `lossy` implies that numbers will always be converted to a lua number
  */
-int lua_push_cdata(
+int to_lua(
     lua_State *L, ast::c_type const &tp, void *value, int rule,
     bool lossy = false
 );
@@ -185,7 +185,7 @@ int lua_push_cdata(
  * so you can use that) while non-scalar values may have their address
  * returned directly
  */
-void *lua_check_cdata(
+void *from_lua(
     lua_State *L, ast::c_type const &tp, void *stor, int index,
     size_t &dsz, int rule
 );

@@ -17,14 +17,14 @@ static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
     closure_data &cd = *fud.val.cd;
     lua_rawgeti(cd.L, LUA_REGISTRYINDEX, cd.fref);
     for (size_t i = 0; i < nargs; ++i) {
-        lua_push_cdata(cd.L, pars[i].type(), args[i], RULE_PASS);
+        to_lua(cd.L, pars[i].type(), args[i], RULE_PASS);
     }
     lua_call(cd.L, nargs, 1);
 
     if (fun.result().type() != ast::C_BUILTIN_VOID) {
         ast::c_value stor;
         size_t rsz;
-        void *rp = lua_check_cdata(
+        void *rp = from_lua(
             cd.L, fun.result(), &stor, -1, rsz, RULE_RET
         );
         memcpy(ret, rp, rsz);
@@ -130,7 +130,7 @@ int call_cif(cdata<fdata> &fud, lua_State *L) {
 
     for (size_t i = 0; i < pdecls.size(); ++i) {
         size_t rsz;
-        vals[i] = lua_check_cdata(
+        vals[i] = from_lua(
             L, pdecls[i].type(), &pvals[i], i + 2, rsz, RULE_PASS
         );
     }
@@ -154,7 +154,7 @@ int call_cif(cdata<fdata> &fud, lua_State *L) {
         retp = p + sizeof(ffi_arg) - rsz;
     }
 #endif
-    return lua_push_cdata(L, func.result(), retp, RULE_RET);
+    return to_lua(L, func.result(), retp, RULE_RET);
 }
 
 template<typename T>
@@ -194,7 +194,7 @@ static inline int push_flt(
     return 1;
 }
 
-int lua_push_cdata(
+int to_lua(
     lua_State *L, ast::c_type const &tp, void *value, int rule, bool lossy
 ) {
     switch (ast::c_builtin(tp.type())) {
@@ -275,7 +275,7 @@ int lua_push_cdata(
         case ast::C_BUILTIN_REF:
             if (rule == RULE_CONV) {
                 /* for this rule, dereference and pass that */
-                return lua_push_cdata(
+                return to_lua(
                     L, tp.ptr_base(), reinterpret_cast<ptrval *>(value)->ptr,
                     RULE_CONV, lossy
                 );
@@ -336,7 +336,7 @@ static inline void *write_flt(lua_State *L, int index, void *stor, size_t &s) {
     return stor;
 }
 
-void *lua_check_cdata(
+void *from_lua(
     lua_State *L, ast::c_type const &tp, void *stor, int index,
     size_t &dsz, int rule
 ) {
@@ -579,14 +579,14 @@ void get_global(lua_State *L, lib::handle dl, const char *sname) {
             if (!symp) {
                 luaL_error(L, "undefined symbol: %s", sname);
             }
-            lua_push_cdata(
+            to_lua(
                 L, decl->as<ast::c_variable>().type(), symp, RULE_RET
             );
             return;
         }
         case ast::c_object_type::CONSTANT: {
             auto &cd = decl->as<ast::c_constant>();
-            lua_push_cdata(
+            to_lua(
                 L, cd.type(), const_cast<ast::c_value *>(&cd.value()),
                 RULE_CONV
             );
@@ -620,7 +620,7 @@ void set_global(lua_State *L, lib::handle dl, char const *sname, int idx) {
     }
 
     size_t rsz;
-    lua_check_cdata(
+    from_lua(
         L, decl->as<ast::c_variable>().type(), symp, idx, rsz, ffi::RULE_CONV
     );
 }
@@ -637,7 +637,7 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
     void *cdp = nullptr;
     size_t rsz = 0;
     if (lua_type(L, idx) != LUA_TNONE) {
-        cdp = ffi::lua_check_cdata(L, decl, &stor, idx, rsz, rule);
+        cdp = ffi::from_lua(L, decl, &stor, idx, rsz, rule);
     } else {
         rsz = decl.alloc_size();
     }

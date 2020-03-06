@@ -241,7 +241,7 @@ struct cdata_meta {
             return 0;
         }
         index_common(L, [L](auto &decl, void *val) {
-            ffi::lua_push_cdata(L, decl, val, ffi::RULE_CONV);
+            ffi::to_lua(L, decl, val, ffi::RULE_CONV);
         });
         return 1;
     }
@@ -249,7 +249,7 @@ struct cdata_meta {
     static int newindex(lua_State *L) {
         index_common(L, [L](auto &decl, void *val) {
             size_t rsz;
-            ffi::lua_check_cdata(L, decl, val, 3, rsz, ffi::RULE_CONV);
+            ffi::from_lua(L, decl, val, 3, rsz, ffi::RULE_CONV);
         });
         return 0;
     }
@@ -514,7 +514,7 @@ struct ffi_module {
                 val = cd->val.ptr;
             }
             if (tp->scalar()) {
-                ffi::lua_push_cdata(L, *tp, val, ffi::RULE_CONV, true);
+                ffi::to_lua(L, *tp, val, ffi::RULE_CONV, true);
                 return 1;
             }
             switch (btp) {
@@ -543,7 +543,7 @@ struct ffi_module {
 
     static int toretval_f(lua_State *L) {
         auto &cd = ffi::checkcdata<ast::c_value>(L, 1);
-        ffi::lua_push_cdata(L, cd.decl, &cd.val, ffi::RULE_RET);
+        ffi::to_lua(L, cd.decl, &cd.val, ffi::RULE_RET);
         return 1;
     }
 
