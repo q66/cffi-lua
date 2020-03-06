@@ -1226,26 +1226,39 @@ static ast::c_struct const &parse_struct(lex_state &ls) {
     ls.get(); /* struct keyword */
 
     /* name is optional */
+    bool named = false;
     std::string sname = "struct ";
     if (ls.t.token == TOK_NAME) {
         sname += ls.t.value_s;
         ls.get();
+        named = true;
     } else {
         sname += ls.request_name();
     }
 
     int linenum = ls.line_number;
 
+    auto mode_error = [&ls]() {
+        ls.syntax_error("struct declaration not allowed in this context");
+    };
+
     /* opaque */
     if (!test_next(ls, '{')) {
         auto *oldecl = ls.lookup(sname);
         if (!oldecl || (oldecl->obj_type() != ast::c_object_type::STRUCT)) {
+            if (named && (ls.mode() == PARSE_MODE_NOTCDEF)) {
+                mode_error();
+            }
             /* different type or not stored yet, raise error or store */
             auto *p = new ast::c_struct{std::move(sname)};
             ls.store_decl(p);
             return *p;
         }
         return oldecl->as<ast::c_struct>();
+    }
+
+    if (named && (ls.mode() == PARSE_MODE_NOTCDEF)) {
+        mode_error();
     }
 
     std::vector<ast::c_struct::field> fields;
@@ -1283,24 +1296,37 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
     ls.get();
 
     /* name is optional */
+    bool named = false;
     std::string ename = "enum ";
     if (ls.t.token == TOK_NAME) {
         ename += ls.t.value_s;
         ls.get();
+        named = true;
     } else {
         ename += ls.request_name();
     }
 
     int linenum = ls.line_number;
 
+    auto mode_error = [&ls]() {
+        ls.syntax_error("enum declaration not allowed in this context");
+    };
+
     if (!test_next(ls, '{')) {
         auto *oldecl = ls.lookup(ename);
         if (!oldecl || (oldecl->obj_type() != ast::c_object_type::ENUM)) {
+            if (named && (ls.mode() == PARSE_MODE_NOTCDEF)) {
+                mode_error();
+            }
             auto *p = new ast::c_enum{std::move(ename)};
             ls.store_decl(p);
             return *p;
         }
         return oldecl->as<ast::c_enum>();
+    }
+
+    if (named && (ls.mode() == PARSE_MODE_NOTCDEF)) {
+        mode_error();
     }
 
     std::vector<ast::c_enum::field> fields;
