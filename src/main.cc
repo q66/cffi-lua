@@ -63,12 +63,6 @@ struct lib_meta {
     }
 };
 
-struct fd2 {
-    void *sym;
-    ffi_cif cif;
-    ast::c_value args[];
-};
-
 /* used by all kinds of cdata
  *
  * there are several kinds of cdata:
@@ -78,20 +72,7 @@ struct fd2 {
  */
 struct cdata_meta {
     static int gc(lua_State *L) {
-        auto &cd = ffi::tocdata<ffi::fdata>(L, 1);
-        if (cd.gc_ref >= 0) {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, cd.gc_ref); /* the finalizer */
-            lua_pushvalue(L, 1); /* the cdata */
-            if (lua_pcall(L, 1, 0, 0)) {
-                lua_pop(L, 1);
-            }
-        }
-        if (cd.decl.closure() && cd.val.cd) {
-            /* this is O(n) which sucks a little */
-            cd.val.cd->refs.remove(&cd.val.cd);
-        }
-        using T = ast::c_type;
-        cd.decl.~T();
+        ffi::destroy_cdata(L, ffi::tocdata<ffi::noval>(L, 1));
         return 0;
     }
 
@@ -144,7 +125,7 @@ struct cdata_meta {
         if (fd.decl.closure() && !fd.val.cd) {
             luaL_error(L, "bad callback");
         }
-        return ffi::call_cif(fd, L);
+        return ffi::call_cif(fd, L, lua_gettop(L) - 1);
     }
 
     template<typename F>

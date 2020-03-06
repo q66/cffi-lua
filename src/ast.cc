@@ -4,6 +4,7 @@
 #include <type_traits>
 
 #include "ast.hh"
+#include "ffi.hh"
 
 namespace ast {
 
@@ -444,6 +445,9 @@ bool c_function::is_same(c_function const &other) const {
     if (!p_result.is_same(other.p_result)) {
         return false;
     }
+    if (p_variadic != other.p_variadic) {
+        return false;
+    }
     if (p_params.size() != other.p_params.size()) {
         return false;
     }
@@ -614,6 +618,36 @@ std::string decl_store::request_name() const {
     } while (pb);
     snprintf(buf, sizeof(buf), "%zu", n);
     return std::string{static_cast<char const *>(buf)};
+}
+
+c_type from_lua_type(lua_State *L, int index) {
+    switch (lua_type(L, index)) {
+        case LUA_TNIL:
+            return c_type{c_type{"void", C_BUILTIN_VOID, 0}, 0};
+        case LUA_TBOOLEAN:
+            return c_type{"bool", C_BUILTIN_DOUBLE, 0};
+        case LUA_TNUMBER:
+            return c_type{"double", C_BUILTIN_DOUBLE, 0};
+        case LUA_TSTRING:
+            return c_type{c_type{"char", C_BUILTIN_CHAR, C_CV_CONST}, 0};
+        case LUA_TTABLE:
+        case LUA_TFUNCTION:
+        case LUA_TTHREAD:
+        case LUA_TLIGHTUSERDATA:
+            /* by default use a void pointer, some will fail, that's ok */
+            return c_type{c_type{"void", C_BUILTIN_VOID, 0}, 0};
+        case LUA_TUSERDATA: {
+            auto *cd = ffi::testcdata<ffi::noval>(L, index);
+            if (!cd) {
+                return c_type{c_type{"void", C_BUILTIN_VOID, 0}, 0};
+            }
+            return cd->decl;
+        }
+        default:
+            break;
+    }
+    assert(false);
+    return c_type{"", C_BUILTIN_INVALID, 0};
 }
 
 } /* namespace ast */

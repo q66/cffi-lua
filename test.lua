@@ -11,6 +11,7 @@ ffi.cdef [[
     mbuf strdup(char const *x);
     void *memcpy(void *dest, cptr src, size_t num);
     void free(void *p);
+    int printf(const char *fmt, ...);
 
     enum test {
         FIRST = 1, SECOND, THIRD, FOURTH,
@@ -89,6 +90,10 @@ ffi.gc(foo, function(x)
     print("finalizer for " .. tostring(x))
     ffi.C.free(x)
 end)
+print()
+
+print("# varargs (printf)")
+ffi.C.printf("hello world %g %p \"%s\"\n", 22 / 7, nil, foo)
 print()
 
 print("# type of a ptr")

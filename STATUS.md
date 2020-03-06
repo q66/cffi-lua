@@ -12,7 +12,7 @@ C language syntax support.
 ### Declarations
 
 - [x] Simple functions (`ret func(args);`; note: `ret func();` has no args like C++)
-- [ ] Variadic functions
+- [x] Variadic functions
 - [x] Extern variable declarations
 - [x] `typedef`
 - [x] Full `struct` (named or unnamed)
@@ -132,7 +132,7 @@ These are implemented by LuaJIT, but not considered urgent.
 Implements the functionality provided by the parser.
 
 - [x] Function calls
-- [ ] Variadic function calls
+- [x] Variadic function calls
 - [x] Variable reads and assignments
 - [x] Integers up to 32 bits, `float`, `double`
 - [x] `long double`

@@ -1,10 +1,70 @@
 #include <limits>
 #include <type_traits>
+#include <algorithm>
 
 #include "platform.hh"
 #include "ffi.hh"
 
 namespace ffi {
+
+ffi_type *from_lua_type(lua_State *L, int index) {
+    switch (lua_type(L, index)) {
+        case LUA_TBOOLEAN:
+            return &ffi_type_uchar;
+        case LUA_TNUMBER:
+            return &ffi_type_double;
+        case LUA_TNIL:
+        case LUA_TSTRING:
+        case LUA_TTABLE:
+        case LUA_TFUNCTION:
+        case LUA_TTHREAD:
+        case LUA_TLIGHTUSERDATA:
+            return &ffi_type_pointer;
+        case LUA_TUSERDATA: {
+            auto *cd = ffi::testcdata<ffi::noval>(L, index);
+            if (!cd) {
+                return &ffi_type_pointer;
+            }
+            return cd->decl.libffi_type();
+        }
+        default:
+            break;
+    }
+    assert(false);
+    return &ffi_type_void;
+}
+
+static ast::c_value *&get_auxptr(cdata<fdata> &fud) {
+    return *reinterpret_cast<ast::c_value **>(&fud.val.args[1]);
+}
+
+void destroy_cdata(lua_State *L, cdata<noval> &cd) {
+    auto &fd = *reinterpret_cast<cdata<fdata> *>(&cd.decl);
+    if (cd.gc_ref >= 0) {
+        lua_rawgeti(L, LUA_REGISTRYINDEX, cd.gc_ref); /* the finalizer */
+        lua_pushvalue(L, 1); /* the cdata */
+        if (lua_pcall(L, 1, 0, 0)) {
+            lua_pop(L, 1);
+        }
+    }
+    if (cd.decl.closure() && fd.val.cd) {
+        /* this is O(n) which sucks a little */
+        fd.val.cd->refs.remove(&fd.val.cd);
+    }
+    switch (cd.decl.type()) {
+        case ast::C_BUILTIN_FPTR:
+        case ast::C_BUILTIN_FUNC: {
+            if (!fd.decl.function().variadic()) {
+                break;
+            }
+            delete[] reinterpret_cast<unsigned char *>(get_auxptr(fd));
+        }
+        default:
+            break;
+    }
+    using T = ast::c_type;
+    cd.decl.~T();
+}
 
 using signed_size_t = typename std::make_signed<size_t>::type;
 
@@ -31,9 +91,12 @@ static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
     }
 }
 
-static bool prepare_cif(cdata<fdata> &fud) {
+/* this initializes a non-vararg cif with the given number of arguments
+ * for variadics, this is initialized once for zero args, and then handled
+ * dynamically before every call
+ */
+static bool prepare_cif(cdata<fdata> &fud, size_t nargs) {
     auto &func = fud.decl.function();
-    size_t nargs = func.params().size();
 
     ffi_type **targs = reinterpret_cast<ffi_type **>(&fud.val.args[nargs + 1]);
     for (size_t i = 0; i < nargs; ++i) {
@@ -53,6 +116,9 @@ static void make_cdata_func(
     size_t nargs = func.params().size();
 
     /* MEMORY LAYOUT:
+     *
+     * regular func:
+     *
      * struct cdata {
      *     <cdata header>
      *     struct fdata {
@@ -69,14 +135,31 @@ static void make_cdata_func(
      *         void *valpN;    // &valN
      *     } val;
      * }
+     *
+     * vararg func:
+     *
+     * struct cdata {
+     *     <cdata header>
+     *     struct fdata {
+     *         <fdata header>
+     *         ast::c_value valR; // lua ret
+     *         void *aux; // vals + types + args like above, but dynamic
+     *     } val;
+     * }
      */
     auto &fud = newcdata<fdata>(
         L, ast::c_type{&func, 0, cbt, funp == nullptr},
-        sizeof(ast::c_value[1 + nargs]) + sizeof(void *[2 * nargs])
+        func.variadic() ? (sizeof(ast::c_value) + sizeof(void *)) : (
+            sizeof(ast::c_value[1 + nargs]) + sizeof(void *[2 * nargs])
+        )
     );
     fud.val.sym = funp;
 
-    if (!ffi::prepare_cif(fud)) {
+    if (func.variadic()) {
+        get_auxptr(fud) = nullptr;
+    }
+
+    if (!ffi::prepare_cif(fud, !func.variadic() ? nargs : 0)) {
         luaL_error(
             L, "unexpected failure setting up '%s'", func.name.c_str()
         );
@@ -102,6 +185,13 @@ static void make_cdata_func(
                 func.serialize().c_str()
             );
         }
+        /* XXX: we're using the cif here, but the cif may be reinitialized
+         * for varargs; it doesn't seem like the closure code is using any
+         * of the stuff that changes for varargs, and only reads the ABI
+         * during this call (which is fine) in general, so it should be
+         * fine, if it's not we'd have to reinitialize the closures
+         * every time and that'd be a pain in the ass
+         */
         if (ffi_prep_closure_loc(
             cd->closure, &fud.val.cif, cb_bind, &fud,
             reinterpret_cast<void *>(fud.val.sym)
@@ -119,24 +209,83 @@ static void make_cdata_func(
     }
 }
 
-int call_cif(cdata<fdata> &fud, lua_State *L) {
+static bool prepare_cif_var(
+    lua_State *L, cdata<fdata> &fud, size_t nargs, size_t fargs
+) {
+    auto &func = fud.decl.function();
+
+    auto &auxptr = get_auxptr(fud);
+    if (auxptr && (nargs > size_t(fud.aux))) {
+        delete auxptr;
+        auxptr = nullptr;
+    }
+    if (!auxptr) {
+        auxptr = reinterpret_cast<ast::c_value *>(new unsigned char[
+            sizeof(ast::c_value) * nargs + sizeof(void *) * nargs * 2
+        ]);
+        fud.aux = int(nargs);
+    }
+
+    ffi_type **targs = reinterpret_cast<ffi_type **>(&auxptr[nargs]);
+    for (size_t i = 0; i < fargs; ++i) {
+        targs[i] = func.params()[i].libffi_type();
+    }
+    for (size_t i = fargs; i < nargs; ++i) {
+        targs[i] = from_lua_type(L, i + 2);
+    }
+
+    return (ffi_prep_cif_var(
+        &fud.val.cif, FFI_DEFAULT_ABI, fargs, nargs,
+        func.result().libffi_type(), targs
+    ) == FFI_OK);
+}
+
+int call_cif(cdata<fdata> &fud, lua_State *L, size_t largs) {
     auto &func = fud.decl.function();
     auto &pdecls = func.params();
 
     size_t nargs = pdecls.size();
+    size_t fargs = nargs;
+    size_t targs = fargs;
 
-    auto *pvals = fud.val.args;
-    void **vals = &reinterpret_cast<void **>(&pvals[nargs + 1])[nargs];
+    ast::c_value *pvals = fud.val.args;
+    void **vals;
+    void *rval;
 
-    for (size_t i = 0; i < pdecls.size(); ++i) {
+    if (func.variadic()) {
+        --fargs;
+        targs = std::max(largs, fargs);
+        if (!prepare_cif_var(L, fud, targs, fargs)) {
+            luaL_error(
+                L, "unexpected failure setting up '%s'",
+                func.name.c_str()
+            );
+        }
+        rval = &pvals[0];
+        auto *auxp = get_auxptr(fud);
+        pvals = auxp;
+        vals = &reinterpret_cast<void **>(&auxp[targs])[targs];
+    } else {
+        rval = &pvals[nargs];
+        vals = &reinterpret_cast<void **>(&pvals[nargs + 1])[nargs];
+    }
+
+    /* fixed args */
+    for (size_t i = 0; i < fargs; ++i) {
         size_t rsz;
         vals[i] = from_lua(
             L, pdecls[i].type(), &pvals[i], i + 2, rsz, RULE_PASS
         );
     }
+    /* variable args */
+    for (size_t i = fargs; i < targs; ++i) {
+        size_t rsz;
+        vals[i] = from_lua(
+            L, ast::from_lua_type(L, i + 2), &pvals[i], i + 2, rsz, RULE_PASS
+        );
+    }
 
-    ffi_call(&fud.val.cif, fud.val.sym, &pvals[nargs], vals);
-    void *retp = &pvals[nargs];
+    ffi_call(&fud.val.cif, fud.val.sym, rval, vals);
 #ifdef FFI_BIG_ENDIAN
     /* for small return types, ffi_arg must be used to hold the result,
      * and it is assumed that they will be accessed like integers via
@@ -150,11 +299,11 @@ int call_cif(cdata<fdata> &fud, lua_State *L) {
      */
     auto rsz = func.result().alloc_size();
     if (rsz < sizeof(ffi_arg)) {
-        auto *p = static_cast<unsigned char *>(retp);
-        retp = p + sizeof(ffi_arg) - rsz;
+        auto *p = static_cast<unsigned char *>(rval);
+        rval = p + sizeof(ffi_arg) - rsz;
     }
 #endif
-    return to_lua(L, func.result(), retp, RULE_RET);
+    return to_lua(L, func.result(), rval, RULE_RET);
 }
 
 template<typename T>

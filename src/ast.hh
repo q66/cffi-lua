@@ -597,9 +597,12 @@ private:
 };
 
 struct c_function: c_object {
-    c_function(std::string fname, c_type result, std::vector<c_param> params):
+    c_function(
+        std::string fname, c_type result, std::vector<c_param> params,
+        bool variadic
+    ):
         c_object{std::move(fname)}, p_result{std::move(result)},
-        p_params{std::move(params)}
+        p_params{std::move(params)}, p_variadic{variadic}
     {}
 
     c_object_type obj_type() const {
@@ -630,9 +633,14 @@ struct c_function: c_object {
 
     bool is_same(c_function const &other) const;
 
+    bool variadic() const {
+        return p_variadic;
+    }
+
 private:
     c_type p_result;
     std::vector<c_param> p_params;
+    bool p_variadic;
 };
 
 struct c_variable: c_object {
@@ -881,6 +889,8 @@ private:
     std::vector<std::unique_ptr<c_object>> p_dlist{};
     std::unordered_map<std::string, c_object *> p_dmap{};
 };
+
+c_type from_lua_type(lua_State *L, int index);
 
 } /* namespace ast */
 

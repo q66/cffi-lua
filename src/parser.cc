@@ -47,6 +47,8 @@ enum c_token {
     TOK_EQ = TOK_CUSTOM, TOK_NEQ, TOK_GE, TOK_LE,
     TOK_AND, TOK_OR, TOK_LSH, TOK_RSH,
 
+    TOK_ELLIPSIS,
+
     TOK_INTEGER, TOK_NAME, KEYWORDS
 };
 
@@ -61,6 +63,8 @@ enum c_token {
 static char const *tokens[] = {
     "==", "!=", ">=", "<=",
     "&&", "||", "<<", ">>",
+
+    "...",
 
     "<integer>", "<name>", KEYWORDS
 };
@@ -195,6 +199,13 @@ private:
         }
         current = *(stream++);
         return ret;
+    }
+
+    char upcoming() const {
+        if (stream == send) {
+            return '\0';
+        }
+        return *stream;
     }
 
     void next_line() {
@@ -453,6 +464,16 @@ cont:
                 }
                 return (c == '&') ? TOK_AND : TOK_OR;
             }
+            /* ., ... */
+            case '.': {
+                next_char();
+                if ((current != '.') || (upcoming() != '.')) {
+                    return '.';
+                }
+                next_char();
+                next_char();
+                return TOK_ELLIPSIS;
+            }
             /* single-char tokens, number literals, keywords, names */
             default: {
                 if (isspace(current)) {
@@ -521,8 +542,7 @@ static std::string token_to_str(int tok) {
 
 /* parser */
 
-static void
-error_expected(lex_state &ls, int tok) {
+static void error_expected(lex_state &ls, int tok) {
     std::string buf;
     buf += '\'';
     buf += token_to_str(tok);
@@ -817,12 +837,22 @@ static std::vector<ast::c_param> parse_paramlist(lex_state &ls) {
     }
 
     for (;;) {
+        if (ls.t.token == TOK_ELLIPSIS) {
+            /* varargs, insert a sentinel type (will be dropped) */
+            params.emplace_back(std::string{}, ast::c_type{
+                std::string{}, ast::C_BUILTIN_VOID, 0
+            });
+            ls.get();
+            /* varargs ends the arglist */
+            break;
+        }
         auto pt = parse_type(ls, params.size() == 0);
         if (pt.type() == ast::C_BUILTIN_VOID) {
             break;
         }
         if (test_next(ls, ',')) {
             /* unnamed param */
+            params.emplace_back(std::string{}, std::move(pt));
             continue;
         }
         check(ls, TOK_NAME);
@@ -905,8 +935,14 @@ static ast::c_type parse_type_fptr(
      * so register those and turn them into return types until we have nothing
      */
     for (; !arglst.empty(); arglst.pop()) {
+        auto &argl = arglst.top();
+        bool variadic = false;
+        if (!argl.empty() && argl.back().type().type() == ast::C_BUILTIN_VOID) {
+            variadic = true;
+            argl.pop_back();
+        }
         auto *cf = new ast::c_function{
-            ls.request_name(), std::move(tp), std::move(arglst.top())
+            ls.request_name(), std::move(tp), std::move(argl), variadic
         };
         ls.store_decl(cf);
         pcvq.pop(); /* remove the level tag */
@@ -1441,8 +1477,15 @@ static void parse_decl(lex_state &ls) {
         ls.syntax_error("function declaration returning a function");
     }
 
+    auto argl = parse_paramlist(ls);
+    bool variadic = false;
+    if (!argl.empty() && (argl.back().type().type() == ast::C_BUILTIN_VOID)) {
+        variadic = true;
+        argl.pop_back();
+    }
+
     ls.store_decl(new ast::c_function{
-        std::move(dname), std::move(tp), parse_paramlist(ls)
+        std::move(dname), std::move(tp), std::move(argl), variadic
     });
 }
 

@@ -24,6 +24,7 @@ template<typename T>
 struct cdata {
     ast::c_type decl;
     int gc_ref;
+    int aux; /* auxiliary data that can be used by different cdata */
     size_t val_sz;
     T val;
     void *get_addr() {
@@ -85,6 +86,7 @@ static inline cdata<T> &newcdata(
     cd->val_sz = sizeof(T) + extra;
     new (&cd->decl) ast::c_type{std::move(tp)};
     cd->gc_ref = LUA_REFNIL;
+    cd->aux = 0;
     lua::mark_cdata(L);
     return *cd;
 }
@@ -157,7 +159,9 @@ static inline cdata<T> &tocdata(lua_State *L, int idx) {
     return *lua::touserdata<ffi::cdata<T>>(L, idx);
 }
 
-int call_cif(cdata<fdata> &fud, lua_State *L);
+void destroy_cdata(lua_State *L, cdata<noval> &cd);
+
+int call_cif(cdata<fdata> &fud, lua_State *L, size_t largs);
 
 enum conv_rule {
     RULE_CONV = 0,
