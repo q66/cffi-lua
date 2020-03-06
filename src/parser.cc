@@ -162,6 +162,10 @@ struct lex_state {
         return p_dstore.lookup(name);
     }
 
+    ast::c_object *lookup(std::string const &name) {
+        return p_dstore.lookup(name);
+    }
+
     std::string request_name() const {
         return p_dstore.request_name();
     }
@@ -1211,6 +1215,16 @@ static void parse_struct(lex_state &ls) {
         sname += ls.request_name();
     }
 
+    /* opaque */
+    if (test_next(ls, ';')) {
+        auto *oldecl = ls.lookup(sname);
+        if (!oldecl || (oldecl->obj_type() != ast::c_object_type::STRUCT)) {
+            /* different type or not stored yet, raise error or store */
+            ls.store_decl(new ast::c_struct{std::move(sname)});
+        }
+        return;
+    }
+
     int linenum = ls.line_number;
     check_next(ls, '{');
 
@@ -1229,6 +1243,16 @@ static void parse_struct(lex_state &ls) {
     }
 
     check_match(ls, '}', '{', linenum);
+
+    auto *oldecl = ls.lookup(sname);
+    if (oldecl && (oldecl->obj_type() == ast::c_object_type::STRUCT)) {
+        auto &st = oldecl->as<ast::c_struct>();
+        if (st.opaque()) {
+            /* previous declaration was opaque; prevent redef errors */
+            st.set_fields(std::move(fields));
+            return;
+        }
+    }
 
     ls.store_decl(new ast::c_struct{std::move(sname), std::move(fields)});
 }

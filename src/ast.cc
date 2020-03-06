@@ -491,6 +491,42 @@ ptrdiff_t c_struct::field_offset(
     return -1;
 }
 
+void c_struct::set_fields(std::vector<field> fields) {
+    assert(p_fields.empty());
+    assert(!p_elements);
+
+    p_fields = std::move(fields);
+
+    p_elements = std::unique_ptr<ffi_type *[]>{
+        new ffi_type *[p_fields.size() + 1]
+    };
+
+    p_ffi_type.size = p_ffi_type.alignment = 0;
+    p_ffi_type.type = FFI_TYPE_STRUCT;
+
+    for (size_t i = 0; i < p_fields.size(); ++i) {
+        p_elements[i] = p_fields[i].type.libffi_type();
+    }
+    p_elements[p_fields.size()] = nullptr;
+
+    p_ffi_type.elements = &p_elements[0];
+
+    /* fill in the size and alignment with an ugly hack
+     *
+     * we can make use of the size/alignment at runtime, so make sure
+     * it's guaranteed to be properly filled in, even if the type has
+     * not been used with a function
+     */
+    ffi_cif cif;
+    /* this should generally not fail, as we're using the default ABI
+     * and validating our type definitions beforehand, but maybe make
+     * it a real error?
+     */
+    assert(ffi_prep_cif(
+        &cif, FFI_DEFAULT_ABI, 0, &p_ffi_type, nullptr
+    ) == FFI_OK);
+}
+
 /* decl store implementation, with overlaying for staging */
 
 void decl_store::add(c_object *decl) {
@@ -541,6 +577,17 @@ void decl_store::drop() {
 c_object const *decl_store::lookup(std::string const &name) const {
     auto it = p_dmap.find(name);
     if (it != p_dmap.cend()) {
+        return it->second;
+    }
+    if (p_base) {
+        return p_base->lookup(name);
+    }
+    return nullptr;
+}
+
+c_object *decl_store::lookup(std::string const &name) {
+    auto it = p_dmap.find(name);
+    if (it != p_dmap.end()) {
         return it->second;
     }
     if (p_base) {

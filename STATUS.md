@@ -16,7 +16,7 @@ C language syntax support.
 - [x] Extern variable declarations
 - [x] `typedef`
 - [x] Full `struct` (named or unnamed)
-- [ ] Opaque `struct`
+- [x] Opaque `struct`
 - [ ] Opaque `enum` (extension)
 - [ ] Transparent `struct`/`union` inside `struct` (extension)
 - [ ] Transparent `enum` inside `struct` (extension)

@@ -739,37 +739,12 @@ struct c_struct: c_object {
     };
 
     c_struct(std::string ename, std::vector<field> fields):
-        c_object{std::move(ename)}, p_fields{std::move(fields)}
+        c_object{std::move(ename)}
     {
-        p_elements = std::unique_ptr<ffi_type *[]>{
-            new ffi_type *[p_fields.size() + 1]
-        };
-
-        p_ffi_type.size = p_ffi_type.alignment = 0;
-        p_ffi_type.type = FFI_TYPE_STRUCT;
-
-        for (size_t i = 0; i < p_fields.size(); ++i) {
-            p_elements[i] = p_fields[i].type.libffi_type();
-        }
-        p_elements[p_fields.size()] = nullptr;
-
-        p_ffi_type.elements = &p_elements[0];
-
-        /* fill in the size and alignment with an ugly hack
-         *
-         * we can make use of the size/alignment at runtime, so make sure
-         * it's guaranteed to be properly filled in, even if the type has
-         * not been used with a function
-         */
-        ffi_cif cif;
-        /* this should generally not fail, as we're using the default ABI
-         * and validating our type definitions beforehand, but maybe make
-         * it a real error?
-         */
-        assert(ffi_prep_cif(
-            &cif, FFI_DEFAULT_ABI, 0, &p_ffi_type, nullptr
-        ) == FFI_OK);
+        set_fields(std::move(fields));
     }
+
+    c_struct(std::string ename): c_object{std::move(ename)} {}
 
     c_object_type obj_type() const {
         return c_object_type::STRUCT;
@@ -779,6 +754,7 @@ struct c_struct: c_object {
         o += this->name;
     }
 
+    /* invalid for opaque structs */
     ffi_type *libffi_type() const {
         return const_cast<ffi_type *>(&p_ffi_type);
     }
@@ -796,8 +772,14 @@ struct c_struct: c_object {
 
     ptrdiff_t field_offset(std::string const &fname, c_type const *&fld) const;
 
+    bool opaque() const {
+        return !p_elements;
+    }
+
+    /* it is the responsibility of the caller to ensure we're not redefining */
+    void set_fields(std::vector<field> fields);
 private:
-    std::vector<field> p_fields;
+    std::vector<field> p_fields{};
     std::unique_ptr<ffi_type *[]> p_elements{};
     ffi_type p_ffi_type{};
 };
@@ -860,6 +842,7 @@ struct decl_store {
     void drop();
 
     c_object const *lookup(std::string const &name) const;
+    c_object *lookup(std::string const &name);
 
     std::string request_name() const;
 
@@ -873,7 +856,7 @@ struct decl_store {
 private:
     decl_store *p_base = nullptr;
     std::vector<std::unique_ptr<c_object>> p_dlist{};
-    std::unordered_map<std::string, c_object const *> p_dmap{};
+    std::unordered_map<std::string, c_object *> p_dmap{};
 };
 
 } /* namespace ast */
