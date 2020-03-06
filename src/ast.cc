@@ -481,7 +481,14 @@ ptrdiff_t c_struct::field_offset(
         auto *tp = p_elements[i];
         size_t align = tp->alignment;
         base = ((base + align - 1) / align) * align;
-        if (p_fields[i].name == fname) {
+        if (p_fields[i].name.empty()) {
+            /* transparent struct is like a real struct member */
+            assert(p_fields[i].type.type() == ast::C_BUILTIN_STRUCT);
+            auto moff = p_fields[i].type.record().field_offset(fname, fld);
+            if (moff >= 0) {
+                return base + moff;
+            }
+        } else if (p_fields[i].name == fname) {
             fld = &p_fields[i].type;
             return base;
         }

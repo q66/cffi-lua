@@ -167,10 +167,12 @@ ffi.cdef [[
         int x;
         size_t pad1;
         size_t pad2;
-        char y;
-        size_t pad3;
-        size_t pad4;
-        short z;
+        struct {
+            char y;
+            size_t pad3;
+            size_t pad4;
+            short z;
+        };
         size_t pad5;
         size_t pad6;
         char const *w;

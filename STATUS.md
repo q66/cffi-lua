@@ -18,10 +18,12 @@ C language syntax support.
 - [x] Full `struct` (named or unnamed)
 - [x] Opaque `struct`
 - [x] Opaque `enum` (extension)
-- [ ] Transparent `struct`/`union` inside `struct` (extension)
+- [x] Transparent `struct` inside `struct` (extension)
 - [ ] Transparent `enum` inside `struct` (extension)
 - [x] `enum`
 - [ ] `union`
+  - [ ] Transparent `union` inside `struct`
+  - [ ] Transaprent `struct` inside `union`
 - [ ] `static const` declarations inside `struct`/`union` (C++ extension)
 
 #### Wishlist

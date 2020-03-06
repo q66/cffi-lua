@@ -776,6 +776,10 @@ struct c_struct: c_object {
         return !p_elements;
     }
 
+    std::vector<field> const &fields() const {
+        return p_fields;
+    }
+
     /* it is the responsibility of the caller to ensure we're not redefining */
     void set_fields(std::vector<field> fields);
 
