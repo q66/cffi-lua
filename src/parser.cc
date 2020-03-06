@@ -641,6 +641,8 @@ static ast::c_type parse_type(
     lex_state &ls, bool allow_void = false, std::string *fpname = nullptr
 );
 
+static ast::c_struct const &parse_struct(lex_state &ls, bool allow_name);
+
 static ast::c_expr parse_cexpr_simple(lex_state &ls) {
     auto unop = get_unop(ls.t.token);
     if (unop != ast::c_expr_unop::INVALID) {
@@ -1012,7 +1014,11 @@ static ast::c_type parse_type(
             tname = "unsigned int";
         }
         goto newtype;
-    } else if (ls.t.token == TOK_struct || ls.t.token == TOK_enum) {
+    } else if (ls.t.token == TOK_struct) {
+        return parse_type_ptr(
+            ls, ast::c_type{&parse_struct(ls, true), quals}, true, fpn
+        );
+    } else if (ls.t.token == TOK_enum) {
         tname = ls.t.value_s;
         ls.get();
         tname += ' ';
@@ -1203,30 +1209,31 @@ static void parse_typedef(lex_state &ls, ast::c_type &&tp, std::string &aname) {
     ls.store_decl(new ast::c_typedef{std::move(aname), std::move(tp)});
 }
 
-static void parse_struct(lex_state &ls) {
+static ast::c_struct const &parse_struct(lex_state &ls, bool allow_name) {
     ls.get(); /* struct keyword */
 
     /* name is optional */
     std::string sname = "struct ";
-    if (ls.t.token == TOK_NAME) {
+    if (allow_name && (ls.t.token == TOK_NAME)) {
         sname += ls.t.value_s;
         ls.get();
     } else {
         sname += ls.request_name();
     }
 
+    int linenum = ls.line_number;
+
     /* opaque */
-    if (test_next(ls, ';')) {
+    if (!test_next(ls, '{')) {
         auto *oldecl = ls.lookup(sname);
         if (!oldecl || (oldecl->obj_type() != ast::c_object_type::STRUCT)) {
             /* different type or not stored yet, raise error or store */
-            ls.store_decl(new ast::c_struct{std::move(sname)});
+            auto *p = new ast::c_struct{std::move(sname)};
+            ls.store_decl(p);
+            return *p;
         }
-        return;
+        return oldecl->as<ast::c_struct>();
     }
-
-    int linenum = ls.line_number;
-    check_next(ls, '{');
 
     std::vector<ast::c_struct::field> fields;
 
@@ -1250,11 +1257,13 @@ static void parse_struct(lex_state &ls) {
         if (st.opaque()) {
             /* previous declaration was opaque; prevent redef errors */
             st.set_fields(std::move(fields));
-            return;
+            return st;
         }
     }
 
-    ls.store_decl(new ast::c_struct{std::move(sname), std::move(fields)});
+    auto *p = new ast::c_struct{std::move(sname), std::move(fields)};
+    ls.store_decl(p);
+    return *p;
 }
 
 static void parse_enum(lex_state &ls) {
@@ -1310,7 +1319,7 @@ static void parse_decl(lex_state &ls) {
             return;
         }
         case TOK_struct:
-            parse_struct(ls);
+            parse_struct(ls, true);
             return;
         case TOK_enum:
             parse_enum(ls);
