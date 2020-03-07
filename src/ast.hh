@@ -430,37 +430,33 @@ struct c_struct;
 struct c_enum;
 
 struct c_type: c_object {
-    c_type(std::string tname, int cbt, int qual):
-        p_name{std::move(tname)}, p_ptr{nullptr},
-        p_type{uint32_t(cbt) | uint32_t(qual)}
+    c_type(int cbt, int qual):
+        p_ptr{nullptr}, p_type{uint32_t(cbt) | uint32_t(qual)}
     {}
 
     c_type(c_type tp, int qual, int cbt = C_BUILTIN_PTR):
-        p_name{}, p_ptr{new c_type{std::move(tp)}},
-        p_type{cbt | uint32_t(qual)}
+        p_ptr{new c_type{std::move(tp)}}, p_type{cbt | uint32_t(qual)}
     {}
 
     c_type(c_type const *ctp, int qual, int cbt = C_BUILTIN_PTR):
-        p_name{}, p_cptr{ctp},
-        p_type{cbt | C_TYPE_WEAK | uint32_t(qual)}
+        p_cptr{ctp}, p_type{cbt | C_TYPE_WEAK | uint32_t(qual)}
     {}
 
     c_type(
         c_function const *ctp, int qual, int cbt = C_BUILTIN_FPTR,
         bool cb = false
     ):
-        p_name{}, p_cfptr{ctp},
-        p_type{cbt | C_TYPE_WEAK | (cb ? C_TYPE_CLOSURE : 0) | uint32_t(qual)}
+        p_cfptr{ctp}, p_type{
+            cbt | C_TYPE_WEAK | (cb ? C_TYPE_CLOSURE : 0) | uint32_t(qual)
+        }
     {}
 
     c_type(c_struct const *ctp, int qual):
-        p_name{}, p_crec{ctp},
-        p_type{C_BUILTIN_STRUCT | C_TYPE_WEAK | uint32_t(qual)}
+        p_crec{ctp}, p_type{C_BUILTIN_STRUCT | C_TYPE_WEAK | uint32_t(qual)}
     {}
 
     c_type(c_enum const *ctp, int qual):
-        p_name{}, p_cenum{ctp},
-        p_type{C_BUILTIN_ENUM | C_TYPE_WEAK | uint32_t(qual)}
+        p_cenum{ctp}, p_type{C_BUILTIN_ENUM | C_TYPE_WEAK | uint32_t(qual)}
     {}
 
     c_type(c_type const &);
@@ -478,7 +474,43 @@ struct c_type: c_object {
     void do_serialize(std::string &o) const;
 
     char const *name() const {
-        return p_name.c_str();
+        switch (type()) {
+            case C_BUILTIN_VOID:    return "void";
+            case C_BUILTIN_CHAR:    return "char";
+            case C_BUILTIN_SCHAR:   return "signed char";
+            case C_BUILTIN_UCHAR:   return "unsigned char";
+            case C_BUILTIN_SHORT:   return "short";
+            case C_BUILTIN_USHORT:  return "unsigned short";
+            case C_BUILTIN_INT:     return "int";
+            case C_BUILTIN_UINT:    return "unsigned int";
+            case C_BUILTIN_LONG:    return "long";
+            case C_BUILTIN_ULONG:   return "unsigned long";
+            case C_BUILTIN_LLONG:   return "long long";
+            case C_BUILTIN_ULLONG:  return "unsigned long long";
+            case C_BUILTIN_WCHAR:   return "wchar_t";
+            case C_BUILTIN_CHAR16:  return "char16_t";
+            case C_BUILTIN_CHAR32:  return "char32_t";
+            case C_BUILTIN_INT8:    return "int8_t";
+            case C_BUILTIN_INT16:   return "int16_t";
+            case C_BUILTIN_INT32:   return "int32_t";
+            case C_BUILTIN_INT64:   return "int64_t";
+            case C_BUILTIN_UINT8:   return "uint8_t";
+            case C_BUILTIN_UINT16:  return "uint16_t";
+            case C_BUILTIN_UINT32:  return "uint32_t";
+            case C_BUILTIN_UINT64:  return "uint64_t";
+            case C_BUILTIN_SIZE:    return "size_t";
+            case C_BUILTIN_SSIZE:   return "ssize_t";
+            case C_BUILTIN_INTPTR:  return "intptr_t";
+            case C_BUILTIN_UINTPTR: return "uintptr_t";
+            case C_BUILTIN_PTRDIFF: return "ptrdiff_t";
+            case C_BUILTIN_TIME:    return "time_t";
+            case C_BUILTIN_FLOAT:   return "float";
+            case C_BUILTIN_DOUBLE:  return "double";
+            case C_BUILTIN_LDOUBLE: return "long double";
+            case C_BUILTIN_BOOL:    return "bool";
+            default: break;
+        }
+        return nullptr;
     }
 
     int type() const {
@@ -553,8 +585,6 @@ struct c_type: c_object {
     }
 
 private:
-    std::string p_name;
-
     /* maybe a pointer? */
     union {
         c_type *p_ptr;

@@ -169,7 +169,7 @@ c_type::~c_type() {
     }
 }
 
-c_type::c_type(c_type const &v): p_name{v.p_name}, p_type{v.p_type} {
+c_type::c_type(c_type const &v): p_type{v.p_type} {
     bool weak = !owns();
     int tp = type();
     if ((tp == C_BUILTIN_FPTR) || (tp == C_BUILTIN_FUNC)) {
@@ -182,7 +182,7 @@ c_type::c_type(c_type const &v): p_name{v.p_name}, p_type{v.p_type} {
 }
 
 c_type::c_type(c_type &&v):
-    p_name{std::move(v.p_name)}, p_ptr{std::exchange(v.p_ptr, nullptr)},
+    p_ptr{std::exchange(v.p_ptr, nullptr)},
     p_type{v.p_type}
 {}
 
@@ -213,7 +213,7 @@ void c_type::do_serialize(std::string &o) const {
             p_crec->do_serialize(o);
             break;
         default:
-            o += this->p_name;
+            o += this->name();
             break;
     }
     if (tcv & C_CV_CONST) {
@@ -555,7 +555,7 @@ void decl_store::add(c_object *decl) {
             c_value val;
             val.i = fld.value;
             add(
-                new c_constant{fld.name, c_type{"int", C_BUILTIN_INT, 0}, val}
+                new c_constant{fld.name, c_type{C_BUILTIN_INT, 0}, val}
             );
         }
     }
@@ -620,23 +620,23 @@ std::string decl_store::request_name() const {
 c_type from_lua_type(lua_State *L, int index) {
     switch (lua_type(L, index)) {
         case LUA_TNIL:
-            return c_type{c_type{"void", C_BUILTIN_VOID, 0}, 0};
+            return c_type{c_type{C_BUILTIN_VOID, 0}, 0};
         case LUA_TBOOLEAN:
-            return c_type{"bool", C_BUILTIN_DOUBLE, 0};
+            return c_type{C_BUILTIN_DOUBLE, 0};
         case LUA_TNUMBER:
-            return c_type{"double", C_BUILTIN_DOUBLE, 0};
+            return c_type{C_BUILTIN_DOUBLE, 0};
         case LUA_TSTRING:
-            return c_type{c_type{"char", C_BUILTIN_CHAR, C_CV_CONST}, 0};
+            return c_type{c_type{C_BUILTIN_CHAR, C_CV_CONST}, 0};
         case LUA_TTABLE:
         case LUA_TFUNCTION:
         case LUA_TTHREAD:
         case LUA_TLIGHTUSERDATA:
             /* by default use a void pointer, some will fail, that's ok */
-            return c_type{c_type{"void", C_BUILTIN_VOID, 0}, 0};
+            return c_type{c_type{C_BUILTIN_VOID, 0}, 0};
         case LUA_TUSERDATA: {
             auto *cd = ffi::testcdata<ffi::noval>(L, index);
             if (!cd) {
-                return c_type{c_type{"void", C_BUILTIN_VOID, 0}, 0};
+                return c_type{c_type{C_BUILTIN_VOID, 0}, 0};
             }
             return cd->decl;
         }
@@ -644,7 +644,7 @@ c_type from_lua_type(lua_State *L, int index) {
             break;
     }
     assert(false);
-    return c_type{"", C_BUILTIN_INVALID, 0};
+    return c_type{C_BUILTIN_INVALID, 0};
 }
 
 } /* namespace ast */

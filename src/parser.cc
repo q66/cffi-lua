@@ -842,7 +842,7 @@ static std::vector<ast::c_param> parse_paramlist(lex_state &ls) {
         if (ls.t.token == TOK_ELLIPSIS) {
             /* varargs, insert a sentinel type (will be dropped) */
             params.emplace_back(std::string{}, ast::c_type{
-                std::string{}, ast::C_BUILTIN_VOID, 0
+                ast::C_BUILTIN_VOID, 0
             });
             ls.get();
             /* varargs ends the arglist */
@@ -1035,7 +1035,6 @@ static ast::c_type parse_type(
     int quals = parse_cv(ls);
     int squals = 0;
 
-    std::string tname{};
     ast::c_builtin cbt = ast::C_BUILTIN_INVALID;
 
     if (ls.t.token == TOK_signed || ls.t.token == TOK_unsigned) {
@@ -1060,10 +1059,8 @@ static ast::c_type parse_type(
         /* when not followed by that, treat them as a whole type */
         if (squals & TYPE_SIGNED) {
             cbt = ast::C_BUILTIN_INT;
-            tname = "int";
         } else {
             cbt = ast::C_BUILTIN_UINT;
-            tname = "unsigned int";
         }
         goto newtype;
     } else if (ls.t.token == TOK_struct) {
@@ -1079,35 +1076,36 @@ static ast::c_type parse_type(
 qualified:
     if (ls.t.token == TOK_NAME) {
         /* typedef, struct, enum, var, etc. */
-        tname += ls.t.value_s;
-        auto *decl = ls.lookup(tname.c_str());
+        auto *decl = ls.lookup(ls.t.value_s.c_str());
         if (!decl) {
             std::string buf;
             buf += "undeclared symbol '";
-            buf += tname;
+            buf += ls.t.value_s;
             buf += "'";
             ls.syntax_error(buf);
         }
-        ls.get();
         switch (decl->obj_type()) {
             case ast::c_object_type::TYPEDEF: {
+                ls.get();
                 ast::c_type tp{decl->as<ast::c_typedef>().type()};
                 /* merge qualifiers */
                 tp.cv(quals);
                 return parse_type_ptr(ls, std::move(tp), allow_void, fpn);
             }
             case ast::c_object_type::STRUCT: {
+                ls.get();
                 auto &tp = decl->as<ast::c_struct>();
                 return parse_type_ptr(ls, ast::c_type{&tp, quals}, true, fpn);
             }
             case ast::c_object_type::ENUM: {
+                ls.get();
                 auto &tp = decl->as<ast::c_enum>();
                 return parse_type_ptr(ls, ast::c_type{&tp, quals}, true, fpn);
             }
             default: {
                 std::string buf;
                 buf += "symbol '";
-                buf += tname;
+                buf += ls.t.value_s;
                 buf += "' is not a type";
                 ls.syntax_error(buf);
                 break;
@@ -1167,39 +1165,31 @@ qualified:
         case TOK__Bool:
             cbt = ast::C_BUILTIN_BOOL;
         btype:
-            tname = ls.t.value_s;
             ls.get();
             break;
         case TOK_char:
             if (squals & TYPE_SIGNED) {
                 cbt = ast::C_BUILTIN_SCHAR;
-                tname = "signed char";
             } else if (squals & TYPE_UNSIGNED) {
                 cbt = ast::C_BUILTIN_UCHAR;
-                tname = "unsigned char";
             } else {
                 cbt = ast::C_BUILTIN_CHAR;
-                tname = "char";
             }
             ls.get();
             break;
         case TOK_short:
             if (squals & TYPE_UNSIGNED) {
                 cbt = ast::C_BUILTIN_USHORT;
-                tname = "unsigned short";
             } else {
                 cbt = ast::C_BUILTIN_SHORT;
-                tname = "short";
             }
             ls.get();
             break;
         case TOK_int:
             if (squals & TYPE_UNSIGNED) {
                 cbt = ast::C_BUILTIN_UINT;
-                tname = "unsigned int";
             } else {
                 cbt = ast::C_BUILTIN_INT;
-                tname = "int";
             }
             ls.get();
             break;
@@ -1208,31 +1198,24 @@ qualified:
             if (ls.t.token == TOK_long) {
                 if (squals & TYPE_UNSIGNED) {
                     cbt = ast::C_BUILTIN_ULLONG;
-                    tname = "unsigned long long";
                 } else {
                     cbt = ast::C_BUILTIN_LLONG;
-                    tname = "long long";
                 }
                 ls.get();
             } else if (ls.t.token == TOK_int) {
                 if (squals & TYPE_UNSIGNED) {
                     cbt = ast::C_BUILTIN_ULONG;
-                    tname = "unsigned long";
                 } else {
                     cbt = ast::C_BUILTIN_LONG;
-                    tname = "long";
                 }
                 ls.get();
             } else if (ls.t.token == TOK_double) {
                 cbt = ast::C_BUILTIN_LDOUBLE;
-                tname = "long double";
                 ls.get();
             } else if (squals & TYPE_UNSIGNED) {
                 cbt = ast::C_BUILTIN_ULONG;
-                tname = "unsigned long";
             } else {
                 cbt = ast::C_BUILTIN_LONG;
-                tname = "long";
             }
             break;
         default:
@@ -1242,7 +1225,7 @@ qualified:
 
 newtype:
     assert(cbt != ast::C_BUILTIN_INVALID);
-    return parse_type_ptr(ls, ast::c_type{tname, cbt, quals}, allow_void, fpn);
+    return parse_type_ptr(ls, ast::c_type{cbt, quals}, allow_void, fpn);
 }
 
 /* two syntaxes allowed by C:

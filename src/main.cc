@@ -476,9 +476,9 @@ struct ffi_module {
         return 0;
     }
 
-    static ast::c_value &new_scalar(lua_State *L, int cbt, std::string name) {
+    static ast::c_value &new_scalar(lua_State *L, int cbt) {
         auto &cd = ffi::newcdata<ast::c_value>(
-            L, ast::c_type{std::move(name), cbt, 0}
+            L, ast::c_type{cbt, 0}
         );
         return cd.val;
     }
@@ -535,26 +535,22 @@ struct ffi_module {
         auto v = parser::parse_number(L, outv, str, str + lua_rawlen(L, 1));
         switch (v) {
             case ast::c_expr_type::INT:
-                new_scalar(L, ast::C_BUILTIN_INT, "int").i = outv.i;
+                new_scalar(L, ast::C_BUILTIN_INT).i = outv.i;
                 break;
             case ast::c_expr_type::UINT:
-                new_scalar(L, ast::C_BUILTIN_UINT, "unsigned int").u = outv.u;
+                new_scalar(L, ast::C_BUILTIN_UINT).u = outv.u;
                 break;
             case ast::c_expr_type::LONG:
-                new_scalar(L, ast::C_BUILTIN_LONG, "long").l = outv.l;
+                new_scalar(L, ast::C_BUILTIN_LONG).l = outv.l;
                 break;
             case ast::c_expr_type::ULONG:
-                new_scalar(
-                    L, ast::C_BUILTIN_ULONG, "unsigned long"
-                ).ul = outv.ul;
+                new_scalar(L, ast::C_BUILTIN_ULONG).ul = outv.ul;
                 break;
             case ast::c_expr_type::LLONG:
-                new_scalar(L, ast::C_BUILTIN_LLONG, "long long").ll = outv.ll;
+                new_scalar(L, ast::C_BUILTIN_LLONG).ll = outv.ll;
                 break;
             case ast::c_expr_type::ULLONG:
-                new_scalar(
-                    L, ast::C_BUILTIN_ULLONG, "unsigned long long"
-                ).ull = outv.ull;
+                new_scalar(L, ast::C_BUILTIN_ULLONG).ull = outv.ull;
                 break;
             default:
                 luaL_error(L, "NYI");
@@ -675,7 +671,7 @@ struct ffi_module {
 
         /* NULL = (void *)0 */
         ffi::newcdata<ffi::ptrval>(L, ast::c_type{
-            ast::c_type{"void", ast::C_BUILTIN_VOID, 0}, 0
+            ast::c_type{ast::C_BUILTIN_VOID, 0}, 0
         }).val.ptr = nullptr;
         lua_setfield(L, -2, "nullptr");
     }
