@@ -232,6 +232,7 @@ ffi_type *c_type::libffi_type() const {
         C_BUILTIN_CASE(VOID)
         C_BUILTIN_CASE(PTR)
         C_BUILTIN_CASE(REF)
+        C_BUILTIN_CASE(VA_LIST)
 
         case C_BUILTIN_FPTR:
         case C_BUILTIN_FUNC:
@@ -359,6 +360,9 @@ bool c_type::is_same(c_type const &other, bool ignore_cv) const {
                 return false;
             }
             return p_cptr->is_same(*other.p_cptr);
+
+        case C_BUILTIN_VA_LIST:
+            return type() == other.type();
 
         case C_BUILTIN_CHAR:
         case C_BUILTIN_SCHAR:

@@ -30,6 +30,8 @@ enum c_builtin {
     C_BUILTIN_FUNC,
     C_BUILTIN_STRUCT,
 
+    C_BUILTIN_VA_LIST,
+
     /* everything past this matches type.scalar() */
 
     C_BUILTIN_ENUM,
@@ -94,6 +96,9 @@ template<> struct builtin_traits<C_BUILTIN_PTR>:
 
 template<> struct builtin_traits<C_BUILTIN_REF>:
     detail::builtin_traits_base<char &> {};
+
+template<> struct builtin_traits<C_BUILTIN_VA_LIST>:
+    detail::builtin_traits_base<va_list> {};
 
 template<> struct builtin_traits<C_BUILTIN_CHAR>:
     detail::builtin_traits_base<char> {};
@@ -531,6 +536,7 @@ struct c_type: c_object {
             case C_BUILTIN_DOUBLE:  return "double";
             case C_BUILTIN_LDOUBLE: return "long double";
             case C_BUILTIN_BOOL:    return "bool";
+            case C_BUILTIN_VA_LIST: return "va_list";
             default: break;
         }
         return nullptr;

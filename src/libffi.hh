@@ -6,6 +6,7 @@
 #ifndef LIBFFI_HH
 #define LIBFFI_HH
 
+#include <cstdarg>
 #include <cassert>
 #include <limits>
 
@@ -54,6 +55,11 @@ template<typename T> struct ffi_traits<T *> {
 };
 
 template<typename T> struct ffi_traits<T &> {
+    static ffi_type *type() { return &ffi_type_pointer; }
+};
+
+/* XXX: how reliable is this really? */
+template<> struct ffi_traits<va_list> {
     static ffi_type *type() { return &ffi_type_pointer; }
 };
 

@@ -427,6 +427,7 @@ int to_lua(
             goto ptr_ref;
 
         ptr_ref:
+        case ast::C_BUILTIN_VA_LIST:
         case ast::C_BUILTIN_PTR:
             /* pointers should be handled like large cdata, as they need
              * to be represented as userdata objects on lua side either way
@@ -587,6 +588,7 @@ void *from_lua(
                 case ast::C_BUILTIN_REF:
                 case ast::C_BUILTIN_FPTR:
                 case ast::C_BUILTIN_STRUCT:
+                case ast::C_BUILTIN_VA_LIST:
                     luaL_error(
                         L, "cannot convert '%s' to '%s'",
                         lua_typename(L, lua_type(L, index)),

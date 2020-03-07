@@ -33,6 +33,8 @@ namespace parser {
     KW(size_t), KW(ssize_t), KW(intptr_t), KW(uintptr_t), \
     KW(ptrdiff_t), KW(time_t), \
     \
+    KW(va_list), KW(__builtin_va_list), KW(__gnuc_va_list), \
+    \
     KW(_Bool)
 
 /* primary keyword enum */
@@ -1154,6 +1156,11 @@ qualified:
             goto btype;
         case TOK_size_t:
             cbt = ast::C_BUILTIN_SIZE;
+            goto btype;
+        case TOK_va_list:
+        case TOK___builtin_va_list:
+        case TOK___gnuc_va_list:
+            cbt = ast::C_BUILTIN_VA_LIST;
             goto btype;
         case TOK_time_t:   cbt = ast::C_BUILTIN_TIME;   goto btype;
         case TOK_wchar_t:  cbt = ast::C_BUILTIN_WCHAR;  goto btype;

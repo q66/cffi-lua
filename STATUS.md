@@ -61,9 +61,9 @@ C language syntax support.
   - [x] `float`
   - [x] `double`
   - [x] `long double`
-  - [ ] `va_list`
-  - [ ] `__builtin_va_list`
-  - [ ] `__gnuc_va_list`
+  - [x] `va_list`
+  - [x] `__builtin_va_list`
+  - [x] `__gnuc_va_list`
   - [ ] `complex`
   - [ ] `_Complex`
   - [ ] `complex double`
