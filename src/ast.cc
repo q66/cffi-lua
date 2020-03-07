@@ -1,8 +1,10 @@
 #include <cassert>
+#include <cstdint>
 #include <limits>
 #include <ctime>
 #include <type_traits>
 
+#include "platform.hh"
 #include "ast.hh"
 #include "ffi.hh"
 
@@ -128,11 +130,11 @@ c_value c_expr::eval() const {
 
 void c_param::do_serialize(std::string &o) const {
     p_type.do_serialize(o);
-    if (!this->name.empty()) {
+    if (!this->p_name.empty()) {
         if (o.back() != '*') {
             o += ' ';
         }
-        o += this->name;
+        o += this->p_name;
     }
 }
 
@@ -155,11 +157,6 @@ void c_function::do_serialize_full(std::string &o, bool fptr, int cv) const {
     o += ")()";
 }
 
-c_type::c_type(c_function tp, int qual, int cbt):
-    c_object{}, p_fptr{new c_function{std::move(tp)}},
-    p_type{cbt | uint32_t(qual)}
-{}
-
 c_type::~c_type() {
     if (!owns()) {
         return;
@@ -172,7 +169,7 @@ c_type::~c_type() {
     }
 }
 
-c_type::c_type(c_type const &v): c_object{v.name}, p_type{v.p_type} {
+c_type::c_type(c_type const &v): p_name{v.p_name}, p_type{v.p_type} {
     bool weak = !owns();
     int tp = type();
     if ((tp == C_BUILTIN_FPTR) || (tp == C_BUILTIN_FUNC)) {
@@ -185,7 +182,7 @@ c_type::c_type(c_type const &v): c_object{v.name}, p_type{v.p_type} {
 }
 
 c_type::c_type(c_type &&v):
-    c_object{std::move(v.name)}, p_ptr{std::exchange(v.p_ptr, nullptr)},
+    p_name{std::move(v.p_name)}, p_ptr{std::exchange(v.p_ptr, nullptr)},
     p_type{v.p_type}
 {}
 
@@ -216,7 +213,7 @@ void c_type::do_serialize(std::string &o) const {
             p_crec->do_serialize(o);
             break;
         default:
-            o += this->name;
+            o += this->p_name;
             break;
     }
     if (tcv & C_CV_CONST) {
@@ -541,14 +538,14 @@ void c_struct::set_fields(std::vector<field> fields) {
 /* decl store implementation, with overlaying for staging */
 
 void decl_store::add(c_object *decl) {
-    if (lookup(decl->name)) {
+    if (lookup(decl->name())) {
         delete decl;
-        throw redefine_error{decl->name};
+        throw redefine_error{decl->name()};
     }
 
     p_dlist.emplace_back(decl);
     auto &d = *p_dlist.back();
-    p_dmap.emplace(d.name, &d);
+    p_dmap.emplace(d.name(), &d);
 
     /* enums: register fields as constant values
      * FIXME: don't hardcode like this
@@ -585,7 +582,7 @@ void decl_store::drop() {
     p_dlist.clear();
 }
 
-c_object const *decl_store::lookup(std::string const &name) const {
+c_object const *decl_store::lookup(char const *name) const {
     auto it = p_dmap.find(name);
     if (it != p_dmap.cend()) {
         return it->second;
@@ -596,7 +593,7 @@ c_object const *decl_store::lookup(std::string const &name) const {
     return nullptr;
 }
 
-c_object *decl_store::lookup(std::string const &name) {
+c_object *decl_store::lookup(char const *name) {
     auto it = p_dmap.find(name);
     if (it != p_dmap.end()) {
         return it->second;

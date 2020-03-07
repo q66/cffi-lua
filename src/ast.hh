@@ -401,11 +401,10 @@ private:
 };
 
 struct c_object {
-    c_object(std::string oname = std::string{}): name{std::move(oname)} {}
+    c_object() {}
     virtual ~c_object() {}
 
-    std::string name;
-
+    virtual char const *name() const = 0;
     virtual c_object_type obj_type() const = 0;
     virtual void do_serialize(std::string &o) const = 0;
 
@@ -432,19 +431,17 @@ struct c_enum;
 
 struct c_type: c_object {
     c_type(std::string tname, int cbt, int qual):
-        c_object{std::move(tname)}, p_ptr{nullptr},
+        p_name{std::move(tname)}, p_ptr{nullptr},
         p_type{uint32_t(cbt) | uint32_t(qual)}
     {}
 
     c_type(c_type tp, int qual, int cbt = C_BUILTIN_PTR):
-        c_object{}, p_ptr{new c_type{std::move(tp)}},
+        p_name{}, p_ptr{new c_type{std::move(tp)}},
         p_type{cbt | uint32_t(qual)}
     {}
 
-    c_type(c_function tp, int qual, int cbt = C_BUILTIN_FPTR);
-
     c_type(c_type const *ctp, int qual, int cbt = C_BUILTIN_PTR):
-        c_object{}, p_cptr{ctp},
+        p_name{}, p_cptr{ctp},
         p_type{cbt | C_TYPE_WEAK | uint32_t(qual)}
     {}
 
@@ -452,17 +449,17 @@ struct c_type: c_object {
         c_function const *ctp, int qual, int cbt = C_BUILTIN_FPTR,
         bool cb = false
     ):
-        c_object{}, p_cfptr{ctp},
+        p_name{}, p_cfptr{ctp},
         p_type{cbt | C_TYPE_WEAK | (cb ? C_TYPE_CLOSURE : 0) | uint32_t(qual)}
     {}
 
     c_type(c_struct const *ctp, int qual):
-        c_object{}, p_crec{ctp},
+        p_name{}, p_crec{ctp},
         p_type{C_BUILTIN_STRUCT | C_TYPE_WEAK | uint32_t(qual)}
     {}
 
     c_type(c_enum const *ctp, int qual):
-        c_object{}, p_cenum{ctp},
+        p_name{}, p_cenum{ctp},
         p_type{C_BUILTIN_ENUM | C_TYPE_WEAK | uint32_t(qual)}
     {}
 
@@ -479,6 +476,10 @@ struct c_type: c_object {
     }
 
     void do_serialize(std::string &o) const;
+
+    char const *name() const {
+        return p_name.c_str();
+    }
 
     int type() const {
         return int(p_type & 0xFF);
@@ -552,6 +553,8 @@ struct c_type: c_object {
     }
 
 private:
+    std::string p_name;
+
     /* maybe a pointer? */
     union {
         c_type *p_ptr;
@@ -571,7 +574,7 @@ private:
 
 struct c_param: c_object {
     c_param(std::string pname, c_type type):
-        c_object{std::move(pname)}, p_type{std::move(type)}
+        p_name{std::move(pname)}, p_type{std::move(type)}
     {}
 
     c_object_type obj_type() const {
@@ -579,6 +582,10 @@ struct c_param: c_object {
     }
 
     void do_serialize(std::string &o) const;
+
+    char const *name() const {
+        return p_name.c_str();
+    }
 
     c_type const &type() const {
         return p_type;
@@ -593,6 +600,7 @@ struct c_param: c_object {
     }
 
 private:
+    std::string p_name;
     c_type p_type;
 };
 
@@ -601,7 +609,7 @@ struct c_function: c_object {
         std::string fname, c_type result, std::vector<c_param> params,
         bool variadic
     ):
-        c_object{std::move(fname)}, p_result{std::move(result)},
+        p_name{std::move(fname)}, p_result{std::move(result)},
         p_params{std::move(params)}, p_variadic{variadic}
     {}
 
@@ -614,6 +622,10 @@ struct c_function: c_object {
     }
 
     void do_serialize_full(std::string &o, bool fptr, int cv) const;
+
+    char const *name() const {
+        return p_name.c_str();
+    }
 
     c_type const &result() const {
         return p_result;
@@ -638,6 +650,7 @@ struct c_function: c_object {
     }
 
 private:
+    std::string p_name;
     c_type p_result;
     std::vector<c_param> p_params;
     bool p_variadic;
@@ -645,7 +658,7 @@ private:
 
 struct c_variable: c_object {
     c_variable(std::string vname, c_type vtype):
-        c_object{std::move(vname)}, p_type{std::move(vtype)}
+        p_name{std::move(vname)}, p_type{std::move(vtype)}
     {}
 
     c_object_type obj_type() const {
@@ -654,6 +667,10 @@ struct c_variable: c_object {
 
     void do_serialize(std::string &o) const {
         p_type.do_serialize(o);
+    }
+
+    char const *name() const {
+        return p_name.c_str();
     }
 
     c_type const &type() const {
@@ -669,12 +686,13 @@ struct c_variable: c_object {
     }
 
 private:
+    std::string p_name;
     c_type p_type;
 };
 
 struct c_constant: c_object {
     c_constant(std::string cname, c_type ctype, c_value const &cval):
-        c_object{std::move(cname)}, p_type{std::move(ctype)}, p_value{cval}
+        p_name{std::move(cname)}, p_type{std::move(ctype)}, p_value{cval}
     {}
 
     c_object_type obj_type() const {
@@ -683,6 +701,10 @@ struct c_constant: c_object {
 
     void do_serialize(std::string &o) const {
         p_type.do_serialize(o);
+    }
+
+    char const *name() const {
+        return p_name.c_str();
     }
 
     c_type const &type() const {
@@ -702,13 +724,14 @@ struct c_constant: c_object {
     }
 
 private:
+    std::string p_name;
     c_type p_type;
     c_value p_value;
 };
 
 struct c_typedef: c_object {
     c_typedef(std::string aname, c_type btype):
-        c_object{std::move(aname)}, p_type{std::move(btype)}
+        p_name{std::move(aname)}, p_type{std::move(btype)}
     {}
 
     c_object_type obj_type() const {
@@ -718,6 +741,10 @@ struct c_typedef: c_object {
     void do_serialize(std::string &o) const {
         /* typedefs are resolved to their base type */
         p_type.do_serialize(o);
+    }
+
+    char const *name() const {
+        return p_name.c_str();
     }
 
     c_type const &type() const {
@@ -733,6 +760,7 @@ struct c_typedef: c_object {
     }
 
 private:
+    std::string p_name;
     c_type p_type;
 };
 
@@ -747,19 +775,23 @@ struct c_struct: c_object {
     };
 
     c_struct(std::string ename, std::vector<field> fields):
-        c_object{std::move(ename)}
+        p_name{std::move(ename)}
     {
         set_fields(std::move(fields));
     }
 
-    c_struct(std::string ename): c_object{std::move(ename)} {}
+    c_struct(std::string ename): p_name{std::move(ename)} {}
 
     c_object_type obj_type() const {
         return c_object_type::STRUCT;
     }
 
     void do_serialize(std::string &o) const {
-        o += this->name;
+        o += this->p_name;
+    }
+
+    char const *name() const {
+        return p_name.c_str();
     }
 
     /* invalid for opaque structs */
@@ -792,6 +824,7 @@ struct c_struct: c_object {
     void set_fields(std::vector<field> fields);
 
 private:
+    std::string p_name;
     std::vector<field> p_fields{};
     std::unique_ptr<ffi_type *[]> p_elements{};
     ffi_type p_ffi_type{};
@@ -808,19 +841,23 @@ struct c_enum: c_object {
     };
 
     c_enum(std::string ename, std::vector<field> fields):
-        c_object{std::move(ename)}
+        p_name{std::move(ename)}
     {
         set_fields(std::move(fields));
     }
 
-    c_enum(std::string ename): c_object{std::move(ename)} {}
+    c_enum(std::string ename): p_name{std::move(ename)} {}
 
     c_object_type obj_type() const {
         return c_object_type::ENUM;
     }
 
     void do_serialize(std::string &o) const {
-        o += this->name;
+        o += this->p_name;
+    }
+
+    char const *name() const {
+        return p_name.c_str();
     }
 
     std::vector<field> const &fields() const {
@@ -850,6 +887,7 @@ struct c_enum: c_object {
     }
 
 private:
+    std::string p_name;
     std::vector<field> p_fields{};
     bool p_opaque = true;
 };
@@ -872,8 +910,8 @@ struct decl_store {
     void commit();
     void drop();
 
-    c_object const *lookup(std::string const &name) const;
-    c_object *lookup(std::string const &name);
+    c_object const *lookup(char const *name) const;
+    c_object *lookup(char const *name);
 
     std::string request_name() const;
 
@@ -887,7 +925,9 @@ struct decl_store {
 private:
     decl_store *p_base = nullptr;
     std::vector<std::unique_ptr<c_object>> p_dlist{};
-    std::unordered_map<std::string, c_object *> p_dmap{};
+    std::unordered_map<
+        char const *, c_object *, util::str_hash, util::str_equal
+    > p_dmap{};
 };
 
 c_type from_lua_type(lua_State *L, int index);

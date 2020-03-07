@@ -82,7 +82,9 @@ struct lex_token {
     lex_token_u value{};
 };
 
-static thread_local std::unordered_map<std::string, int> keyword_map;
+static thread_local std::unordered_map<
+    char const *, int, util::str_hash, util::str_equal
+> keyword_map;
 
 static void init_kwmap() {
     if (!keyword_map.empty()) {
@@ -170,11 +172,11 @@ struct lex_state {
         p_dstore.commit();
     }
 
-    ast::c_object const *lookup(std::string const &name) const {
+    ast::c_object const *lookup(char const *name) const {
         return p_dstore.lookup(name);
     }
 
-    ast::c_object *lookup(std::string const &name) {
+    ast::c_object *lookup(char const *name) {
         return p_dstore.lookup(name);
     }
 
@@ -493,7 +495,7 @@ cont:
                     } while (isalnum(current) || (current == '_'));
                     std::string name{p_buf.begin(), p_buf.end()};
                     /* could be a keyword? */
-                    auto kwit = keyword_map.find(name);
+                    auto kwit = keyword_map.find(name.c_str());
                     tok.value_s = std::move(name);
                     if (kwit != keyword_map.end()) {
                         return TOK_NAME + kwit->second;
@@ -1078,7 +1080,7 @@ qualified:
     if (ls.t.token == TOK_NAME) {
         /* typedef, struct, enum, var, etc. */
         tname += ls.t.value_s;
-        auto *decl = ls.lookup(tname);
+        auto *decl = ls.lookup(tname.c_str());
         if (!decl) {
             std::string buf;
             buf += "undeclared symbol '";
@@ -1282,7 +1284,7 @@ static ast::c_struct const &parse_struct(lex_state &ls, bool *newst) {
 
     /* opaque */
     if (!test_next(ls, '{')) {
-        auto *oldecl = ls.lookup(sname);
+        auto *oldecl = ls.lookup(sname.c_str());
         if (!oldecl || (oldecl->obj_type() != ast::c_object_type::STRUCT)) {
             mode_error();
             /* different type or not stored yet, raise error or store */
@@ -1325,7 +1327,7 @@ static ast::c_struct const &parse_struct(lex_state &ls, bool *newst) {
 
     check_match(ls, '}', '{', linenum);
 
-    auto *oldecl = ls.lookup(sname);
+    auto *oldecl = ls.lookup(sname.c_str());
     if (oldecl && (oldecl->obj_type() == ast::c_object_type::STRUCT)) {
         auto &st = oldecl->as<ast::c_struct>();
         if (st.opaque()) {
@@ -1369,7 +1371,7 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
     };
 
     if (!test_next(ls, '{')) {
-        auto *oldecl = ls.lookup(ename);
+        auto *oldecl = ls.lookup(ename.c_str());
         if (!oldecl || (oldecl->obj_type() != ast::c_object_type::ENUM)) {
             mode_error();
             auto *p = new ast::c_enum{std::move(ename)};
@@ -1406,7 +1408,7 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
 
     check_match(ls, '}', '{', linenum);
 
-    auto *oldecl = ls.lookup(ename);
+    auto *oldecl = ls.lookup(ename.c_str());
     if (oldecl && (oldecl->obj_type() == ast::c_object_type::ENUM)) {
         auto &st = oldecl->as<ast::c_enum>();
         if (st.opaque()) {

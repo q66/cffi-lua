@@ -160,9 +160,7 @@ static void make_cdata_func(
     }
 
     if (!ffi::prepare_cif(fud, !func.variadic() ? nargs : 0)) {
-        luaL_error(
-            L, "unexpected failure setting up '%s'", func.name.c_str()
-        );
+        luaL_error(L, "unexpected failure setting up '%s'", func.name());
     }
 
     if (!funp) {
@@ -256,10 +254,7 @@ int call_cif(cdata<fdata> &fud, lua_State *L, size_t largs) {
         --fargs;
         targs = std::max(largs, fargs);
         if (!prepare_cif_var(L, fud, targs, fargs)) {
-            luaL_error(
-                L, "unexpected failure setting up '%s'",
-                func.name.c_str()
-            );
+            luaL_error(L, "unexpected failure setting up '%s'", func.name());
         }
         rval = &pvals[0];
         auto *auxp = get_auxptr(fud);
@@ -753,13 +748,11 @@ void set_global(lua_State *L, lib::handle dl, char const *sname, int idx) {
     auto &ds = ast::decl_store::get_main(L);
     auto const *decl = ds.lookup(sname);
     if (!decl) {
-        luaL_error(
-            L, "missing declaration for symbol '%s'", decl->name.c_str()
-        );
+        luaL_error(L, "missing declaration for symbol '%s'", decl->name());
         return;
     }
     if (decl->obj_type() != ast::c_object_type::VARIABLE) {
-        luaL_error(L, "symbol '%s' is not mutable", decl->name.c_str());
+        luaL_error(L, "symbol '%s' is not mutable", decl->name());
     }
 
     void *symp = lib::get_var(dl, sname);
