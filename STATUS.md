@@ -78,7 +78,7 @@ C language syntax support.
 - [x] C++ references (`T &`) (C++ extension)
 - [x] Name lookups
 - [x] `struct foo`, `enum foo`
-- [ ] `struct`/`union` inside types
+- [x] `struct`/`union` inside types
 - [ ] Arrays
 - [ ] Variable length arrays and structs (C99)
 - [ ] `alignas`, `_Alignas`
@@ -195,7 +195,7 @@ The APIs the FFI should provide.
 
 - [x] `cffi.sizeof`
 - [x] `cffi.alignof`
-- [ ] `cffi.offsetof`
+- [x] `cffi.offsetof` (besides bitfields)
 - [x] `cffi.istype` (type checking interface)
 
 ### Utilities

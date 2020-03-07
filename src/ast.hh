@@ -869,7 +869,7 @@ struct c_struct: c_object {
 
     bool is_same(c_struct const &other) const;
 
-    ptrdiff_t field_offset(std::string const &fname, c_type const *&fld) const;
+    ptrdiff_t field_offset(char const *fname, c_type const *&fld) const;
 
     bool opaque() const {
         return !p_elements;

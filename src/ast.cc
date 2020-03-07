@@ -478,9 +478,7 @@ bool c_struct::is_same(c_struct const &other) const {
     return true;
 }
 
-ptrdiff_t c_struct::field_offset(
-    std::string const &fname, c_type const *&fld
-) const {
+ptrdiff_t c_struct::field_offset(char const *fname, c_type const *&fld) const {
     ptrdiff_t base = 0;
     for (size_t i = 0; i < p_fields.size(); ++i) {
         auto *tp = p_elements[i];

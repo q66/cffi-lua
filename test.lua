@@ -197,6 +197,7 @@ print("x: " .. x.x)
 print("y: " .. x.y)
 print("z: " .. x.z)
 print("w: " .. ffi.string(x.w))
+print("offset of z: " .. ffi.offsetof("struct foo", "z"))
 print()
 
 print("## END TESTS ##")

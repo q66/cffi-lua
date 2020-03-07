@@ -363,6 +363,25 @@ struct ffi_module {
         return 1;
     }
 
+    static int offsetof_f(lua_State *L) {
+        auto &ct = check_ct(L, 1);
+        char const *fname = luaL_checkstring(L, 2);
+        if (ct.type() != ast::C_BUILTIN_STRUCT) {
+            return 0;
+        }
+        auto &cs = ct.record();
+        if (cs.opaque()) {
+            return 0;
+        }
+        ast::c_type const *tp;
+        auto off = cs.field_offset(fname, tp);
+        if (off >= 0) {
+            lua_pushinteger(L, lua_Integer(off));
+            return 1;
+        }
+        return 0;
+    }
+
     static int istype_f(lua_State *L) {
         auto &ct = check_ct(L, 1);
         if (!ffi::iscdata(L, 2)) {
@@ -639,6 +658,7 @@ struct ffi_module {
             /* type info */
             {"sizeof", sizeof_f},
             {"alignof", alignof_f},
+            {"offsetof", offsetof_f},
             {"istype", istype_f},
 
             /* utilities */
