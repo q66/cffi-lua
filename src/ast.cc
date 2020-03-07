@@ -622,9 +622,13 @@ c_type from_lua_type(lua_State *L, int index) {
         case LUA_TNIL:
             return c_type{c_type{C_BUILTIN_VOID, 0}, 0};
         case LUA_TBOOLEAN:
-            return c_type{C_BUILTIN_DOUBLE, 0};
+            return c_type{C_BUILTIN_BOOL, 0};
         case LUA_TNUMBER:
-            return c_type{C_BUILTIN_DOUBLE, 0};
+            static_assert(
+                builtin_v<lua_Number> != C_BUILTIN_INVALID,
+                "invalid lua_Number definition"
+            );
+            return c_type{builtin_v<lua_Number>, 0};
         case LUA_TSTRING:
             return c_type{c_type{C_BUILTIN_CHAR, C_CV_CONST}, 0};
         case LUA_TTABLE:

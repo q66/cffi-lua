@@ -193,6 +193,29 @@ template<> struct builtin_traits<C_BUILTIN_BOOL>:
 
 template<c_builtin t> using builtin_t = typename builtin_traits<t>::type;
 
+template<typename> constexpr c_builtin builtin_v = C_BUILTIN_INVALID;
+template<> constexpr c_builtin builtin_v<void> = C_BUILTIN_VOID;
+template<> constexpr c_builtin builtin_v<bool> = C_BUILTIN_BOOL;
+template<> constexpr c_builtin builtin_v<char> = C_BUILTIN_CHAR;
+template<> constexpr c_builtin builtin_v<signed char> = C_BUILTIN_SCHAR;
+template<> constexpr c_builtin builtin_v<unsigned char> = C_BUILTIN_UCHAR;
+template<> constexpr c_builtin builtin_v<wchar_t> = C_BUILTIN_WCHAR;
+template<> constexpr c_builtin builtin_v<char16_t> = C_BUILTIN_CHAR16;
+template<> constexpr c_builtin builtin_v<char32_t> = C_BUILTIN_CHAR32;
+template<> constexpr c_builtin builtin_v<short> = C_BUILTIN_SHORT;
+template<> constexpr c_builtin builtin_v<unsigned short> = C_BUILTIN_USHORT;
+template<> constexpr c_builtin builtin_v<int> = C_BUILTIN_INT;
+template<> constexpr c_builtin builtin_v<unsigned int> = C_BUILTIN_UINT;
+template<> constexpr c_builtin builtin_v<long> = C_BUILTIN_LONG;
+template<> constexpr c_builtin builtin_v<unsigned long> = C_BUILTIN_ULONG;
+template<> constexpr c_builtin builtin_v<long long> = C_BUILTIN_LLONG;
+template<> constexpr c_builtin builtin_v<unsigned long long> = C_BUILTIN_ULLONG;
+template<> constexpr c_builtin builtin_v<float> = C_BUILTIN_FLOAT;
+template<> constexpr c_builtin builtin_v<double> = C_BUILTIN_DOUBLE;
+template<> constexpr c_builtin builtin_v<long double> = C_BUILTIN_LDOUBLE;
+template<typename T> constexpr c_builtin builtin_v<T *> = C_BUILTIN_PTR;
+template<typename T> constexpr c_builtin builtin_v<T &> = C_BUILTIN_REF;
+
 template<c_builtin t>
 inline ffi_type *builtin_ffi_type() {
     return builtin_traits<t>::libffi_type();

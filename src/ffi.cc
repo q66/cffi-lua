@@ -12,7 +12,7 @@ ffi_type *from_lua_type(lua_State *L, int index) {
         case LUA_TBOOLEAN:
             return &ffi_type_uchar;
         case LUA_TNUMBER:
-            return &ffi_type_double;
+            return ffi_traits<lua_Number>::type();
         case LUA_TNIL:
         case LUA_TSTRING:
         case LUA_TTABLE:
