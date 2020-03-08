@@ -49,9 +49,6 @@ struct cdata {
         }
         return &val;
     }
-
-    /* only applies to variadics */
-    void *&auxptr();
 };
 
 /* careful with this; use only if you're sure you have cdata at the index
@@ -61,7 +58,7 @@ static inline size_t cdata_value_size(lua_State *L, int idx) {
     using T = struct {
         alignas(ast::c_type) char tpad[sizeof(ast::c_type)];
         int pad1, pad2;
-        std::max_align_t val;
+        arg_stor_t val;
     };
     return lua_rawlen(L, idx) - offsetof(T, val);
 }
