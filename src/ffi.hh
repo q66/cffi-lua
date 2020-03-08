@@ -73,10 +73,13 @@ struct ctype {
 };
 
 struct closure_data {
+    ffi_cif cif; /* closure data needs its own cif */
     ffi_closure *closure = nullptr;
     lua_State *L = nullptr;
     int fref = LUA_REFNIL;
     std::list<closure_data **> refs{};
+    ffi_type *targs[];
+
     ~closure_data() {
         if (!closure) {
             return;

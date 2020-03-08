@@ -95,16 +95,16 @@ static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
     auto &fud = *static_cast<ffi::cdata<ffi::fdata> *>(data);
     auto &fun = fud.decl.function();
     auto &pars = fun.params();
-    size_t nargs = pars.size();
+    size_t fargs = pars.size();
 
     closure_data &cd = *fud.val.cd;
     lua_rawgeti(cd.L, LUA_REGISTRYINDEX, cd.fref);
-    for (size_t i = 0; i < nargs; ++i) {
+    for (size_t i = 0; i < fargs; ++i) {
         to_lua(cd.L, pars[i].type(), args[i], RULE_PASS);
     }
 
     if (fun.result().type() != ast::C_BUILTIN_VOID) {
-        lua_call(cd.L, nargs, 1);
+        lua_call(cd.L, fargs, 1);
         arg_stor_t stor;
         size_t rsz;
         void *rp = from_lua(
@@ -113,7 +113,7 @@ static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
         memcpy(ret, rp, rsz);
         lua_pop(cd.L, 1);
     } else {
-        lua_call(cd.L, nargs, 0);
+        lua_call(cd.L, fargs, 0);
     }
 }
 
@@ -121,16 +121,14 @@ static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
  * for variadics, this is initialized once for zero args, and then handled
  * dynamically before every call
  */
-static bool prepare_cif(cdata<fdata> &fud, size_t nargs) {
-    auto &func = fud.decl.function();
-
-    ffi_type **targs = fargs_types(fud.val.args, nargs);
+static bool prepare_cif(
+    ast::c_function const &func, ffi_cif &cif, ffi_type **targs, size_t nargs
+) {
     for (size_t i = 0; i < nargs; ++i) {
         targs[i] = func.params()[i].libffi_type();
     }
-
     return (ffi_prep_cif(
-        &fud.val.cif, FFI_DEFAULT_ABI, nargs,
+        &cif, FFI_DEFAULT_ABI, nargs,
         func.result().libffi_type(), targs
     ) == FFI_OK);
 }
@@ -181,9 +179,15 @@ static void make_cdata_func(
 
     if (func.variadic()) {
         fdata_get_aux(fud.val) = nullptr;
+        if (!funp) {
+            luaL_error(L, "variadic callbacks are not supported");
+        }
+        nargs = 0;
     }
 
-    if (!ffi::prepare_cif(fud, !func.variadic() ? nargs : 0)) {
+    if (!prepare_cif(
+        func, fud.val.cif, fargs_types(fud.val.args, nargs), nargs
+    )) {
         luaL_error(L, "unexpected failure setting up '%s'", func.name());
     }
 
@@ -195,7 +199,10 @@ static void make_cdata_func(
             fud.val.cd = cd;
             return;
         }
-        cd = new closure_data{};
+        cd = reinterpret_cast<closure_data *>(new unsigned char[
+            sizeof(closure_data) + nargs * sizeof(ffi_type *)
+        ]);
+        new (cd) closure_data{};
         /* allocate a closure in it */
         cd->closure = static_cast<ffi_closure *>(ffi_closure_alloc(
             sizeof(ffi_closure), reinterpret_cast<void **>(&fud.val.sym)
@@ -207,13 +214,10 @@ static void make_cdata_func(
                 func.serialize().c_str()
             );
         }
-        /* XXX: we're using the cif here, but the cif may be reinitialized
-         * for varargs; it doesn't seem like the closure code is using any
-         * of the stuff that changes for varargs, and only reads the ABI
-         * during this call (which is fine) in general, so it should be
-         * fine, if it's not we'd have to reinitialize the closures
-         * every time and that'd be a pain in the ass
-         */
+        if (!prepare_cif(fud.decl.function(), cd->cif, cd->targs, nargs)) {
+            delete cd;
+            luaL_error(L, "unexpected failure setting up '%s'", func.name());
+        }
         if (ffi_prep_closure_loc(
             cd->closure, &fud.val.cif, cb_bind, &fud,
             reinterpret_cast<void *>(fud.val.sym)
