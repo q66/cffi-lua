@@ -2,6 +2,7 @@
 #define FFI_HH
 
 #include <cstddef>
+#include <type_traits>
 #include <list>
 
 #include "libffi.hh"
@@ -34,7 +35,6 @@ struct cdata {
     ast::c_type decl;
     int gc_ref;
     int aux; /* auxiliary data that can be used by different cdata */
-    size_t val_sz;
     alignas(arg_stor_t) T val;
 
     void *get_addr() {
@@ -53,6 +53,18 @@ struct cdata {
     /* only applies to variadics */
     void *&auxptr();
 };
+
+/* careful with this; use only if you're sure you have cdata at the index
+ * as otherwise it will underflow size_t and get you a ridiculous value
+ */
+static inline size_t cdata_value_size(lua_State *L, int idx) {
+    using T = struct {
+        alignas(ast::c_type) char tpad[sizeof(ast::c_type)];
+        int pad1, pad2;
+        std::max_align_t val;
+    };
+    return lua_rawlen(L, idx) - offsetof(T, val);
+}
 
 struct ctype {
     ast::c_type decl;
@@ -92,7 +104,6 @@ static inline cdata<T> &newcdata(
     lua_State *L, ast::c_type &&tp, size_t extra = 0
 ) {
     auto *cd = lua::newuserdata<cdata<T>>(L, extra);
-    cd->val_sz = sizeof(T) + extra;
     new (&cd->decl) ast::c_type{std::move(tp)};
     cd->gc_ref = LUA_REFNIL;
     cd->aux = 0;

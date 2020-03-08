@@ -654,7 +654,7 @@ void *from_lua(
                         return &(*static_cast<void **>(stor) = &cd.val);
                     }
                 }
-                dsz = cd.val_sz;
+                dsz = ffi::cdata_value_size(L, index);
                 return &cd.val;
             } else if (tp.type() == ast::C_BUILTIN_PTR) {
                 /* unqualified void pointer converts to any pointer in C */
