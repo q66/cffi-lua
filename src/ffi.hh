@@ -12,6 +12,8 @@
 
 namespace ffi {
 
+struct noval {};
+
 template<typename T>
 struct cdata {
     ast::c_type decl;
@@ -85,10 +87,10 @@ static inline cdata<T> &newcdata(
     return newcdata<T>(L, ast::c_type{tp}, extra);
 }
 
-static inline cdata<char> &newcdata(
+static inline cdata<ffi::noval> &newcdata(
     lua_State *L, ast::c_type const &tp, size_t vals
 ) {
-    return newcdata<char>(L, tp, vals - sizeof(char));
+    return newcdata<ffi::noval>(L, tp, vals - sizeof(ffi::noval));
 }
 
 template<typename ...A>
@@ -146,7 +148,7 @@ static inline cdata<T> &tocdata(lua_State *L, int idx) {
     return *lua::touserdata<ffi::cdata<T>>(L, idx);
 }
 
-void destroy_cdata(lua_State *L, cdata<char> &cd);
+void destroy_cdata(lua_State *L, cdata<ffi::noval> &cd);
 
 int call_cif(cdata<fdata> &fud, lua_State *L, size_t largs);
 
@@ -163,7 +165,7 @@ enum conv_rule {
  * `lossy` implies that numbers will always be converted to a lua number
  */
 int to_lua(
-    lua_State *L, ast::c_type const &tp, void *value, int rule,
+    lua_State *L, ast::c_type const &tp, void const *value, int rule,
     bool lossy = false
 );
 

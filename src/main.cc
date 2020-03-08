@@ -72,7 +72,7 @@ struct lib_meta {
  */
 struct cdata_meta {
     static int gc(lua_State *L) {
-        ffi::destroy_cdata(L, ffi::tocdata<char>(L, 1));
+        ffi::destroy_cdata(L, ffi::tocdata<ffi::noval>(L, 1));
         return 0;
     }
 
@@ -130,7 +130,7 @@ struct cdata_meta {
 
     template<typename F>
     static void index_common(lua_State *L, F &&func) {
-        auto &cd = ffi::tocdata<ast::c_value>(L, 1);
+        auto &cd = ffi::tocdata<void *>(L, 1);
         if (ffi::isctype(cd)) {
             luaL_error(L, "'ctype' is not indexable");
         }
@@ -140,7 +140,7 @@ struct cdata_meta {
                 break;
             case ast::C_BUILTIN_REF: {
                 /* no need to deal with the type size nonsense */
-                func(cd.decl.ptr_base(), cd.val.ptr);
+                func(cd.decl.ptr_base(), cd.val);
                 return;
             }
             case ast::C_BUILTIN_STRUCT: {
@@ -153,9 +153,7 @@ struct cdata_meta {
                         cd.decl.serialize().c_str(), fname
                     );
                 }
-                func(*outf, &reinterpret_cast<unsigned char *>(
-                    &cd.val
-                )[foff]);
+                func(*outf, &reinterpret_cast<unsigned char *>(&cd.val)[foff]);
                 return;
             }
             default: {
@@ -165,7 +163,7 @@ struct cdata_meta {
             }
         }
         auto sidx = luaL_checkinteger(L, 2);
-        auto *ptr = reinterpret_cast<unsigned char *>(cd.val.ptr);
+        auto *ptr = static_cast<unsigned char *>(cd.val);
         auto *type = cd.decl.ptr_base().libffi_type();
         func(cd.decl.ptr_base(), static_cast<void *>(&ptr[sidx * type->size]));
     }
@@ -196,7 +194,7 @@ struct cdata_meta {
     }
 
     static int index(lua_State *L) {
-        auto &cd = ffi::tocdata<ast::c_value>(L, 1);
+        auto &cd = ffi::tocdata<ffi::noval>(L, 1);
         if (cd.decl.closure()) {
             /* callbacks have some methods */
             char const *mname = lua_tostring(L, 2);
@@ -269,7 +267,7 @@ struct ffi_module {
     /* either gets a ctype or makes a ctype from a string */
     static ast::c_type const &check_ct(lua_State *L, int idx) {
         if (ffi::iscval(L, idx)) {
-            auto &cd = ffi::tocdata<char>(L, idx);
+            auto &cd = ffi::tocdata<ffi::noval>(L, idx);
             if (ffi::isctype(cd)) {
                 return cd.decl;
             }
@@ -323,7 +321,7 @@ struct ffi_module {
     }
 
     static int ref_f(lua_State *L) {
-        auto &cd = ffi::checkcdata<char>(L, 1);
+        auto &cd = ffi::checkcdata<ffi::noval>(L, 1);
         if (cd.decl.type() == ast::C_BUILTIN_REF) {
             /* just return itself */
             lua_pushvalue(L, 1);
@@ -336,7 +334,7 @@ struct ffi_module {
     }
 
     static int gc_f(lua_State *L) {
-        auto &cd = ffi::checkcdata<ast::c_value>(L, 1);
+        auto &cd = ffi::checkcdata<ffi::noval>(L, 1);
         if (lua_isnil(L, 2)) {
             /* if nil and there is an existing finalizer, unset */
             if (cd.gc_ref != LUA_REFNIL) {
@@ -389,7 +387,7 @@ struct ffi_module {
             lua_pushboolean(L, false);
             return 1;
         }
-        auto &cd = ffi::tocdata<ast::c_value>(L, 2);
+        auto &cd = ffi::tocdata<ffi::noval>(L, 2);
         if (ct.type() == ast::C_BUILTIN_STRUCT) {
             /* if ct is a struct, accept pointers/refs to the struct */
             /* TODO: also applies to union */
@@ -421,17 +419,17 @@ struct ffi_module {
             luaL_argcheck(L, false, 1, lua_tostring(L, -1));
         }
         /* FIXME: check argument type conversions */
-        auto &ud = ffi::tocdata<ast::c_value>(L, 1);
+        auto &ud = ffi::tocdata<void *>(L, 1);
         if (ffi::isctype(ud)) {
             luaL_argcheck(
                 L, false, 1, "cannot convert 'ctype' to 'char const *'"
             );
         }
         if (lua_gettop(L) <= 1) {
-            lua_pushstring(L, static_cast<char const *>(ud.val.ptr));
+            lua_pushstring(L, static_cast<char const *>(ud.val));
         } else {
             lua_pushlstring(
-                L, static_cast<char const *>(ud.val.ptr),
+                L, static_cast<char const *>(ud.val),
                 size_t(luaL_checkinteger(L, 2))
             );
         }
@@ -441,7 +439,7 @@ struct ffi_module {
     /* FIXME: type conversions (constness etc.) */
     static void *check_voidptr(lua_State *L, int idx) {
         if (ffi::iscval(L, idx)) {
-            auto &cd = ffi::tocdata<ast::c_value>(L, idx);
+            auto &cd = ffi::tocdata<void *>(L, idx);
             if (ffi::isctype(cd)) {
                 luaL_argcheck(
                     L, false, idx, "cannot convert 'ctype' to 'void *'"
@@ -455,7 +453,7 @@ struct ffi_module {
                 );
                 luaL_argcheck(L, false, idx, lua_tostring(L, -1));
             }
-            return cd.val.ptr;
+            return cd.val;
         } else if (lua_isuserdata(L, idx)) {
             return lua_touserdata(L, idx);
         }
@@ -504,7 +502,7 @@ struct ffi_module {
     }
 
     static int tonumber_f(lua_State *L) {
-        auto *cd = ffi::testcdata<ast::c_value>(L, 1);
+        auto *cd = ffi::testcdata<void *>(L, 1);
         if (cd) {
             ast::c_type const *tp = &cd->decl;
             void *val = &cd->val;
@@ -512,7 +510,7 @@ struct ffi_module {
             if (btp == ast::C_BUILTIN_REF) {
                 tp = &cd->decl.ptr_base();
                 btp = tp->type();
-                val = cd->val.ptr;
+                val = cd->val;
             }
             if (tp->scalar()) {
                 ffi::to_lua(L, *tp, val, ffi::RULE_CONV, true);
@@ -543,7 +541,7 @@ struct ffi_module {
     }
 
     static int toretval_f(lua_State *L) {
-        auto &cd = ffi::checkcdata<ast::c_value>(L, 1);
+        auto &cd = ffi::checkcdata<void *>(L, 1);
         ffi::to_lua(L, cd.decl, &cd.val, ffi::RULE_RET);
         return 1;
     }

@@ -21,7 +21,7 @@ ffi_type *from_lua_type(lua_State *L, int index) {
         case LUA_TLIGHTUSERDATA:
             return &ffi_type_pointer;
         case LUA_TUSERDATA: {
-            auto *cd = ffi::testcdata<char>(L, index);
+            auto *cd = ffi::testcdata<ffi::noval>(L, index);
             if (!cd) {
                 return &ffi_type_pointer;
             }
@@ -38,7 +38,7 @@ static ast::c_value *&get_auxptr(cdata<fdata> &fud) {
     return *reinterpret_cast<ast::c_value **>(&fud.val.args[1]);
 }
 
-void destroy_cdata(lua_State *L, cdata<char> &cd) {
+void destroy_cdata(lua_State *L, cdata<ffi::noval> &cd) {
     auto &fd = *reinterpret_cast<cdata<fdata> *>(&cd.decl);
     if (cd.gc_ref >= 0) {
         lua_rawgeti(L, LUA_REGISTRYINDEX, cd.gc_ref); /* the finalizer */
@@ -82,7 +82,7 @@ static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
     lua_call(cd.L, nargs, 1);
 
     if (fun.result().type() != ast::C_BUILTIN_VOID) {
-        ast::c_value stor;
+        std::max_align_t stor;
         size_t rsz;
         void *rp = from_lua(
             cd.L, fun.result(), &stor, -1, rsz, RULE_RET
@@ -303,7 +303,7 @@ int call_cif(cdata<fdata> &fud, lua_State *L, size_t largs) {
 
 template<typename T>
 static inline int push_int(
-    lua_State *L, ast::c_type const &tp, void *value, bool lossy
+    lua_State *L, ast::c_type const &tp, void const *value, bool lossy
 ) {
     /* assumes radix-2 floats... */
     if ((
@@ -322,7 +322,7 @@ static inline int push_int(
 
 template<typename T>
 static inline int push_flt(
-    lua_State *L, ast::c_type const &tp, void *value, bool lossy
+    lua_State *L, ast::c_type const &tp, void const *value, bool lossy
 ) {
     /* probably not the best check */
     if ((
@@ -339,7 +339,8 @@ static inline int push_flt(
 }
 
 int to_lua(
-    lua_State *L, ast::c_type const &tp, void *value, int rule, bool lossy
+    lua_State *L, ast::c_type const &tp, void const *value,
+    int rule, bool lossy
 ) {
     switch (ast::c_builtin(tp.type())) {
         /* no retval */
@@ -347,7 +348,7 @@ int to_lua(
             return 0;
         /* convert to lua boolean */
         case ast::C_BUILTIN_BOOL:
-            lua_pushboolean(L, *static_cast<bool *>(value));
+            lua_pushboolean(L, *static_cast<bool const *>(value));
             return 1;
         /* convert to lua number */
         case ast::C_BUILTIN_FLOAT:
@@ -420,7 +421,7 @@ int to_lua(
             if (rule == RULE_CONV) {
                 /* for this rule, dereference and pass that */
                 return to_lua(
-                    L, tp.ptr_base(), *reinterpret_cast<void **>(value),
+                    L, tp.ptr_base(), *reinterpret_cast<void * const *>(value),
                     RULE_CONV, lossy
                 );
             }
@@ -432,12 +433,13 @@ int to_lua(
             /* pointers should be handled like large cdata, as they need
              * to be represented as userdata objects on lua side either way
              */
-            newcdata<void *>(L, tp).val = *reinterpret_cast<void **>(value);
+            newcdata<void *>(L, tp).val =
+                *reinterpret_cast<void * const *>(value);
             return 1;
 
         case ast::C_BUILTIN_FPTR:
             make_cdata_func(
-                L, reinterpret_cast<ast::c_value *>(value)->fptr,
+                L, *reinterpret_cast<void (* const *)()>(value),
                 tp.function(), ast::C_BUILTIN_FPTR, nullptr
             );
             return 1;
@@ -623,7 +625,7 @@ void *from_lua(
         case LUA_TUSERDATA:
             if (iscdata(L, index)) {
                 /* special handling for cdata */
-                auto &cd = *lua::touserdata<ffi::cdata<ast::c_value>>(L, index);
+                auto &cd = *lua::touserdata<ffi::cdata<void *>>(L, index);
                 if (!cd.decl.converts_to(tp)) {
                     luaL_error(
                         L, "cannot convert '%s' to '%s'",
@@ -731,10 +733,7 @@ void get_global(lua_State *L, lib::handle dl, const char *sname) {
         }
         case ast::c_object_type::CONSTANT: {
             auto &cd = decl->as<ast::c_constant>();
-            to_lua(
-                L, cd.type(), const_cast<ast::c_value *>(&cd.value()),
-                RULE_CONV
-            );
+            to_lua(L, cd.type(), &cd.value(), RULE_CONV);
             return;
         }
         default:
