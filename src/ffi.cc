@@ -89,6 +89,11 @@ void destroy_cdata(lua_State *L, cdata<ffi::noval> &cd) {
     cd.decl.~T();
 }
 
+void destroy_closure(closure_data *cd) {
+    cd->~closure_data();
+    delete[] reinterpret_cast<unsigned char *>(cd);
+}
+
 using signed_size_t = typename std::make_signed<size_t>::type;
 
 static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
@@ -208,21 +213,21 @@ static void make_cdata_func(
             sizeof(ffi_closure), reinterpret_cast<void **>(&fud.val.sym)
         ));
         if (!cd->closure) {
-            delete cd;
+            destroy_closure(cd);
             luaL_error(
                 L, "failed allocating callback for '%s'",
                 func.serialize().c_str()
             );
         }
         if (!prepare_cif(fud.decl.function(), cd->cif, cd->targs, nargs)) {
-            delete cd;
+            destroy_closure(cd);
             luaL_error(L, "unexpected failure setting up '%s'", func.name());
         }
         if (ffi_prep_closure_loc(
             cd->closure, &fud.val.cif, cb_bind, &fud,
             reinterpret_cast<void *>(fud.val.sym)
         ) != FFI_OK) {
-            delete cd;
+            destroy_closure(cd);
             luaL_error(
                 L, "failed initializing closure for '%s'",
                 func.serialize().c_str()

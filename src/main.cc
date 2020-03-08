@@ -178,7 +178,7 @@ struct cdata_meta {
         if (!cd.val.cd) {
             luaL_error(L, "bad callback");
         }
-        delete cd.val.cd;
+        ffi::destroy_closure(cd.val.cd);
         return 0;
     }
 
