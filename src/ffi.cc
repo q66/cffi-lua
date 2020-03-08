@@ -102,15 +102,18 @@ static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
     for (size_t i = 0; i < nargs; ++i) {
         to_lua(cd.L, pars[i].type(), args[i], RULE_PASS);
     }
-    lua_call(cd.L, nargs, 1);
 
     if (fun.result().type() != ast::C_BUILTIN_VOID) {
+        lua_call(cd.L, nargs, 1);
         arg_stor_t stor;
         size_t rsz;
         void *rp = from_lua(
             cd.L, fun.result(), &stor, -1, rsz, RULE_RET
         );
         memcpy(ret, rp, rsz);
+        lua_pop(cd.L, 1);
+    } else {
+        lua_call(cd.L, nargs, 0);
     }
 }
 

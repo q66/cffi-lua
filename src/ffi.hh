@@ -55,6 +55,10 @@ struct cdata {
  * as otherwise it will underflow size_t and get you a ridiculous value
  */
 static inline size_t cdata_value_size(lua_State *L, int idx) {
+    /* can't use cdata directly for the offset, as it's not considered
+     * a standard layout type because of ast::c_type, but we don't care
+     * about that, we just want to know which offset val is at
+     */
     using T = struct {
         alignas(ast::c_type) char tpad[sizeof(ast::c_type)];
         int pad1, pad2;
