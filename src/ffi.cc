@@ -35,7 +35,7 @@ ffi_type *from_lua_type(lua_State *L, int index) {
 }
 
 static ast::c_value *&get_auxptr(cdata<fdata> &fud) {
-    return *reinterpret_cast<ast::c_value **>(&fud.val.args[1]);
+    return *reinterpret_cast<ast::c_value **>(fud.val.args);
 }
 
 void destroy_cdata(lua_State *L, cdata<ffi::noval> &cd) {
@@ -98,7 +98,7 @@ static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
 static bool prepare_cif(cdata<fdata> &fud, size_t nargs) {
     auto &func = fud.decl.function();
 
-    ffi_type **targs = reinterpret_cast<ffi_type **>(&fud.val.args[nargs + 1]);
+    ffi_type **targs = reinterpret_cast<ffi_type **>(&fud.val.args[nargs]);
     for (size_t i = 0; i < nargs; ++i) {
         targs[i] = func.params()[i].libffi_type();
     }
@@ -126,7 +126,6 @@ static void make_cdata_func(
      *         ast::c_value val1; // lua arg1
      *         ast::c_value val2; // lua arg2
      *         ast::c_value valN; // lua argN
-     *         ast::c_value valR; // lua ret
      *         ffi_type *arg1; // type
      *         ffi_type *arg2; // type
      *         ffi_type *argN; // type
@@ -142,15 +141,14 @@ static void make_cdata_func(
      *     <cdata header>
      *     struct fdata {
      *         <fdata header>
-     *         ast::c_value valR; // lua ret
      *         void *aux; // vals + types + args like above, but dynamic
      *     } val;
      * }
      */
     auto &fud = newcdata<fdata>(
         L, ast::c_type{&func, 0, cbt, funp == nullptr},
-        func.variadic() ? (sizeof(ast::c_value) + sizeof(void *)) : (
-            sizeof(ast::c_value[1 + nargs]) + sizeof(void *[2 * nargs])
+        func.variadic() ? sizeof(void *) : (
+            sizeof(ast::c_value[nargs]) + sizeof(void *[2 * nargs])
         )
     );
     fud.val.sym = funp;
@@ -248,7 +246,7 @@ int call_cif(cdata<fdata> &fud, lua_State *L, size_t largs) {
 
     ast::c_value *pvals = fud.val.args;
     void **vals;
-    void *rval;
+    void *rval = &fud.val.rarg;
 
     if (func.variadic()) {
         --fargs;
@@ -256,13 +254,11 @@ int call_cif(cdata<fdata> &fud, lua_State *L, size_t largs) {
         if (!prepare_cif_var(L, fud, targs, fargs)) {
             luaL_error(L, "unexpected failure setting up '%s'", func.name());
         }
-        rval = &pvals[0];
         auto *auxp = get_auxptr(fud);
         pvals = auxp;
         vals = &reinterpret_cast<void **>(&auxp[targs])[targs];
     } else {
-        rval = &pvals[nargs];
-        vals = &reinterpret_cast<void **>(&pvals[nargs + 1])[nargs];
+        vals = &reinterpret_cast<void **>(&pvals[nargs])[nargs];
     }
 
     /* fixed args */

@@ -64,6 +64,7 @@ struct fdata {
     void (*sym)();
     closure_data *cd; /* only for callbacks, otherwise nullptr */
     ffi_cif cif;
+    ast::c_value rarg;
     ast::c_value args[];
 };
 
