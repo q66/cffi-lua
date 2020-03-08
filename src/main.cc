@@ -77,16 +77,16 @@ struct cdata_meta {
     }
 
     static int tostring(lua_State *L) {
-        auto &cd = ffi::tocdata<ast::c_value>(L, 1);
+        auto &cd = ffi::tocdata<ffi::arg_stor_t>(L, 1);
         if (ffi::isctype(cd)) {
             lua_pushfstring(L, "ctype<%s>", cd.decl.serialize().c_str());
             return 1;
         }
         auto const *tp = &cd.decl;
-        ast::c_value const *val = &cd.val;
+        ffi::arg_stor_t const *val = &cd.val;
         if (tp->type() == ast::C_BUILTIN_REF) {
             tp = &tp->ptr_base();
-            val = static_cast<ast::c_value const *>(cd.val.ptr);
+            val = cd.val.as<ffi::arg_stor_t const *>();
         }
         /* 64-bit integers */
         /* XXX: special printing for lua builds with non-double numbers? */
@@ -94,9 +94,13 @@ struct cdata_meta {
             char buf[32];
             int written;
             if (tp->is_unsigned()) {
-                written = snprintf(buf, sizeof(buf), "%lluULL", val->ull);
+                written = snprintf(
+                    buf, sizeof(buf), "%lluULL", val->as<unsigned long long>()
+                );
             } else {
-                written = snprintf(buf, sizeof(buf), "%lldLL", val->ll);
+                written = snprintf(
+                    buf, sizeof(buf), "%lldLL", val->as<long long>()
+                );
             }
             lua_pushlstring(L, buf, written);
             return 1;
@@ -494,8 +498,8 @@ struct ffi_module {
         return 0;
     }
 
-    static ast::c_value &new_scalar(lua_State *L, int cbt) {
-        auto &cd = ffi::newcdata<ast::c_value>(
+    static ffi::arg_stor_t &new_scalar(lua_State *L, int cbt) {
+        auto &cd = ffi::newcdata<ffi::arg_stor_t>(
             L, ast::c_type{cbt, 0}
         );
         return cd.val;
@@ -553,22 +557,24 @@ struct ffi_module {
         auto v = parser::parse_number(L, outv, str, str + lua_rawlen(L, 1));
         switch (v) {
             case ast::c_expr_type::INT:
-                new_scalar(L, ast::C_BUILTIN_INT).i = outv.i;
+                new_scalar(L, ast::C_BUILTIN_INT).as<int>() = outv.i;
                 break;
             case ast::c_expr_type::UINT:
-                new_scalar(L, ast::C_BUILTIN_UINT).u = outv.u;
+                new_scalar(L, ast::C_BUILTIN_UINT).as<unsigned int>() = outv.u;
                 break;
             case ast::c_expr_type::LONG:
-                new_scalar(L, ast::C_BUILTIN_LONG).l = outv.l;
+                new_scalar(L, ast::C_BUILTIN_LONG).as<long>() = outv.l;
                 break;
             case ast::c_expr_type::ULONG:
-                new_scalar(L, ast::C_BUILTIN_ULONG).ul = outv.ul;
+                new_scalar(L, ast::C_BUILTIN_ULONG)
+                    .as<unsigned long>() = outv.ul;
                 break;
             case ast::c_expr_type::LLONG:
-                new_scalar(L, ast::C_BUILTIN_LLONG).ll = outv.ll;
+                new_scalar(L, ast::C_BUILTIN_LLONG).as<long long>() = outv.ll;
                 break;
             case ast::c_expr_type::ULLONG:
-                new_scalar(L, ast::C_BUILTIN_ULLONG).ull = outv.ull;
+                new_scalar(L, ast::C_BUILTIN_ULLONG)
+                    .as<unsigned long long>() = outv.ull;
                 break;
             default:
                 luaL_error(L, "NYI");

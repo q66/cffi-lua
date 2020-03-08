@@ -12,6 +12,21 @@
 
 namespace ffi {
 
+struct arg_stor_t {
+    std::max_align_t pad;
+
+    /* only use with types that will fit */
+    template<typename T>
+    T as() const {
+        return *reinterpret_cast<T const *>(this);
+    }
+
+    template<typename T>
+    T &as() {
+        return *reinterpret_cast<T *>(this);
+    }
+};
+
 struct noval {};
 
 template<typename T>
@@ -20,7 +35,8 @@ struct cdata {
     int gc_ref;
     int aux; /* auxiliary data that can be used by different cdata */
     size_t val_sz;
-    alignas(std::max_align_t) T val;
+    alignas(arg_stor_t) T val;
+
     void *get_addr() {
         switch (decl.type()) {
             case ast::C_BUILTIN_PTR:
@@ -33,6 +49,9 @@ struct cdata {
         }
         return &val;
     }
+
+    /* only applies to variadics */
+    void *&auxptr();
 };
 
 struct ctype {
@@ -64,8 +83,8 @@ struct fdata {
     void (*sym)();
     closure_data *cd; /* only for callbacks, otherwise nullptr */
     ffi_cif cif;
-    ast::c_value rarg;
-    ast::c_value args[];
+    arg_stor_t rarg;
+    arg_stor_t args[];
 };
 
 template<typename T>
@@ -175,7 +194,7 @@ int to_lua(
  *
  * necessary conversions are done according to `tp`; `stor` is used to
  * write scalar values (therefore its alignment and size must be enough
- * to fit the converted value - the ast::c_value type can store any scalar
+ * to fit the converted value - the arg_stor_t type can store any scalar
  * so you can use that) while non-scalar values may have their address
  * returned directly
  */

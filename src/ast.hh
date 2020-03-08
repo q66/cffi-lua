@@ -309,7 +309,7 @@ enum class c_expr_unop {
  *
  * non-primitive Lua values are always boxed, so we know the max size
  */
-union alignas(std::max_align_t) c_value {
+union c_value {
     /* fp primitives, unknown size */
     long double ld;
     double d;

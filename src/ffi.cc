@@ -34,8 +34,31 @@ ffi_type *from_lua_type(lua_State *L, int index) {
     return &ffi_type_void;
 }
 
-static ast::c_value *&get_auxptr(cdata<fdata> &fud) {
-    return *reinterpret_cast<ast::c_value **>(fud.val.args);
+static inline void *fdata_retval(fdata &fd) {
+    return &fd.rarg;
+}
+
+static inline arg_stor_t *&fdata_get_aux(fdata &fd) {
+    return *reinterpret_cast<arg_stor_t **>(fd.args);
+}
+
+static inline void fdata_free_aux(fdata &fd) {
+    auto &aux = fdata_get_aux(fd);
+    delete[] reinterpret_cast<unsigned char *>(aux);
+    aux = nullptr;
+}
+
+static inline void fdata_new_aux(fdata &fd, size_t sz) {
+    fdata_get_aux(fd) = reinterpret_cast<arg_stor_t *>(new unsigned char[sz]);
+}
+
+static inline ffi_type **fargs_types(void *args, size_t nargs) {
+    auto *bp = static_cast<arg_stor_t *>(args);
+    return reinterpret_cast<ffi_type **>(&bp[nargs]);
+}
+
+static inline void **fargs_values(void *args, size_t nargs) {
+    return reinterpret_cast<void **>(&fargs_types(args, nargs)[nargs]);
 }
 
 void destroy_cdata(lua_State *L, cdata<ffi::noval> &cd) {
@@ -57,7 +80,7 @@ void destroy_cdata(lua_State *L, cdata<ffi::noval> &cd) {
             if (!fd.decl.function().variadic()) {
                 break;
             }
-            delete[] reinterpret_cast<unsigned char *>(get_auxptr(fd));
+            fdata_free_aux(fd.val);
         }
         default:
             break;
@@ -82,7 +105,7 @@ static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
     lua_call(cd.L, nargs, 1);
 
     if (fun.result().type() != ast::C_BUILTIN_VOID) {
-        std::max_align_t stor;
+        arg_stor_t stor;
         size_t rsz;
         void *rp = from_lua(
             cd.L, fun.result(), &stor, -1, rsz, RULE_RET
@@ -98,7 +121,7 @@ static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
 static bool prepare_cif(cdata<fdata> &fud, size_t nargs) {
     auto &func = fud.decl.function();
 
-    ffi_type **targs = reinterpret_cast<ffi_type **>(&fud.val.args[nargs]);
+    ffi_type **targs = fargs_types(fud.val.args, nargs);
     for (size_t i = 0; i < nargs; ++i) {
         targs[i] = func.params()[i].libffi_type();
     }
@@ -123,9 +146,9 @@ static void make_cdata_func(
      *     <cdata header>
      *     struct fdata {
      *         <fdata header>
-     *         ast::c_value val1; // lua arg1
-     *         ast::c_value val2; // lua arg2
-     *         ast::c_value valN; // lua argN
+     *         arg_stor_t val1; // lua arg1
+     *         arg_stor_t val2; // lua arg2
+     *         arg_stor_t valN; // lua argN
      *         ffi_type *arg1; // type
      *         ffi_type *arg2; // type
      *         ffi_type *argN; // type
@@ -148,13 +171,13 @@ static void make_cdata_func(
     auto &fud = newcdata<fdata>(
         L, ast::c_type{&func, 0, cbt, funp == nullptr},
         func.variadic() ? sizeof(void *) : (
-            sizeof(ast::c_value[nargs]) + sizeof(void *[2 * nargs])
+            sizeof(arg_stor_t[nargs]) + sizeof(void *[2 * nargs])
         )
     );
     fud.val.sym = funp;
 
     if (func.variadic()) {
-        get_auxptr(fud) = nullptr;
+        fdata_get_aux(fud.val) = nullptr;
     }
 
     if (!ffi::prepare_cif(fud, !func.variadic() ? nargs : 0)) {
@@ -210,19 +233,18 @@ static bool prepare_cif_var(
 ) {
     auto &func = fud.decl.function();
 
-    auto &auxptr = get_auxptr(fud);
+    auto &auxptr = fdata_get_aux(fud.val);
     if (auxptr && (nargs > size_t(fud.aux))) {
-        delete auxptr;
-        auxptr = nullptr;
+        fdata_free_aux(fud.val);
     }
     if (!auxptr) {
-        auxptr = reinterpret_cast<ast::c_value *>(new unsigned char[
-            sizeof(ast::c_value) * nargs + sizeof(void *) * nargs * 2
-        ]);
+        fdata_new_aux(
+            fud.val, nargs * sizeof(arg_stor_t) + 2 * nargs * sizeof(void *)
+        );
         fud.aux = int(nargs);
     }
 
-    ffi_type **targs = reinterpret_cast<ffi_type **>(&auxptr[nargs]);
+    ffi_type **targs = fargs_types(auxptr, nargs);
     for (size_t i = 0; i < fargs; ++i) {
         targs[i] = func.params()[i].libffi_type();
     }
@@ -241,35 +263,29 @@ int call_cif(cdata<fdata> &fud, lua_State *L, size_t largs) {
     auto &pdecls = func.params();
 
     size_t nargs = pdecls.size();
-    size_t fargs = nargs;
-    size_t targs = fargs;
+    size_t targs = nargs;
 
-    ast::c_value *pvals = fud.val.args;
-    void **vals;
-    void *rval = &fud.val.rarg;
+    arg_stor_t *pvals = fud.val.args;
+    void *rval = fdata_retval(fud.val);
 
     if (func.variadic()) {
-        --fargs;
-        targs = std::max(largs, fargs);
-        if (!prepare_cif_var(L, fud, targs, fargs)) {
+        targs = std::max(largs, nargs);
+        if (!prepare_cif_var(L, fud, targs, nargs)) {
             luaL_error(L, "unexpected failure setting up '%s'", func.name());
         }
-        auto *auxp = get_auxptr(fud);
-        pvals = auxp;
-        vals = &reinterpret_cast<void **>(&auxp[targs])[targs];
-    } else {
-        vals = &reinterpret_cast<void **>(&pvals[nargs])[nargs];
+        pvals = fdata_get_aux(fud.val);
     }
 
+    void **vals = fargs_values(pvals, targs);
     /* fixed args */
-    for (size_t i = 0; i < fargs; ++i) {
+    for (size_t i = 0; i < nargs; ++i) {
         size_t rsz;
         vals[i] = from_lua(
             L, pdecls[i].type(), &pvals[i], i + 2, rsz, RULE_PASS
         );
     }
     /* variable args */
-    for (size_t i = fargs; i < targs; ++i) {
+    for (size_t i = nargs; i < targs; ++i) {
         size_t rsz;
         vals[i] = from_lua(
             L, ast::from_lua_type(L, i + 2), &pvals[i], i + 2, rsz, RULE_PASS
@@ -771,7 +787,7 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
         default:
             break;
     }
-    ast::c_value stor{};
+    arg_stor_t stor{};
     void *cdp = nullptr;
     size_t rsz = 0;
     if (lua_type(L, idx) != LUA_TNONE) {
@@ -795,7 +811,7 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
             decl.function(), decl.type(), cd
         );
         if (!cdp && !cd) {
-            ffi::tocdata<ffi::fdata>(L, -1).val.cd->fref = stor.i;
+            ffi::tocdata<ffi::fdata>(L, -1).val.cd->fref = stor.as<int>();
         }
     } else {
         auto &cd = ffi::newcdata(L, decl, rsz);
