@@ -735,18 +735,18 @@ void get_global(lua_State *L, lib::handle dl, const char *sname) {
 
     switch (tp) {
         case ast::c_object_type::FUNCTION: {
-            auto funp = lib::get_func(dl, sname);
+            void *funp = lib::get_sym(dl, sname);
             if (!funp) {
                 luaL_error(L, "undefined symbol: %s", sname);
             }
             make_cdata_func(
-                L, funp, decl->as<ast::c_function>(),
-                ast::C_BUILTIN_FUNC, nullptr
+                L, reinterpret_cast<void (*)()>(funp),
+                decl->as<ast::c_function>(), ast::C_BUILTIN_FUNC, nullptr
             );
             return;
         }
         case ast::c_object_type::VARIABLE: {
-            void *symp = lib::get_var(dl, sname);
+            void *symp = lib::get_sym(dl, sname);
             if (!symp) {
                 luaL_error(L, "undefined symbol: %s", sname);
             }
@@ -779,7 +779,7 @@ void set_global(lua_State *L, lib::handle dl, char const *sname, int idx) {
         luaL_error(L, "symbol '%s' is not mutable", decl->name());
     }
 
-    void *symp = lib::get_var(dl, sname);
+    void *symp = lib::get_sym(dl, sname);
     if (!symp) {
         luaL_error(L, "undefined symbol: %s", sname);
         return;

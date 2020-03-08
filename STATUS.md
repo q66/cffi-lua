@@ -218,6 +218,8 @@ The APIs the FFI should provide.
 
 ### Callbacks
 
+Variadic callbacks are not (and likely will not be) supported.
+
 - [x] Minimal functionality
 - [x] `cb:free`
 - [x] `cb:set`

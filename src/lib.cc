@@ -53,11 +53,7 @@ void close(handle h) {
     dlclose(h);
 }
 
-func get_func(handle h, char const *name) {
-    return reinterpret_cast<func>(dlsym(h, name));
-}
-
-void *get_var(handle h, char const *name) {
+void *get_sym(handle h, char const *name) {
     return dlsym(h, name);
 }
 

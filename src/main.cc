@@ -626,6 +626,10 @@ struct ffi_module {
         lua_pushboolean(L, true);
         lua_setfield(L, -2, "win");
 #endif
+#ifdef FFI_WINDOWS_UWP
+        lua_pushboolean(L, true);
+        lua_setfield(L, -2, "uwp");
+#endif
 #ifdef FFI_ARM_EABI
         lua_pushboolean(L, true);
         lua_setfield(L, -2, "eabi");

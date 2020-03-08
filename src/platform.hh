@@ -236,6 +236,10 @@ static_assert(
 #  define FFI_WINDOWS_ABI 1
 #endif
 
+#ifdef _UWP
+#  define FFI_WINDOWS_UWP 1
+#endif
+
 #if FFI_OS != FFI_OS_WINDOWS
 #  define FFI_USE_DLFCN 1
 #endif

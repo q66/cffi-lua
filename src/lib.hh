@@ -15,8 +15,7 @@ handle get_c();
 
 void close(handle h);
 
-func get_func(handle h, char const *name);
-void *get_var(handle h, char const *name);
+void *get_sym(handle h, char const *name);
 
 } /* namespace lib */
 
