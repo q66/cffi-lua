@@ -72,7 +72,7 @@ struct lib_meta {
  */
 struct cdata_meta {
     static int gc(lua_State *L) {
-        ffi::destroy_cdata(L, ffi::tocdata<ffi::noval>(L, 1));
+        ffi::destroy_cdata(L, ffi::tocdata<char>(L, 1));
         return 0;
     }
 
@@ -269,7 +269,7 @@ struct ffi_module {
     /* either gets a ctype or makes a ctype from a string */
     static ast::c_type const &check_ct(lua_State *L, int idx) {
         if (ffi::iscval(L, idx)) {
-            auto &cd = ffi::tocdata<ffi::noval>(L, idx);
+            auto &cd = ffi::tocdata<char>(L, idx);
             if (ffi::isctype(cd)) {
                 return cd.decl;
             }
@@ -309,27 +309,28 @@ struct ffi_module {
     }
 
     static int addressof_f(lua_State *L) {
-        auto &cd = ffi::checkcdata<ast::c_value>(L, 1);
+        auto &cd = ffi::checkcdata<void *>(L, 1);
         if (cd.decl.type() == ast::C_BUILTIN_REF) {
             /* refs are turned into pointers with the same addr like C++ */
-            ffi::newcdata<ffi::ptrval>(L, cd.decl.as_type(ast::C_BUILTIN_PTR));
+            ffi::newcdata<void *>(
+                L, cd.decl.as_type(ast::C_BUILTIN_PTR)
+            ).val = cd.val;
         } else {
             /* otherwise just make a cdata pointing to whatever it was */
-            ffi::newcdata<ffi::ptrval>(L, ast::c_type{cd.decl, 0}).val.ptr =
-                &cd.val;
+            ffi::newcdata<void *>(L, ast::c_type{cd.decl, 0}).val = &cd.val;
         }
         return 1;
     }
 
     static int ref_f(lua_State *L) {
-        auto &cd = ffi::checkcdata<ast::c_value>(L, 1);
+        auto &cd = ffi::checkcdata<char>(L, 1);
         if (cd.decl.type() == ast::C_BUILTIN_REF) {
             /* just return itself */
             lua_pushvalue(L, 1);
         } else {
-            ffi::newcdata<ffi::ptrval>(L, ast::c_type{
+            ffi::newcdata<void *>(L, ast::c_type{
                 cd.decl, 0, ast::C_BUILTIN_REF
-            }).val.ptr = cd.get_addr();
+            }).val = cd.get_addr();
         }
         return 1;
     }
@@ -690,9 +691,9 @@ struct ffi_module {
         lua_setfield(L, -2, "tonumber");
 
         /* NULL = (void *)0 */
-        ffi::newcdata<ffi::ptrval>(L, ast::c_type{
+        ffi::newcdata<void *>(L, ast::c_type{
             ast::c_type{ast::C_BUILTIN_VOID, 0}, 0
-        }).val.ptr = nullptr;
+        }).val = nullptr;
         lua_setfield(L, -2, "nullptr");
     }
 

@@ -21,7 +21,7 @@ ffi_type *from_lua_type(lua_State *L, int index) {
         case LUA_TLIGHTUSERDATA:
             return &ffi_type_pointer;
         case LUA_TUSERDATA: {
-            auto *cd = ffi::testcdata<ffi::noval>(L, index);
+            auto *cd = ffi::testcdata<char>(L, index);
             if (!cd) {
                 return &ffi_type_pointer;
             }
@@ -38,7 +38,7 @@ static ast::c_value *&get_auxptr(cdata<fdata> &fud) {
     return *reinterpret_cast<ast::c_value **>(&fud.val.args[1]);
 }
 
-void destroy_cdata(lua_State *L, cdata<noval> &cd) {
+void destroy_cdata(lua_State *L, cdata<char> &cd) {
     auto &fd = *reinterpret_cast<cdata<fdata> *>(&cd.decl);
     if (cd.gc_ref >= 0) {
         lua_rawgeti(L, LUA_REGISTRYINDEX, cd.gc_ref); /* the finalizer */
@@ -315,7 +315,7 @@ static inline int push_int(
         return 1;
     }
     /* doesn't fit into the range, so make scalar cdata */
-    auto &cd = newcdata<noval>(L, tp, sizeof(T));
+    auto &cd = newcdata(L, tp, sizeof(T));
     memcpy(&cd.val, value, sizeof(T));
     return 1;
 }
@@ -333,7 +333,7 @@ static inline int push_flt(
         lua_pushnumber(L, lua_Number(*U(value)));
         return 1;
     }
-    auto &cd = newcdata<noval>(L, tp, sizeof(T));
+    auto &cd = newcdata(L, tp, sizeof(T));
     memcpy(&cd.val, value, sizeof(T));
     return 1;
 }
@@ -420,7 +420,7 @@ int to_lua(
             if (rule == RULE_CONV) {
                 /* for this rule, dereference and pass that */
                 return to_lua(
-                    L, tp.ptr_base(), reinterpret_cast<ptrval *>(value)->ptr,
+                    L, tp.ptr_base(), *reinterpret_cast<void **>(value),
                     RULE_CONV, lossy
                 );
             }
@@ -432,8 +432,7 @@ int to_lua(
             /* pointers should be handled like large cdata, as they need
              * to be represented as userdata objects on lua side either way
              */
-            newcdata<ptrval>(L, tp).val.ptr =
-                reinterpret_cast<ptrval *>(value)->ptr;
+            newcdata<void *>(L, tp).val = *reinterpret_cast<void **>(value);
             return 1;
 
         case ast::C_BUILTIN_FPTR:

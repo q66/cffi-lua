@@ -12,21 +12,13 @@
 
 namespace ffi {
 
-/* placeholder for no-value cdata */
-struct alignas(std::max_align_t) noval {};
-
-/* for pointer cdata */
-struct alignas(std::max_align_t) ptrval {
-    void *ptr;
-};
-
 template<typename T>
 struct cdata {
     ast::c_type decl;
     int gc_ref;
     int aux; /* auxiliary data that can be used by different cdata */
     size_t val_sz;
-    T val;
+    alignas(std::max_align_t) T val;
     void *get_addr() {
         switch (decl.type()) {
             case ast::C_BUILTIN_PTR:
@@ -65,17 +57,11 @@ struct closure_data {
 };
 
 /* data used for function types */
-struct alignas(std::max_align_t) fdata {
+struct fdata {
     void (*sym)();
     closure_data *cd; /* only for callbacks, otherwise nullptr */
     ffi_cif cif;
     ast::c_value args[];
-};
-
-/* data used for large (generally struct) types */
-template<typename T>
-struct alignas(std::max_align_t) sdata {
-    T val;
 };
 
 template<typename T>
@@ -98,10 +84,10 @@ static inline cdata<T> &newcdata(
     return newcdata<T>(L, ast::c_type{tp}, extra);
 }
 
-static inline cdata<noval> &newcdata(
+static inline cdata<char> &newcdata(
     lua_State *L, ast::c_type const &tp, size_t vals
 ) {
-    return newcdata<noval>(L, tp, vals - sizeof(noval));
+    return newcdata<char>(L, tp, vals - sizeof(char));
 }
 
 template<typename ...A>
@@ -159,7 +145,7 @@ static inline cdata<T> &tocdata(lua_State *L, int idx) {
     return *lua::touserdata<ffi::cdata<T>>(L, idx);
 }
 
-void destroy_cdata(lua_State *L, cdata<noval> &cd);
+void destroy_cdata(lua_State *L, cdata<char> &cd);
 
 int call_cif(cdata<fdata> &fud, lua_State *L, size_t largs);
 

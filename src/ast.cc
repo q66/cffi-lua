@@ -640,7 +640,7 @@ c_type from_lua_type(lua_State *L, int index) {
             /* by default use a void pointer, some will fail, that's ok */
             return c_type{c_type{C_BUILTIN_VOID, 0}, 0};
         case LUA_TUSERDATA: {
-            auto *cd = ffi::testcdata<ffi::noval>(L, index);
+            auto *cd = ffi::testcdata<char>(L, index);
             if (!cd) {
                 return c_type{c_type{C_BUILTIN_VOID, 0}, 0};
             }
