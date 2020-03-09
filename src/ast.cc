@@ -10,21 +10,250 @@
 
 namespace ast {
 
-/* FIXME: implement actual integer promotions etc */
+/* This unholy spaghetti implements integer promotions as well as conversion
+ * rules in arithmetic operations etc. as the C standard defines it... it does
+ * not handle errors yet (FIXME) and only covers types that can be emitted by
+ * literals (i.e. no handling of names and so on).
+ */
 
-static c_value eval_unary(c_expr const &e) {
-    c_value baseval = e.un.expr->eval();
+static void promote_int(c_value &v, c_expr_type &et) {
+    switch (et) {
+        case c_expr_type::BOOL:
+            v.i = int(v.b); et = c_expr_type::INT; break;
+        case c_expr_type::CHAR:
+            v.i = int(v.c); et = c_expr_type::INT; break;
+        default:
+            break;
+    }
+}
+
+/* only integers have ranks but for our purposes this is fine */
+static int get_rank(c_expr_type type) {
+    switch (type) {
+        case c_expr_type::INT: return 0;
+        case c_expr_type::UINT: return 0;
+        case c_expr_type::LONG: return 1;
+        case c_expr_type::ULONG: return 1;
+        case c_expr_type::LLONG: return 2;
+        case c_expr_type::ULLONG: return 2;
+        case c_expr_type::FLOAT: return 3;
+        case c_expr_type::DOUBLE: return 4;
+        case c_expr_type::LDOUBLE: return 5;
+        default: assert(false); break;
+    }
+    return -1;
+}
+
+static bool is_signed(c_expr_type type) {
+    switch (type) {
+        case c_expr_type::CHAR:
+            return std::numeric_limits<char>::is_signed;
+        case c_expr_type::INT:
+        case c_expr_type::LONG:
+        case c_expr_type::LLONG:
+        case c_expr_type::FLOAT:
+        case c_expr_type::DOUBLE:
+        case c_expr_type::LDOUBLE:
+            return true;
+        default:
+            break;
+    }
+    return false;
+}
+
+static void convert_bin(
+    c_value &lval, c_expr_type &let, c_value &rval, c_expr_type &ret
+) {
+    /* same types, likely case, bail out early */
+    if (let == ret) {
+        return;
+    }
+
+    int lrank = get_rank(let);
+    int rrank = get_rank(ret);
+
+    /* if right operand is higher ranked, treat it as left operand */
+    if (rrank > lrank) {
+        return convert_bin(rval, ret, lval, let);
+    }
+
+#define CONVERT_RVAL(lv) \
+    switch (ret) { \
+        case c_expr_type::DOUBLE: rval.lv = rval.d; break; \
+        case c_expr_type::FLOAT: rval.lv = rval.f; break; \
+        case c_expr_type::INT: rval.lv = rval.i; break; \
+        case c_expr_type::UINT: rval.lv = rval.u; break; \
+        case c_expr_type::LONG: rval.lv = rval.l; break; \
+        case c_expr_type::ULONG: rval.lv = rval.ul; break; \
+        case c_expr_type::LLONG: rval.lv = rval.ll; break; \
+        case c_expr_type::ULLONG: rval.lv = rval.ull; break; \
+        default: break;  \
+    }
+
+    /* at this point it's guaranteed that left rank is higer or equal */
+
+    /* left operand is a float, convert to it */
+    switch (let) {
+        case c_expr_type::LDOUBLE:
+            CONVERT_RVAL(ld); ret = let; return;
+        case c_expr_type::DOUBLE:
+            CONVERT_RVAL(d); ret = let; return;
+        case c_expr_type::FLOAT:
+            CONVERT_RVAL(f); ret = let; return;
+        default:
+            break;
+    }
+
+    /* both operands are integers */
+
+    bool lsig = is_signed(let);
+    bool rsig = is_signed(ret);
+
+    /* same signedness, convert lower ranked type to higher ranked */
+    if (lsig == rsig) {
+        switch (let) {
+            case c_expr_type::ULLONG:
+                CONVERT_RVAL(ull); ret = let; return;
+            case c_expr_type::LLONG:
+                CONVERT_RVAL(ll); ret = let; return;
+            case c_expr_type::ULONG:
+                CONVERT_RVAL(ul); ret = let; return;
+            case c_expr_type::LONG:
+                CONVERT_RVAL(l); ret = let; return;
+            case c_expr_type::UINT:
+                CONVERT_RVAL(u); ret = let; return;
+            case c_expr_type::INT:
+                CONVERT_RVAL(i); ret = let; return;
+            default:
+                break;
+        }
+        /* should be unreachable */
+        assert(false);
+        return;
+    }
+
+    /* unsigned type has greater or equal rank */
+    if (rsig) {
+        switch (let) {
+            case c_expr_type::ULLONG:
+                CONVERT_RVAL(ull); ret = let; return;
+            case c_expr_type::ULONG:
+                CONVERT_RVAL(ul); ret = let; return;
+            case c_expr_type::UINT:
+                CONVERT_RVAL(u); ret = let; return;
+            default:
+                break;
+        }
+        /* should be unreachable */
+        assert(false);
+        return;
+    }
+
+#define CONVERT_RVAL_BOUNDED(lv) \
+    switch (ret) { \
+        case c_expr_type::ULONG: \
+            if (sizeof(unsigned long) < sizeof(lval.lv)) { \
+                rval.lv = rval.ul; \
+                ret = let; \
+                return; \
+            } \
+            break; \
+        case c_expr_type::UINT: \
+            if (sizeof(unsigned int) < sizeof(lval.lv)) { \
+                rval.lv = rval.u; \
+                ret = let; \
+                return; \
+            } \
+            break; \
+        default: \
+            break; \
+    }
+
+    /* at this point left operand is always signed */
+
+    /* try to fit right operand into it (may work if left has greater rank) */
+    switch (let) {
+        case c_expr_type::LLONG:
+            CONVERT_RVAL_BOUNDED(ll); break;
+        case c_expr_type::LONG:
+            CONVERT_RVAL_BOUNDED(l); break;
+        case c_expr_type::INT:
+            break;
+        default:
+            break;
+    }
+
+#undef CONVERT_RVAL_BOUNDED
+
+    /* does not fit; in that case, convert both to unsigned version of left */
+     switch (let) {
+        case c_expr_type::LLONG:
+            lval.ull = lval.ll;
+            CONVERT_RVAL(ull);
+            let = ret = c_expr_type::ULLONG;
+            return;
+        case c_expr_type::LONG:
+            lval.ul = lval.l;
+            CONVERT_RVAL(ul);
+            let = ret = c_expr_type::ULONG;
+            return;
+        case c_expr_type::INT:
+            lval.u = lval.i;
+            CONVERT_RVAL(u);
+            let = ret = c_expr_type::UINT;
+            return;
+        default:
+            break;
+    }
+
+#undef CONVERT_RVAL
+
+    /* unreachable */
+    assert(false);
+}
+
+static c_value eval_unary(c_expr const &e, c_expr_type &et) {
+    c_value baseval = e.un.expr->eval(et);
     switch (e.un.op) {
         case c_expr_unop::UNP:
+            promote_int(baseval, et);
             break;
         case c_expr_unop::UNM:
-            baseval.i = -baseval.i;
+            promote_int(baseval, et);
+            switch (et) {
+                case c_expr_type::INT: baseval.i = -baseval.i; break;
+                case c_expr_type::UINT: baseval.u = -baseval.u; break;
+                case c_expr_type::LONG: baseval.l = -baseval.l; break;
+                case c_expr_type::ULONG: baseval.ul = -baseval.ul; break;
+                case c_expr_type::LLONG: baseval.ll = -baseval.ll; break;
+                case c_expr_type::ULLONG: baseval.ull = -baseval.ull; break;
+                default: break;
+            }
             break;
         case c_expr_unop::NOT:
-            baseval.i = !baseval.i;
+            switch (et) {
+                case c_expr_type::BOOL: baseval.b = !baseval.b; break;
+                case c_expr_type::CHAR: baseval.c = !baseval.c; break;
+                case c_expr_type::INT: baseval.i = !baseval.i; break;
+                case c_expr_type::UINT: baseval.u = !baseval.u; break;
+                case c_expr_type::LONG: baseval.l = -baseval.l; break;
+                case c_expr_type::ULONG: baseval.ul = -baseval.ul; break;
+                case c_expr_type::LLONG: baseval.ll = -baseval.ll; break;
+                case c_expr_type::ULLONG: baseval.ull = -baseval.ull; break;
+                default: break;
+            }
             break;
         case c_expr_unop::BNOT:
-            baseval.i = ~baseval.i;
+            promote_int(baseval, et);
+            switch (et) {
+                case c_expr_type::INT: baseval.i = ~baseval.i; break;
+                case c_expr_type::UINT: baseval.u = ~baseval.u; break;
+                case c_expr_type::LONG: baseval.l = ~baseval.l; break;
+                case c_expr_type::ULONG: baseval.ul = ~baseval.ul; break;
+                case c_expr_type::LLONG: baseval.ll = ~baseval.ll; break;
+                case c_expr_type::ULLONG: baseval.ull = ~baseval.ull; break;
+                default: break;
+            }
             break;
         default:
             assert(false);
@@ -33,97 +262,216 @@ static c_value eval_unary(c_expr const &e) {
     return baseval;
 }
 
-static c_value eval_binary(c_expr const &e) {
-    c_value lval = e.bin.lhs->eval();
-    c_value rval = e.bin.rhs->eval();
-    c_value ret;
+static c_value eval_binary(c_expr const &e, c_expr_type &et) {
+    c_expr_type let, ret;
+    c_value lval = e.bin.lhs->eval(let);
+    c_value rval = e.bin.rhs->eval(ret);
+    c_value retv;
+
+#define BINOP_CASE(opn, op) \
+    case c_expr_binop::opn: \
+        promote_int(lval, let); \
+        promote_int(rval, ret); \
+        convert_bin(lval, let, rval, ret); \
+        switch (let) { \
+            case c_expr_type::INT: retv.i = lval.i op rval.i; break; \
+            case c_expr_type::UINT: retv.u = lval.u op rval.u; break; \
+            case c_expr_type::LONG: retv.l = lval.l op rval.l; break; \
+            case c_expr_type::ULONG: retv.ul = lval.ul op rval.ul; break; \
+            case c_expr_type::LLONG: retv.ll = lval.ll op rval.ll; break; \
+            case c_expr_type::ULLONG: retv.ull = lval.ull op rval.ull; break; \
+            case c_expr_type::FLOAT: retv.f = lval.f op rval.f; break; \
+            case c_expr_type::DOUBLE: retv.d = lval.d op rval.d; break; \
+            case c_expr_type::LDOUBLE: retv.ld = lval.ld op rval.ld; break; \
+            default: assert(false); break; \
+        } \
+        break;
+
+#define BINOP_CASE_NOFLT(opn, op) \
+    case c_expr_binop::opn: \
+        promote_int(lval, let); \
+        promote_int(rval, ret); \
+        convert_bin(lval, let, rval, ret); \
+        switch (let) { \
+            case c_expr_type::INT: retv.i = lval.i op rval.i; break; \
+            case c_expr_type::UINT: retv.u = lval.u op rval.u; break; \
+            case c_expr_type::LONG: retv.l = lval.l op rval.l; break; \
+            case c_expr_type::ULONG: retv.ul = lval.ul op rval.ul; break; \
+            case c_expr_type::LLONG: retv.ll = lval.ll op rval.ll; break; \
+            case c_expr_type::ULLONG: retv.ull = lval.ull op rval.ull; break; \
+            case c_expr_type::FLOAT: \
+            case c_expr_type::DOUBLE: \
+            case c_expr_type::LDOUBLE: \
+                assert(false); \
+                break; \
+            default: assert(false); break; \
+        } \
+        break;
+
+#define SHIFT_CASE_INNER(fn, op) \
+    switch (ret) { \
+        case c_expr_type::INT: retv.fn = lval.fn op rval.i; break; \
+        case c_expr_type::UINT: retv.fn = lval.fn op rval.u; break; \
+        case c_expr_type::LONG: retv.fn = lval.fn op rval.l; break; \
+        case c_expr_type::ULONG: retv.fn = lval.fn op rval.u; break; \
+        case c_expr_type::LLONG: retv.fn = lval.fn op rval.ul; break; \
+        case c_expr_type::ULLONG: retv.fn = lval.fn op rval.ull; break; \
+        default: assert(false); break; \
+    }
+
+#define SHIFT_CASE(opn, op) \
+    case c_expr_binop::opn: \
+        promote_int(lval, let); \
+        promote_int(rval, ret); \
+        switch (let) { \
+            case c_expr_type::INT: SHIFT_CASE_INNER(i, op); break; \
+            case c_expr_type::UINT: SHIFT_CASE_INNER(u, op); break; \
+            case c_expr_type::LONG: SHIFT_CASE_INNER(l, op); break; \
+            case c_expr_type::ULONG: SHIFT_CASE_INNER(ul, op); break; \
+            case c_expr_type::LLONG: SHIFT_CASE_INNER(ll, op); break; \
+            case c_expr_type::ULLONG: SHIFT_CASE_INNER(ull, op); break; \
+            default: assert(false); break; \
+        } \
+        break;
+
+#define BOOL_CASE_INNER(lv, op) \
+    switch (ret) { \
+        case c_expr_type::INT: retv.b = lv op rval.i; break; \
+        case c_expr_type::UINT: retv.b = lv op rval.u; break; \
+        case c_expr_type::LONG: retv.b = lv op rval.l; break; \
+        case c_expr_type::ULONG: retv.b = lv op rval.ul; break; \
+        case c_expr_type::LLONG: retv.b = lv op rval.ll; break; \
+        case c_expr_type::ULLONG: retv.b = lv op rval.ull; break; \
+        case c_expr_type::FLOAT: retv.b = lv op rval.f; break; \
+        case c_expr_type::DOUBLE: retv.b = lv op rval.d; break; \
+        case c_expr_type::LDOUBLE: retv.b = lv op rval.ld; break; \
+        case c_expr_type::STRING: retv.b = lv op true; break; \
+        case c_expr_type::CHAR: retv.b = lv op rval.c; break; \
+        case c_expr_type::NULLPTR: retv.b = lv op nullptr; break; \
+        case c_expr_type::BOOL: retv.b = lv op rval.b; break; \
+        default: assert(false); break; \
+    }
+
+#define BOOL_CASE(opn, op) \
+    case c_expr_binop::opn: \
+        et = c_expr_type::BOOL; \
+        switch (let) { \
+            case c_expr_type::INT: BOOL_CASE_INNER(lval.i, op); break; \
+            case c_expr_type::UINT: BOOL_CASE_INNER(lval.u, op); break; \
+            case c_expr_type::LONG: BOOL_CASE_INNER(lval.l, op); break; \
+            case c_expr_type::ULONG: BOOL_CASE_INNER(lval.ul, op); break; \
+            case c_expr_type::LLONG: BOOL_CASE_INNER(lval.ll, op); break; \
+            case c_expr_type::ULLONG: BOOL_CASE_INNER(lval.ull, op); break; \
+            case c_expr_type::FLOAT: BOOL_CASE_INNER(lval.f, op); break; \
+            case c_expr_type::DOUBLE: BOOL_CASE_INNER(lval.d, op); break; \
+            case c_expr_type::LDOUBLE: BOOL_CASE_INNER(lval.ld, op); break; \
+            case c_expr_type::STRING: BOOL_CASE_INNER(true, op); break; \
+            case c_expr_type::CHAR: BOOL_CASE_INNER(lval.c, op); break; \
+            case c_expr_type::NULLPTR: BOOL_CASE_INNER(nullptr, op); break; \
+            case c_expr_type::BOOL: BOOL_CASE_INNER(lval.b, op); break; \
+            default: assert(false); break; \
+        } \
+        break;
+
     switch (e.bin.op) {
-        case c_expr_binop::ADD:
-            ret.i = lval.i + rval.i; break;
-        case c_expr_binop::SUB:
-            ret.i = lval.i - rval.i; break;
-        case c_expr_binop::MUL:
-            ret.i = lval.i * rval.i; break;
-        case c_expr_binop::DIV:
-            ret.i = lval.i / rval.i; break;
-        case c_expr_binop::MOD:
-            ret.i = lval.i % rval.i; break;
+        BINOP_CASE(ADD, +)
+        BINOP_CASE(SUB, -)
+        BINOP_CASE(MUL, *)
+        BINOP_CASE(DIV, /)
+        BINOP_CASE_NOFLT(MOD, %)
 
-        case c_expr_binop::EQ:
-            ret.i = (lval.i == rval.i); break;
-        case c_expr_binop::NEQ:
-            ret.i = (lval.i != rval.i); break;
-        case c_expr_binop::GT:
-            ret.i = (lval.i > rval.i); break;
-        case c_expr_binop::LT:
-            ret.i = (lval.i < rval.i); break;
-        case c_expr_binop::GE:
-            ret.i = (lval.i >= rval.i); break;
-        case c_expr_binop::LE:
-            ret.i = (lval.i <= rval.i); break;
+        BINOP_CASE(EQ, ==)
+        BINOP_CASE(NEQ, !=)
+        BINOP_CASE(GT, >)
+        BINOP_CASE(LT, <)
+        BINOP_CASE(GE, >=)
+        BINOP_CASE(LE, <=)
 
-        case c_expr_binop::AND:
-            ret.i = lval.i && rval.i; break;
-        case c_expr_binop::OR:
-            ret.i = lval.i || rval.i; break;
+        BOOL_CASE(AND, &&)
+        BOOL_CASE(OR, ||)
 
-        case c_expr_binop::BAND:
-            ret.i = lval.i & rval.i; break;
-        case c_expr_binop::BOR:
-            ret.i = lval.i | rval.i; break;
-        case c_expr_binop::BXOR:
-            ret.i = lval.i ^ rval.i; break;
-        case c_expr_binop::LSH:
-            ret.i = lval.i << rval.i; break;
-        case c_expr_binop::RSH:
-            ret.i = lval.i >> rval.i; break;
+        BINOP_CASE_NOFLT(BAND, &)
+        BINOP_CASE_NOFLT(BOR, |)
+        BINOP_CASE_NOFLT(BXOR, ^)
+        SHIFT_CASE(LSH, <<)
+        SHIFT_CASE(RSH, >>)
 
         default:
             assert(false);
             break;
     }
-    return ret;
+
+#undef BOOL_CASE
+#undef BOOL_CASE_INNER
+#undef SHIFT_CASE
+#undef SHIFT_CASE_INNER
+#undef BINOP_CASE
+
+    return retv;
 }
 
-static c_value eval_ternary(c_expr const &e) {
-    c_value cval = e.tern.cond->eval();
-    if (cval.i) {
-        return e.tern.texpr->eval();
+static c_value eval_ternary(c_expr const &e, c_expr_type &et) {
+    c_expr_type cet;
+    c_value cval = e.tern.cond->eval(cet);
+    bool tval = false;
+    switch (cet) {
+        case c_expr_type::INT: tval = cval.i; break;
+        case c_expr_type::UINT: tval = cval.u; break;
+        case c_expr_type::LONG: tval = cval.l; break;
+        case c_expr_type::ULONG: tval = cval.ul; break;
+        case c_expr_type::LLONG: tval = cval.ll; break;
+        case c_expr_type::ULLONG: tval = cval.ull; break;
+        case c_expr_type::FLOAT: tval = cval.f; break;
+        case c_expr_type::DOUBLE: tval = cval.d; break;
+        case c_expr_type::LDOUBLE: tval = cval.ld; break;
+        case c_expr_type::STRING: tval = true; break;
+        case c_expr_type::CHAR: tval = cval.c; break;
+        case c_expr_type::NULLPTR: tval = false; break;
+        case c_expr_type::BOOL: tval = cval.b; break;
+        default:
+            assert(false);
+            break;
     }
-    return e.tern.fexpr->eval();
+    if (tval) {
+        return e.tern.texpr->eval(et, true);
+    }
+    return e.tern.fexpr->eval(et, true);
 }
 
-c_value c_expr::eval() const {
+c_value c_expr::eval(c_expr_type &et, bool promote) const {
     c_value ret;
     switch (type) {
         case c_expr_type::BINARY:
-            return eval_binary(*this);
+            return eval_binary(*this, et);
         case c_expr_type::UNARY:
-            return eval_unary(*this);
+            return eval_unary(*this, et);
         case c_expr_type::TERNARY:
-            return eval_ternary(*this);
+            return eval_ternary(*this, et);
         case c_expr_type::INT:
-            ret.i = val.i; break;
+            ret.i = val.i; et = type; break;
         case c_expr_type::UINT:
-            ret.i = int(val.u); break;
+            ret.u = val.u; et = type; break;
         case c_expr_type::LONG:
-            ret.i = int(val.l); break;
+            ret.l = val.l; et = type; break;
         case c_expr_type::ULONG:
-            ret.i = int(val.ul); break;
+            ret.ul = val.ul; et = type; break;
         case c_expr_type::LLONG:
-            ret.i = int(val.ll); break;
+            ret.ll = val.ll; et = type; break;
         case c_expr_type::ULLONG:
-            ret.i = int(val.ull); break;
+            ret.ull = val.ull; et = type; break;
         case c_expr_type::FLOAT:
-            ret.i = int(val.f); break;
+            ret.f = val.f; et = type; break;
         case c_expr_type::DOUBLE:
-            ret.i = int(val.d); break;
+            ret.d = val.d; et = type; break;
         case c_expr_type::CHAR:
-            ret.i = int(val.c); break;
+            ret.c = val.c; et = type; break;
         case c_expr_type::BOOL:
-            ret.i = int(val.b); break;
+            ret.b = val.b; et = type; break;
         default:
-            ret.i = 0; break;
+            ret.i = 0; et = c_expr_type::INVALID; break;
+    }
+    if (promote) {
+        promote_int(ret, et);
     }
     return ret;
 }

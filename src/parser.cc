@@ -1382,7 +1382,20 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
         if (ls.t.token == '=') {
             ls.get();
             auto exp = parse_cexpr(ls);
-            auto val = exp.eval();
+            ast::c_expr_type et;
+            auto val = exp.eval(et, true);
+            /* for now large types just get truncated */
+            switch (et) {
+                case ast::c_expr_type::INT: break;
+                case ast::c_expr_type::UINT: val.i = val.u; break;
+                case ast::c_expr_type::LONG: val.i = val.l; break;
+                case ast::c_expr_type::ULONG: val.i = val.ul; break;
+                case ast::c_expr_type::LLONG: val.i = val.ll; break;
+                case ast::c_expr_type::ULLONG: val.i = val.ull; break;
+                default:
+                    ls.syntax_error("unsupported type");
+                    break;
+            }
             fields.emplace_back(std::move(fname), val.i);
         } else {
             fields.emplace_back(

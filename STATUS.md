@@ -150,7 +150,7 @@ Implements the functionality provided by the parser.
 - [ ] Alternate calling conventions
 - [ ] Constant expressions
   - [x] Simple integer expressions
-  - [ ] Correct integer promotions
+  - [x] Correct integer promotions
   - [ ] Non-integer type support
 - [ ] `cdata` arithmetic
 - [x] correct `tostring` on integer `cdata`

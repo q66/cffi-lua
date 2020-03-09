@@ -258,6 +258,7 @@ enum class c_expr_type {
     ULLONG,
     FLOAT,
     DOUBLE,
+    LDOUBLE,
     STRING,
     CHAR,
     NULLPTR,
@@ -405,7 +406,7 @@ struct c_expr {
         c_value val;
     };
 
-    c_value eval() const;
+    c_value eval(c_expr_type &et, bool promote = false) const;
 
 private:
     void clear() {
