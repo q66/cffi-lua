@@ -9,6 +9,7 @@
 #include <utility>
 #include <stdexcept>
 #include <memory>
+#include <limits>
 
 #include "parser.hh"
 #include "ast.hh"
@@ -811,6 +812,36 @@ static ast::c_expr parse_cexpr(lex_state &ls) {
     return parse_cexpr_bin(ls, 1);
 }
 
+static size_t get_arrsize(lex_state &ls, ast::c_expr const &exp) {
+    ast::c_expr_type et;
+    auto val = exp.eval(et, true);
+
+    long long sval = 0;
+    unsigned long long uval = 0;
+    switch (et) {
+        case ast::c_expr_type::INT: sval = val.i; break;
+        case ast::c_expr_type::LONG: sval = val.l; break;
+        case ast::c_expr_type::LLONG: sval = val.ll; break;
+        case ast::c_expr_type::UINT: uval = val.u; goto done;
+        case ast::c_expr_type::ULONG: uval = val.ul; goto done;
+        case ast::c_expr_type::ULLONG: uval = val.ull; goto done;
+        default:
+            ls.syntax_error("invalid array size");
+            break;
+    }
+    if (sval < 0) {
+        ls.syntax_error("array size is negative");
+    }
+    uval = sval;
+
+done:
+    using ULL = unsigned long long;
+    if (uval > ULL(std::numeric_limits<size_t>::max())) {
+        ls.syntax_error("array size too big");
+    }
+    return size_t(uval);
+}
+
 static int parse_cv(lex_state &ls) {
     int quals = 0;
 
@@ -838,6 +869,52 @@ static int parse_cv(lex_state &ls) {
     }
 
     return quals;
+}
+
+struct arrdim {
+    size_t size;
+    int quals;
+};
+
+/* FIXME: when in var declarations, all components must be complete */
+static bool parse_array(lex_state &ls, bool &vla, std::stack<arrdim> &dims) {
+    if (ls.t.token != '[') {
+        return false;
+    }
+    ls.get();
+    if (ls.t.token == ']') {
+        vla = true;
+        int cv = parse_cv(ls);
+        dims.push({0, cv});
+        ls.get();
+    } else {
+        vla = false;
+        int cv = parse_cv(ls);
+        dims.push({get_arrsize(ls, parse_cexpr(ls)), cv});
+        check_next(ls, ']');
+    }
+    while (ls.t.token == '[') {
+        ls.get();
+        int cv = parse_cv(ls);
+        dims.push({get_arrsize(ls, parse_cexpr(ls)), cv});
+        check_next(ls, ']');
+    }
+    return true;
+}
+
+static ast::c_type build_array(
+    ast::c_type tp, bool vla, std::stack<arrdim> &dims
+) {
+    while (!dims.empty()) {
+        using CT = ast::c_type;
+        size_t dim = dims.top().size;
+        int quals = dims.top().quals;
+        dims.pop();
+        ast::c_type atp{std::move(tp), quals, dim, vla && dims.empty()};
+        tp.~CT();
+        new (&tp) ast::c_type{std::move(atp)};
+    }
+    return tp;
 }
 
 static std::vector<ast::c_param> parse_paramlist(lex_state &ls) {
@@ -874,7 +951,12 @@ static std::vector<ast::c_param> parse_paramlist(lex_state &ls) {
         if (pname == "?") {
             pname.clear();
         }
-        params.emplace_back(std::move(pname), std::move(pt));
+        std::stack<arrdim> arrdims;
+        bool vla;
+        parse_array(ls, vla, arrdims);
+        params.emplace_back(
+            std::move(pname), build_array(std::move(pt), vla, arrdims)
+        );
         if (!test_next(ls, ',')) {
             break;
         }
@@ -924,6 +1006,8 @@ static ast::c_type parse_type_fptr(
         }
         ++fplevel;
     }
+    bool vla = false;
+    std::stack<arrdim> arrdims;
     if (fpname) {
         if (needn || (ls.t.token == TOK_NAME)) {
             /* we're in a context where name can be provided, e.g. if
@@ -935,6 +1019,8 @@ static ast::c_type parse_type_fptr(
         } else {
             *fpname = "?";
         }
+        /* function pointers can have an array part as well */
+        parse_array(ls, vla, arrdims);
     }
     /* now to deal with arglists; the first arglist to come syntactically
      * is actually the outermost arglist, e.g. when declaring a prototype
@@ -995,7 +1081,7 @@ static ast::c_type parse_type_fptr(
     }
     assert(pcvq.empty()); /* just in case */
     /* and this is finally over */
-    return tp;
+    return build_array(std::move(tp), vla, arrdims);
 }
 
 static ast::c_type parse_type_ptr(
@@ -1576,8 +1662,11 @@ ast::c_type parse_type(lua_State *L, char const *input, char const *iend) {
     try {
         ls.get();
         auto tp = parse_type(ls);
+        std::stack<arrdim> arrdims;
+        bool vla;
+        parse_array(ls, vla, arrdims);
         ls.commit();
-        return tp;
+        return build_array(std::move(tp), vla, arrdims);
     } catch (lex_state_error const &e) {
         if (e.token > 0) {
             luaL_error(

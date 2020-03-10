@@ -80,8 +80,8 @@ C language syntax support.
 - [x] Name lookups
 - [x] `struct foo`, `enum foo`
 - [x] `struct`/`union` inside types
-- [ ] Arrays
-  - [ ] Reference to array
+- [x] Arrays
+  - [ ] References/pointers to array
 - [ ] Variable length arrays and structs (C99)
 - [ ] `alignas`, `_Alignas`
 
@@ -148,7 +148,7 @@ Implements the functionality provided by the parser.
 - [x] Typedefs
 - [x] Structs
 - [ ] Unions
-- [ ] Arrays
+- [x] Arrays
 - [ ] Alternate calling conventions
 - [ ] Constant expressions
   - [x] Simple integer expressions

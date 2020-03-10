@@ -200,4 +200,14 @@ print("w: " .. ffi.string(x.w))
 print("offset of z: " .. ffi.offsetof("struct foo", "z"))
 print()
 
+print("# Arrays")
+x = ffi.new("int[3]")
+x[0] = 5
+x[1] = 10
+x[2] = 15
+for i = 0, 2 do
+    print("arr[" .. i .. "] = " .. ffi.tonumber(x[i]))
+end
+print()
+
 print("## END TESTS ##")
