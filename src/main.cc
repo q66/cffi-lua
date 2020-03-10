@@ -138,9 +138,25 @@ struct cdata_meta {
         if (ffi::isctype(cd)) {
             luaL_error(L, "'ctype' is not indexable");
         }
-        /* TODO: add arrays, FIXME: cdata indexes */
+        /* FIXME: cdata indexes */
+        size_t elsize;
+        unsigned char *ptr;
         switch (cd.decl.type()) {
             case ast::C_BUILTIN_PTR:
+                ptr = static_cast<unsigned char *>(cd.val);
+                goto elsz;
+            case ast::C_BUILTIN_ARRAY:
+                if (cd.aux) {
+                    /* weak array */
+                    ptr = static_cast<unsigned char *>(cd.val);
+                } else {
+                    ptr = reinterpret_cast<unsigned char *>(&cd.val);
+                }
+            elsz:
+                /* the base will never be a VLA (VLA to VLA is impossible
+                 * in the parser), so we can rely on * alloc_size
+                 */
+                elsize = cd.decl.ptr_base().alloc_size();
                 break;
             case ast::C_BUILTIN_REF: {
                 /* no need to deal with the type size nonsense */
@@ -167,9 +183,7 @@ struct cdata_meta {
             }
         }
         auto sidx = luaL_checkinteger(L, 2);
-        auto *ptr = static_cast<unsigned char *>(cd.val);
-        auto *type = cd.decl.ptr_base().libffi_type();
-        func(cd.decl.ptr_base(), static_cast<void *>(&ptr[sidx * type->size]));
+        func(cd.decl.ptr_base(), static_cast<void *>(&ptr[sidx * elsize]));
     }
 
     static int cb_free(lua_State *L) {
@@ -524,6 +538,7 @@ struct ffi_module {
                 case ast::C_BUILTIN_PTR:
                 case ast::C_BUILTIN_FPTR:
                 case ast::C_BUILTIN_STRUCT:
+                case ast::C_BUILTIN_ARRAY:
                 case ast::C_BUILTIN_FUNC:
                     /* these may appear */
                     lua_pushnil(L);

@@ -29,6 +29,7 @@ enum c_builtin {
 
     C_BUILTIN_FUNC,
     C_BUILTIN_STRUCT,
+    C_BUILTIN_ARRAY,
 
     C_BUILTIN_VA_LIST,
 
@@ -96,6 +97,9 @@ template<> struct builtin_traits<C_BUILTIN_PTR>:
 
 template<> struct builtin_traits<C_BUILTIN_REF>:
     detail::builtin_traits_base<char &> {};
+
+template<> struct builtin_traits<C_BUILTIN_ARRAY>:
+    detail::builtin_traits_base<char[]> {};
 
 template<> struct builtin_traits<C_BUILTIN_VA_LIST>:
     detail::builtin_traits_base<va_list> {};
@@ -233,7 +237,8 @@ enum c_cv {
 
 enum c_type_flags {
     C_TYPE_WEAK = 1 << 16,
-    C_TYPE_CLOSURE = 1 << 17
+    C_TYPE_CLOSURE = 1 << 17,
+    C_TYPE_VLA = 1 << 18
 };
 
 enum class c_object_type {
@@ -467,6 +472,11 @@ struct c_type: c_object {
         p_ptr{new c_type{std::move(tp)}}, p_type{cbt | uint32_t(qual)}
     {}
 
+    c_type(c_type tp, int qual, size_t arrlen, bool vla):
+        p_ptr{new c_type{std::move(tp)}}, p_asize{arrlen},
+        p_type{C_BUILTIN_ARRAY | uint32_t(qual) | (vla ? C_TYPE_VLA : 0)}
+    {}
+
     c_type(c_type const *ctp, int qual, int cbt = C_BUILTIN_PTR):
         p_cptr{ctp}, p_type{cbt | C_TYPE_WEAK | uint32_t(qual)}
     {}
@@ -555,6 +565,10 @@ struct c_type: c_object {
         return !bool(p_type & C_TYPE_WEAK);
     }
 
+    bool vla() const {
+        return p_type & C_TYPE_VLA;
+    }
+
     bool closure() const {
         return p_type & C_TYPE_CLOSURE;
     }
@@ -603,6 +617,10 @@ struct c_type: c_object {
 
     size_t alloc_size() const;
 
+    size_t array_size() const {
+        return p_asize;
+    }
+
     bool is_same(c_type const &other, bool ignore_cv = false) const;
     bool converts_to(c_type const &other) const;
 
@@ -624,6 +642,7 @@ private:
         c_struct const *p_crec;
         c_enum const *p_cenum;
     };
+    size_t p_asize = 0;
     /*
      * 8 bits: type type (builtin/regular)
      * 8 bits: qualifier

@@ -512,7 +512,10 @@ c_type::~c_type() {
     int tp = type();
     if ((tp == C_BUILTIN_FPTR) || (tp == C_BUILTIN_FUNC)) {
         delete p_fptr;
-    } else if ((tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_REF)) {
+    } else if (
+        (tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_REF) ||
+        (tp == C_BUILTIN_ARRAY)
+    ) {
         delete p_ptr;
     }
 }
@@ -522,7 +525,10 @@ c_type::c_type(c_type const &v): p_type{v.p_type} {
     int tp = type();
     if ((tp == C_BUILTIN_FPTR) || (tp == C_BUILTIN_FUNC)) {
         p_fptr = weak ? v.p_fptr : new c_function{*v.p_fptr};
-    } else if ((tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_REF)) {
+    } else if (
+        (tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_REF) ||
+        (tp == C_BUILTIN_ARRAY)
+    ) {
         p_ptr = weak ? v.p_ptr : new c_type{*v.p_ptr};
     } else if ((tp == C_BUILTIN_STRUCT) || (tp == C_BUILTIN_ENUM)) {
         p_ptr = v.p_ptr;
@@ -534,6 +540,7 @@ c_type::c_type(c_type &&v):
     p_type{v.p_type}
 {}
 
+/* FIXME: a bunch of these are wrong */
 void c_type::do_serialize(std::string &o) const {
     int tcv = cv();
     int ttp = type();
@@ -547,10 +554,25 @@ void c_type::do_serialize(std::string &o) const {
             break;
         case C_BUILTIN_REF:
             p_ptr->do_serialize(o);
-            if (o.back() != '&') {
+            if ((o.back() != '&') && (o.back() != '*')) {
                 o += ' ';
             }
             o += '&';
+            break;
+        case C_BUILTIN_ARRAY:
+            p_ptr->do_serialize(o);
+            if ((o.back() != '&') && (o.back() != '*') && (o.back() != ']')) {
+                o += ' ';
+            }
+            o += '[';
+            if (!vla()) {
+                char buf[32];
+                snprintf(buf, sizeof(buf), "%zu", array_size());
+                o += static_cast<char const *>(buf);
+            } else {
+                o += '?';
+            }
+            o += ']';
             break;
         case C_BUILTIN_FPTR:
         case C_BUILTIN_FUNC:
@@ -580,6 +602,7 @@ ffi_type *c_type::libffi_type() const {
         C_BUILTIN_CASE(VOID)
         C_BUILTIN_CASE(PTR)
         C_BUILTIN_CASE(REF)
+        C_BUILTIN_CASE(ARRAY)
         C_BUILTIN_CASE(VA_LIST)
 
         case C_BUILTIN_FPTR:
@@ -649,6 +672,13 @@ size_t c_type::alloc_size() const {
             return p_crec->alloc_size();
         case C_BUILTIN_ENUM:
             return p_cenum->alloc_size();
+        case C_BUILTIN_ARRAY:
+            /* VLAs may occasionally be zero sized, particularly where
+             * dealt with entirely on the C side (so we don't know the
+             * allocation size). That's fine, this is never relied upon
+             * in contexts where that would be important
+             */
+            return p_asize * p_cptr->alloc_size();
         default:
             break;
     }
@@ -705,6 +735,15 @@ bool c_type::is_same(c_type const &other, bool ignore_cv) const {
 
         case C_BUILTIN_REF:
             if (type() != other.type()) {
+                return false;
+            }
+            return p_cptr->is_same(*other.p_cptr);
+
+        case C_BUILTIN_ARRAY:
+            if (type() != other.type()) {
+                return false;
+            }
+            if (p_asize != other.p_asize) {
                 return false;
             }
             return p_cptr->is_same(*other.p_cptr);

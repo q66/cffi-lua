@@ -34,7 +34,14 @@ template<typename T>
 struct cdata {
     ast::c_type decl;
     int gc_ref;
-    int aux; /* auxiliary data that can be used by different cdata */
+    /* auxiliary data that can be used by different cdata
+     *
+     * vararg functions store the number of arguments they have storage
+     * prepared for here to avoid reallocating every time; arrays store
+     * the "weak flag" here which indicates they only point to others'
+     * memory rather than having their own
+     */
+    int aux;
     alignas(arg_stor_t) T val;
 
     void *get_addr() {

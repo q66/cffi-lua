@@ -12,6 +12,7 @@ C language syntax support.
 ### Declarations
 
 - [x] Simple functions (`ret func(args);`; note: `ret func();` has no args like C++)
+  - [x] Unnamed parameters (C++ extension)
 - [x] Variadic functions
 - [x] Extern variable declarations
 - [x] `typedef`
@@ -80,6 +81,7 @@ C language syntax support.
 - [x] `struct foo`, `enum foo`
 - [x] `struct`/`union` inside types
 - [ ] Arrays
+  - [ ] Reference to array
 - [ ] Variable length arrays and structs (C99)
 - [ ] `alignas`, `_Alignas`
 

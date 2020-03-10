@@ -472,6 +472,14 @@ int to_lua(
             /* TODO: large enums */
             return push_int<int>(L, tp, value, lossy);
 
+        case ast::C_BUILTIN_ARRAY: {
+            /* the new array is weak */
+            auto &cd = newcdata<void *>(L, tp);
+            cd.val = const_cast<void *>(value);
+            cd.aux = 1;
+            return 1;
+        }
+
         case ast::C_BUILTIN_STRUCT: {
             auto sz = tp.alloc_size();
             auto &cd = newcdata(L, tp, sz);
@@ -590,6 +598,7 @@ static void *from_lua_num(
         case ast::C_BUILTIN_REF:
         case ast::C_BUILTIN_FPTR:
         case ast::C_BUILTIN_STRUCT:
+        case ast::C_BUILTIN_ARRAY:
         case ast::C_BUILTIN_VA_LIST:
             luaL_error(
                 L, "cannot convert '%s' to '%s'",

@@ -546,7 +546,7 @@ static std::string token_to_str(int tok) {
         } else {
             char buf[16];
             snprintf(buf, sizeof(buf), "char(%d)", tok);
-            ret += buf;
+            ret += static_cast<char const *>(buf);
         }
         return ret;
     }
@@ -599,7 +599,7 @@ static void check_match(lex_state &ls, int what, int who, int where) {
         buf += vbuf;
         buf += "' at line ";
         snprintf(lbuf, sizeof(lbuf), "%d", where);
-        buf += lbuf;
+        buf += static_cast<char const *>(lbuf);
         buf += ')';
         ls.syntax_error(buf);
     }
