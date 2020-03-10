@@ -684,7 +684,8 @@ static ast::c_expr parse_cexpr(lex_state &ls);
 static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec);
 
 static ast::c_type parse_type(
-    lex_state &ls, bool allow_void = false, std::string *fpname = nullptr
+    lex_state &ls, bool allow_void = false, std::string *fpname = nullptr,
+    bool needn = true
 );
 
 static ast::c_struct const &parse_struct(lex_state &ls, bool *newst = nullptr);
@@ -859,18 +860,21 @@ static std::vector<ast::c_param> parse_paramlist(lex_state &ls) {
             /* varargs ends the arglist */
             break;
         }
-        auto pt = parse_type(ls, params.size() == 0);
+        std::string pname;
+        auto pt = parse_type(ls, params.size() == 0, &pname, false);
         if (pt.type() == ast::C_BUILTIN_VOID) {
             break;
         }
-        if (test_next(ls, ',')) {
-            /* unnamed param */
-            params.emplace_back(std::string{}, std::move(pt));
-            continue;
+        /* there was no place to give name elsewhere */
+        if (pname.empty() && (ls.t.token == TOK_NAME)) {
+            pname = ls.t.value_s;
+            ls.get();
         }
-        check(ls, TOK_NAME);
-        params.emplace_back(ls.t.value_s, std::move(pt));
-        ls.get();
+        /* funcptr context but no name was provided */
+        if (pname == "?") {
+            pname.clear();
+        }
+        params.emplace_back(std::move(pname), std::move(pt));
         if (!test_next(ls, ',')) {
             break;
         }
@@ -888,7 +892,7 @@ done_params:
  * pretty nor cheap but i did my best
  */
 static ast::c_type parse_type_fptr(
-    lex_state &ls, ast::c_type tp, std::string *fpname
+    lex_state &ls, ast::c_type tp, std::string *fpname, bool needn
 ) {
     /*
      * now the real fun begins, yay, statekeeping
@@ -921,12 +925,16 @@ static ast::c_type parse_type_fptr(
         ++fplevel;
     }
     if (fpname) {
-        /* we're in a context where name can be provided, e.g. if
-         * parsing a typedef or a prototype, this will be the name
-         */
-        check(ls, TOK_NAME);
-        *fpname = ls.t.value_s;
-        ls.get();
+        if (needn || (ls.t.token == TOK_NAME)) {
+            /* we're in a context where name can be provided, e.g. if
+             * parsing a typedef or a prototype, this will be the name
+             */
+            check(ls, TOK_NAME);
+            *fpname = ls.t.value_s;
+            ls.get();
+        } else {
+            *fpname = "?";
+        }
     }
     /* now to deal with arglists; the first arglist to come syntactically
      * is actually the outermost arglist, e.g. when declaring a prototype
@@ -991,7 +999,8 @@ static ast::c_type parse_type_fptr(
 }
 
 static ast::c_type parse_type_ptr(
-    lex_state &ls, ast::c_type tp, bool allow_void, std::string *fpname
+    lex_state &ls, ast::c_type tp, bool allow_void, std::string *fpname,
+    bool needn
 ) {
     for (;;) {
         /* right-side cv */
@@ -999,7 +1008,7 @@ static ast::c_type parse_type_ptr(
 
         if (ls.t.token == '(') {
             /* function pointer */
-            return parse_type_fptr(ls, std::move(tp), fpname);
+            return parse_type_fptr(ls, std::move(tp), fpname, needn);
         }
 
         /* for contexts where void is not allowed,
@@ -1040,7 +1049,7 @@ enum type_signedness {
  * on to provide to the codegen) but it's a start
  */
 static ast::c_type parse_type(
-    lex_state &ls, bool allow_void, std::string *fpn
+    lex_state &ls, bool allow_void, std::string *fpn, bool needn
 ) {
     /* left-side cv */
     int quals = parse_cv(ls);
@@ -1076,11 +1085,11 @@ static ast::c_type parse_type(
         goto newtype;
     } else if (ls.t.token == TOK_struct) {
         return parse_type_ptr(
-            ls, ast::c_type{&parse_struct(ls), quals}, true, fpn
+            ls, ast::c_type{&parse_struct(ls), quals}, true, fpn, needn
         );
     } else if (ls.t.token == TOK_enum) {
         return parse_type_ptr(
-            ls, ast::c_type{&parse_enum(ls), quals}, true, fpn
+            ls, ast::c_type{&parse_enum(ls), quals}, true, fpn, needn
         );
     }
 
@@ -1101,17 +1110,23 @@ qualified:
                 ast::c_type tp{decl->as<ast::c_typedef>().type()};
                 /* merge qualifiers */
                 tp.cv(quals);
-                return parse_type_ptr(ls, std::move(tp), allow_void, fpn);
+                return parse_type_ptr(
+                    ls, std::move(tp), allow_void, fpn, needn
+                );
             }
             case ast::c_object_type::STRUCT: {
                 ls.get();
                 auto &tp = decl->as<ast::c_struct>();
-                return parse_type_ptr(ls, ast::c_type{&tp, quals}, true, fpn);
+                return parse_type_ptr(
+                    ls, ast::c_type{&tp, quals}, true, fpn, needn
+                );
             }
             case ast::c_object_type::ENUM: {
                 ls.get();
                 auto &tp = decl->as<ast::c_enum>();
-                return parse_type_ptr(ls, ast::c_type{&tp, quals}, true, fpn);
+                return parse_type_ptr(
+                    ls, ast::c_type{&tp, quals}, true, fpn, needn
+                );
             }
             default: {
                 std::string buf;
@@ -1241,7 +1256,7 @@ qualified:
 
 newtype:
     assert(cbt != ast::C_BUILTIN_INVALID);
-    return parse_type_ptr(ls, ast::c_type{cbt, quals}, allow_void, fpn);
+    return parse_type_ptr(ls, ast::c_type{cbt, quals}, allow_void, fpn, needn);
 }
 
 /* two syntaxes allowed by C:
@@ -1310,10 +1325,14 @@ static ast::c_struct const &parse_struct(lex_state &ls, bool *newst) {
                 fields.emplace_back(fname, ast::c_type{&st, 0});
                 continue;
             }
-            auto tp = parse_type_ptr(ls, ast::c_type{&st, 0}, true, nullptr);
-            check(ls, TOK_NAME);
-            fname = ls.t.value_s;
-            ls.get();
+            auto tp = parse_type_ptr(
+                ls, ast::c_type{&st, 0}, true, &fname, true
+            );
+            if (fname.empty()) {
+                check(ls, TOK_NAME);
+                fname = ls.t.value_s;
+                ls.get();
+            }
             fields.emplace_back(std::move(fname), std::move(tp));
             continue;
         }

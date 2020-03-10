@@ -561,7 +561,11 @@ struct ffi_module {
 
     static int toretval_f(lua_State *L) {
         auto &cd = ffi::checkcdata<void *>(L, 1);
-        ffi::to_lua(L, cd.decl, &cd.val, ffi::RULE_RET);
+        if ((cd.decl.type() == ast::C_BUILTIN_ARRAY) && cd.aux) {
+            ffi::to_lua(L, cd.decl, cd.val, ffi::RULE_RET);
+        } else {
+            ffi::to_lua(L, cd.decl, &cd.val, ffi::RULE_RET);
+        }
         return 1;
     }
 

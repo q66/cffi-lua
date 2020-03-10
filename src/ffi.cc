@@ -475,7 +475,11 @@ int to_lua(
         case ast::C_BUILTIN_ARRAY: {
             /* the new array is weak */
             auto &cd = newcdata<void *>(L, tp);
-            cd.val = const_cast<void *>(value);
+            if (rule == RULE_PASS) {
+                cd.val = *reinterpret_cast<void * const *>(value);
+            } else {
+                cd.val = const_cast<void *>(value);
+            }
             cd.aux = 1;
             return 1;
         }
