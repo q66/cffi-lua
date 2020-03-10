@@ -506,6 +506,136 @@ static inline void *write_flt(lua_State *L, int index, void *stor, size_t &s) {
     return stor;
 }
 
+static void *from_lua_num(
+    lua_State *L, ast::c_type const &tp, void *stor, int index,
+    size_t &dsz, int
+) {
+    switch (ast::c_builtin(tp.type())) {
+        case ast::C_BUILTIN_FLOAT:
+            return write_flt<float>(L, index, stor, dsz);
+        case ast::C_BUILTIN_DOUBLE:
+            return write_flt<double>(L, index, stor, dsz);
+        case ast::C_BUILTIN_LDOUBLE:
+            return write_flt<long double>(L, index, stor, dsz);
+        case ast::C_BUILTIN_BOOL:
+            return write_int<bool>(L, index, stor, dsz);
+        case ast::C_BUILTIN_CHAR:
+            return write_int<char>(L, index, stor, dsz);
+        case ast::C_BUILTIN_SCHAR:
+            return write_int<signed char>(L, index, stor, dsz);
+        case ast::C_BUILTIN_UCHAR:
+            return write_int<unsigned char>(L, index, stor, dsz);
+        case ast::C_BUILTIN_SHORT:
+            return write_int<short>(L, index, stor, dsz);
+        case ast::C_BUILTIN_USHORT:
+            return write_int<unsigned short>(L, index, stor, dsz);
+        case ast::C_BUILTIN_INT:
+            return write_int<int>(L, index, stor, dsz);
+        case ast::C_BUILTIN_UINT:
+            return write_int<unsigned int>(L, index, stor, dsz);
+        case ast::C_BUILTIN_LONG:
+            return write_int<long>(L, index, stor, dsz);
+        case ast::C_BUILTIN_ULONG:
+            return write_int<unsigned long>(L, index, stor, dsz);
+        case ast::C_BUILTIN_LLONG:
+            return write_int<long long>(L, index, stor, dsz);
+        case ast::C_BUILTIN_ULLONG:
+            return write_int<unsigned long long>(
+                L, index, stor, dsz
+            );
+        case ast::C_BUILTIN_WCHAR:
+            return write_int<wchar_t>(L, index, stor, dsz);
+        case ast::C_BUILTIN_CHAR16:
+            return write_int<char16_t>(L, index, stor, dsz);
+        case ast::C_BUILTIN_CHAR32:
+            return write_int<char32_t>(L, index, stor, dsz);
+        case ast::C_BUILTIN_INT8:
+            return write_int<int8_t>(L, index, stor, dsz);
+        case ast::C_BUILTIN_UINT8:
+            return write_int<uint8_t>(L, index, stor, dsz);
+        case ast::C_BUILTIN_INT16:
+            return write_int<int16_t>(L, index, stor, dsz);
+        case ast::C_BUILTIN_UINT16:
+            return write_int<uint16_t>(L, index, stor, dsz);
+        case ast::C_BUILTIN_INT32:
+            return write_int<int32_t>(L, index, stor, dsz);
+        case ast::C_BUILTIN_UINT32:
+            return write_int<uint32_t>(L, index, stor, dsz);
+        case ast::C_BUILTIN_INT64:
+            return write_int<int64_t>(L, index, stor, dsz);
+        case ast::C_BUILTIN_UINT64:
+            return write_int<uint64_t>(L, index, stor, dsz);
+        case ast::C_BUILTIN_SIZE:
+            return write_int<size_t>(L, index, stor, dsz);
+        case ast::C_BUILTIN_SSIZE:
+            return write_int<signed_size_t>(L, index, stor, dsz);
+        case ast::C_BUILTIN_INTPTR:
+            return write_int<intptr_t>(L, index, stor, dsz);
+        case ast::C_BUILTIN_UINTPTR:
+            return write_int<uintptr_t>(L, index, stor, dsz);
+        case ast::C_BUILTIN_PTRDIFF:
+            return write_int<ptrdiff_t>(L, index, stor, dsz);
+        case ast::C_BUILTIN_TIME:
+            if (!std::numeric_limits<time_t>::is_integer) {
+                return write_flt<time_t>(L, index, stor, dsz);
+            }
+            return write_int<time_t>(L, index, stor, dsz);
+
+        case ast::C_BUILTIN_ENUM:
+            /* TODO: large enums */
+            return write_int<int>(L, index, stor, dsz);
+
+        case ast::C_BUILTIN_VOID:
+        case ast::C_BUILTIN_PTR:
+        case ast::C_BUILTIN_REF:
+        case ast::C_BUILTIN_FPTR:
+        case ast::C_BUILTIN_STRUCT:
+        case ast::C_BUILTIN_VA_LIST:
+            luaL_error(
+                L, "cannot convert '%s' to '%s'",
+                lua_typename(L, lua_type(L, index)),
+                tp.serialize().c_str()
+            );
+            break;
+
+        case ast::C_BUILTIN_FUNC:
+        case ast::C_BUILTIN_INVALID:
+            /* this should not happen */
+            luaL_error(
+                L, "bad argument type '%s'", tp.serialize().c_str()
+            );
+            break;
+    }
+    assert(false);
+    return nullptr;
+}
+
+static void *from_lua_cdata(
+    lua_State *L, ast::c_type const &tp, void *stor, int index,
+    size_t &dsz, int
+) {
+    /* special handling for cdata */
+    auto &cd = *lua::touserdata<ffi::cdata<void *>>(L, index);
+    if (!cd.decl.converts_to(tp)) {
+        luaL_error(
+            L, "cannot convert '%s' to '%s'",
+            cd.decl.serialize().c_str(),
+            tp.serialize().c_str()
+        );
+    }
+    if (tp.type() == ast::C_BUILTIN_REF) {
+        if (
+            (cd.decl.type() != ast::C_BUILTIN_PTR) &&
+            (cd.decl.type() != ast::C_BUILTIN_REF)
+        ) {
+            dsz = sizeof(void *);
+            return &(*static_cast<void **>(stor) = &cd.val);
+        }
+    }
+    dsz = ffi::cdata_value_size(L, index);
+    return &cd.val;
+}
+
 void *from_lua(
     lua_State *L, ast::c_type const &tp, void *stor, int index,
     size_t &dsz, int rule
@@ -532,105 +662,9 @@ void *from_lua(
             );
             break;
         case LUA_TNUMBER:
-        case LUA_TBOOLEAN: {
-            switch (ast::c_builtin(tp.type())) {
-                case ast::C_BUILTIN_FLOAT:
-                    return write_flt<float>(L, index, stor, dsz);
-                case ast::C_BUILTIN_DOUBLE:
-                    return write_flt<double>(L, index, stor, dsz);
-                case ast::C_BUILTIN_LDOUBLE:
-                    return write_flt<long double>(L, index, stor, dsz);
-                case ast::C_BUILTIN_BOOL:
-                    return write_int<bool>(L, index, stor, dsz);
-                case ast::C_BUILTIN_CHAR:
-                    return write_int<char>(L, index, stor, dsz);
-                case ast::C_BUILTIN_SCHAR:
-                    return write_int<signed char>(L, index, stor, dsz);
-                case ast::C_BUILTIN_UCHAR:
-                    return write_int<unsigned char>(L, index, stor, dsz);
-                case ast::C_BUILTIN_SHORT:
-                    return write_int<short>(L, index, stor, dsz);
-                case ast::C_BUILTIN_USHORT:
-                    return write_int<unsigned short>(L, index, stor, dsz);
-                case ast::C_BUILTIN_INT:
-                    return write_int<int>(L, index, stor, dsz);
-                case ast::C_BUILTIN_UINT:
-                    return write_int<unsigned int>(L, index, stor, dsz);
-                case ast::C_BUILTIN_LONG:
-                    return write_int<long>(L, index, stor, dsz);
-                case ast::C_BUILTIN_ULONG:
-                    return write_int<unsigned long>(L, index, stor, dsz);
-                case ast::C_BUILTIN_LLONG:
-                    return write_int<long long>(L, index, stor, dsz);
-                case ast::C_BUILTIN_ULLONG:
-                    return write_int<unsigned long long>(
-                        L, index, stor, dsz
-                    );
-                case ast::C_BUILTIN_WCHAR:
-                    return write_int<wchar_t>(L, index, stor, dsz);
-                case ast::C_BUILTIN_CHAR16:
-                    return write_int<char16_t>(L, index, stor, dsz);
-                case ast::C_BUILTIN_CHAR32:
-                    return write_int<char32_t>(L, index, stor, dsz);
-                case ast::C_BUILTIN_INT8:
-                    return write_int<int8_t>(L, index, stor, dsz);
-                case ast::C_BUILTIN_UINT8:
-                    return write_int<uint8_t>(L, index, stor, dsz);
-                case ast::C_BUILTIN_INT16:
-                    return write_int<int16_t>(L, index, stor, dsz);
-                case ast::C_BUILTIN_UINT16:
-                    return write_int<uint16_t>(L, index, stor, dsz);
-                case ast::C_BUILTIN_INT32:
-                    return write_int<int32_t>(L, index, stor, dsz);
-                case ast::C_BUILTIN_UINT32:
-                    return write_int<uint32_t>(L, index, stor, dsz);
-                case ast::C_BUILTIN_INT64:
-                    return write_int<int64_t>(L, index, stor, dsz);
-                case ast::C_BUILTIN_UINT64:
-                    return write_int<uint64_t>(L, index, stor, dsz);
-                case ast::C_BUILTIN_SIZE:
-                    return write_int<size_t>(L, index, stor, dsz);
-                case ast::C_BUILTIN_SSIZE:
-                    return write_int<signed_size_t>(L, index, stor, dsz);
-                case ast::C_BUILTIN_INTPTR:
-                    return write_int<intptr_t>(L, index, stor, dsz);
-                case ast::C_BUILTIN_UINTPTR:
-                    return write_int<uintptr_t>(L, index, stor, dsz);
-                case ast::C_BUILTIN_PTRDIFF:
-                    return write_int<ptrdiff_t>(L, index, stor, dsz);
-                case ast::C_BUILTIN_TIME:
-                    if (!std::numeric_limits<time_t>::is_integer) {
-                        return write_flt<time_t>(L, index, stor, dsz);
-                    }
-                    return write_int<time_t>(L, index, stor, dsz);
-
-                case ast::C_BUILTIN_ENUM:
-                    /* TODO: large enums */
-                    return write_int<int>(L, index, stor, dsz);
-
-                case ast::C_BUILTIN_VOID:
-                case ast::C_BUILTIN_PTR:
-                case ast::C_BUILTIN_REF:
-                case ast::C_BUILTIN_FPTR:
-                case ast::C_BUILTIN_STRUCT:
-                case ast::C_BUILTIN_VA_LIST:
-                    luaL_error(
-                        L, "cannot convert '%s' to '%s'",
-                        lua_typename(L, lua_type(L, index)),
-                        tp.serialize().c_str()
-                    );
-                    break;
-
-                case ast::C_BUILTIN_FUNC:
-                case ast::C_BUILTIN_INVALID:
-                    /* this should not happen */
-                    luaL_error(
-                        L, "bad argument type '%s'", tp.serialize().c_str()
-                    );
-                    break;
-            }
+        case LUA_TBOOLEAN:
+            return from_lua_num(L, tp, stor, index, dsz, rule);
             break;
-        }
         case LUA_TSTRING:
             if (
                 (tp.type() == ast::C_BUILTIN_PTR) &&
@@ -648,26 +682,7 @@ void *from_lua(
             break;
         case LUA_TUSERDATA:
             if (iscdata(L, index)) {
-                /* special handling for cdata */
-                auto &cd = *lua::touserdata<ffi::cdata<void *>>(L, index);
-                if (!cd.decl.converts_to(tp)) {
-                    luaL_error(
-                        L, "cannot convert '%s' to '%s'",
-                        cd.decl.serialize().c_str(),
-                        tp.serialize().c_str()
-                    );
-                }
-                if (tp.type() == ast::C_BUILTIN_REF) {
-                    if (
-                        (cd.decl.type() != ast::C_BUILTIN_PTR) &&
-                        (cd.decl.type() != ast::C_BUILTIN_REF)
-                    ) {
-                        dsz = sizeof(void *);
-                        return &(*static_cast<void **>(stor) = &cd.val);
-                    }
-                }
-                dsz = ffi::cdata_value_size(L, index);
-                return &cd.val;
+                return from_lua_cdata(L, tp, stor, index, dsz, rule);
             } else if (tp.type() == ast::C_BUILTIN_PTR) {
                 /* unqualified void pointer converts to any pointer in C */
                 dsz = sizeof(void *);
