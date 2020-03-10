@@ -889,8 +889,9 @@ void c_struct::set_fields(std::vector<field> fields) {
 
 void decl_store::add(c_object *decl) {
     if (lookup(decl->name())) {
+        redefine_error rd{decl->name()};
         delete decl;
-        throw redefine_error{decl->name()};
+        throw rd;
     }
 
     p_dlist.emplace_back(decl);

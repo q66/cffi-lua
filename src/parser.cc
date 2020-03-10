@@ -101,7 +101,12 @@ static void init_kwmap() {
 }
 
 struct lex_state_error: public std::runtime_error {
-    using std::runtime_error::runtime_error;
+    lex_state_error(std::string const &str, int tok, int lnum):
+        std::runtime_error{str}, token{tok}, line_number{lnum}
+    {}
+
+    int token;
+    int line_number;
 };
 
 enum parse_mode {
@@ -158,16 +163,20 @@ struct lex_state {
         return (lahead.token = lex(t));
     }
 
-    void lex_error(std::string const &msg, int) const {
-        throw lex_state_error{msg};
+    void lex_error(std::string const &msg, int tok) const {
+        throw lex_state_error{msg, tok, line_number};
     }
 
     void syntax_error(std::string const &msg) const {
         lex_error(msg, t.token);
     }
 
-    void store_decl(ast::c_object *obj) {
-        p_dstore.add(obj);
+    void store_decl(ast::c_object *obj, int lnum) {
+        try {
+            p_dstore.add(obj);
+        } catch (ast::redefine_error const &e) {
+            throw lex_state_error{e.what(), -1, lnum};
+        }
     }
 
     void commit() {
@@ -948,7 +957,7 @@ static ast::c_type parse_type_fptr(
         auto *cf = new ast::c_function{
             ls.request_name(), std::move(tp), std::move(argl), variadic
         };
-        ls.store_decl(cf);
+        ls.store_decl(cf, 0);
         pcvq.pop(); /* remove the level tag */
         /* replace what was previously tp; this will become either the
          * final returned type, or the return type for the function
@@ -1239,7 +1248,9 @@ newtype:
  * typedef FROM TO;
  * FROM typedef TO;
  */
-static void parse_typedef(lex_state &ls, ast::c_type &&tp, std::string &aname) {
+static void parse_typedef(
+    lex_state &ls, ast::c_type &&tp, std::string &aname, int tline
+) {
     /* the new type name */
     if (aname.empty()) {
         check(ls, TOK_NAME);
@@ -1247,10 +1258,11 @@ static void parse_typedef(lex_state &ls, ast::c_type &&tp, std::string &aname) {
         ls.get();
     }
 
-    ls.store_decl(new ast::c_typedef{std::move(aname), std::move(tp)});
+    ls.store_decl(new ast::c_typedef{std::move(aname), std::move(tp)}, tline);
 }
 
 static ast::c_struct const &parse_struct(lex_state &ls, bool *newst) {
+    int sline = ls.line_number;
     ls.get(); /* struct keyword */
 
     /* name is optional */
@@ -1279,7 +1291,7 @@ static ast::c_struct const &parse_struct(lex_state &ls, bool *newst) {
             mode_error();
             /* different type or not stored yet, raise error or store */
             auto *p = new ast::c_struct{std::move(sname)};
-            ls.store_decl(p);
+            ls.store_decl(p, sline);
             return *p;
         }
         return oldecl->as<ast::c_struct>();
@@ -1334,11 +1346,12 @@ static ast::c_struct const &parse_struct(lex_state &ls, bool *newst) {
         *newst = true;
     }
     auto *p = new ast::c_struct{std::move(sname), std::move(fields)};
-    ls.store_decl(p);
+    ls.store_decl(p, sline);
     return *p;
 }
 
 static ast::c_enum const &parse_enum(lex_state &ls) {
+    int eline = ls.line_number;
     ls.get();
 
     /* name is optional */
@@ -1365,7 +1378,7 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
         if (!oldecl || (oldecl->obj_type() != ast::c_object_type::ENUM)) {
             mode_error();
             auto *p = new ast::c_enum{std::move(ename)};
-            ls.store_decl(p);
+            ls.store_decl(p, eline);
             return *p;
         }
         return oldecl->as<ast::c_enum>();
@@ -1422,17 +1435,18 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
     }
 
     auto *p = new ast::c_enum{std::move(ename), std::move(fields)};
-    ls.store_decl(p);
+    ls.store_decl(p, eline);
     return *p;
 }
 
 static void parse_decl(lex_state &ls) {
+    int dline = ls.line_number;
     std::string dname;
     switch (ls.t.token) {
         case TOK_typedef: {
             /* syntax 1: typedef FROM TO; */
             ls.get();
-            parse_typedef(ls, parse_type(ls, true, &dname), dname);
+            parse_typedef(ls, parse_type(ls, true, &dname), dname, dline);
             return;
         }
         case TOK_struct:
@@ -1451,7 +1465,7 @@ static void parse_decl(lex_state &ls) {
     if (ls.t.token == TOK_typedef) {
         /* weird ass infix syntax: FROM typedef TO; */
         ls.get();
-        parse_typedef(ls, std::move(tp), dname);
+        parse_typedef(ls, std::move(tp), dname, dline);
         return;
     }
 
@@ -1470,7 +1484,9 @@ static void parse_decl(lex_state &ls) {
     }
 
     if (ls.t.token == ';') {
-        ls.store_decl(new ast::c_variable{std::move(dname), std::move(tp)});
+        ls.store_decl(
+            new ast::c_variable{std::move(dname), std::move(tp)}, dline
+        );
         return;
     } else if (ls.t.token != '(') {
         check(ls, ';');
@@ -1491,7 +1507,7 @@ static void parse_decl(lex_state &ls) {
 
     ls.store_decl(new ast::c_function{
         std::move(dname), std::move(tp), std::move(argl), variadic
-    });
+    }, dline);
 }
 
 static void parse_decls(lex_state &ls) {
@@ -1515,11 +1531,22 @@ void parse(lua_State *L, char const *input, char const *iend) {
     }
     lex_state ls{L, input, iend};
 
-    /* read first token */
-    ls.get();
+    try {
+        /* read first token */
+        ls.get();
 
-    parse_decls(ls);
-    ls.commit();
+        parse_decls(ls);
+        ls.commit();
+    } catch (lex_state_error const &e) {
+        if (e.token > 0) {
+            luaL_error(
+                L, "input:%d: %s near '%s'", e.line_number, e.what(),
+                token_to_str(e.token).c_str()
+            );
+        } else {
+            luaL_error(L, "input:%d: %s", e.line_number, e.what());
+        }
+    }
 }
 
 ast::c_type parse_type(lua_State *L, char const *input, char const *iend) {
@@ -1527,10 +1554,22 @@ ast::c_type parse_type(lua_State *L, char const *input, char const *iend) {
         iend = input + strlen(input);
     }
     lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF};
-    ls.get();
-    auto tp = parse_type(ls);
-    ls.commit();
-    return tp;
+    try {
+        ls.get();
+        auto tp = parse_type(ls);
+        ls.commit();
+        return tp;
+    } catch (lex_state_error const &e) {
+        if (e.token > 0) {
+            luaL_error(
+                L, "%s near '%s'", e.what(), token_to_str(e.token).c_str()
+            );
+        } else {
+            luaL_error(L, "%s", e.what());
+        }
+    }
+    /* unreachable */
+    return ast::c_type{ast::C_BUILTIN_INVALID, 0};
 }
 
 ast::c_expr_type parse_number(
@@ -1540,10 +1579,20 @@ ast::c_expr_type parse_number(
         iend = input + strlen(input);
     }
     lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF};
-    ls.get();
-    check(ls, TOK_INTEGER);
-    v = ls.t.value;
-    ls.commit();
+    try {
+        ls.get();
+        check(ls, TOK_INTEGER);
+        v = ls.t.value;
+        ls.commit();
+    } catch (lex_state_error const &e) {
+        if (e.token > 0) {
+            luaL_error(
+                L, "%s near '%s'", e.what(), token_to_str(e.token).c_str()
+            );
+        } else {
+            luaL_error(L, "%s", e.what());
+        }
+    }
     return ls.t.numtag;
 }
 
