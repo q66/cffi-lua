@@ -1634,12 +1634,10 @@ void parse(lua_State *L, char const *input, char const *iend) {
     if (!iend) {
         iend = input + strlen(input);
     }
-    lex_state ls{L, input, iend};
-
     try {
+        lex_state ls{L, input, iend};
         /* read first token */
         ls.get();
-
         parse_decls(ls);
         ls.commit();
     } catch (lex_state_error const &e) {
@@ -1658,8 +1656,8 @@ ast::c_type parse_type(lua_State *L, char const *input, char const *iend) {
     if (!iend) {
         iend = input + strlen(input);
     }
-    lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF};
     try {
+        lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF};
         ls.get();
         auto tp = parse_type(ls);
         std::stack<arrdim> arrdims;
@@ -1686,12 +1684,13 @@ ast::c_expr_type parse_number(
     if (!iend) {
         iend = input + strlen(input);
     }
-    lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF};
     try {
+        lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF};
         ls.get();
         check(ls, TOK_INTEGER);
         v = ls.t.value;
         ls.commit();
+        return ls.t.numtag;
     } catch (lex_state_error const &e) {
         if (e.token > 0) {
             luaL_error(
@@ -1701,7 +1700,8 @@ ast::c_expr_type parse_number(
             luaL_error(L, "%s", e.what());
         }
     }
-    return ls.t.numtag;
+    /* unreachable */
+    return ast::c_expr_type{};
 }
 
 } /* namespace parser */
