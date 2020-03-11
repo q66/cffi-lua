@@ -942,18 +942,20 @@ static std::vector<ast::c_param> parse_paramlist(lex_state &ls) {
         if (pt.type() == ast::C_BUILTIN_VOID) {
             break;
         }
+        std::stack<arrdim> arrdims;
+        bool vla;
         /* there was no place to give name elsewhere */
-        if (pname.empty() && (ls.t.token == TOK_NAME)) {
-            pname = ls.t.value_s;
-            ls.get();
+        if (pname.empty()) {
+            if (ls.t.token == TOK_NAME) {
+                pname = ls.t.value_s;
+                ls.get();
+            }
+            parse_array(ls, vla, arrdims);
         }
         /* funcptr context but no name was provided */
         if (pname == "?") {
             pname.clear();
         }
-        std::stack<arrdim> arrdims;
-        bool vla;
-        parse_array(ls, vla, arrdims);
         params.emplace_back(
             std::move(pname), build_array(std::move(pt), vla, arrdims)
         );
