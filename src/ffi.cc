@@ -64,11 +64,12 @@ static inline void **fargs_values(void *args, size_t nargs) {
 void destroy_cdata(lua_State *L, cdata<ffi::noval> &cd) {
     auto &fd = *reinterpret_cast<cdata<fdata> *>(&cd.decl);
     if (cd.gc_ref >= 0) {
-        lua_rawgeti(L, LUA_REGISTRYINDEX, cd.gc_ref); /* the finalizer */
+        lua_rawgeti(L, LUA_REGISTRYINDEX, cd.gc_ref);
         lua_pushvalue(L, 1); /* the cdata */
         if (lua_pcall(L, 1, 0, 0)) {
             lua_pop(L, 1);
         }
+        luaL_unref(L, LUA_REGISTRYINDEX, cd.gc_ref);
     }
     if (cd.decl.closure() && fd.val.cd) {
         /* this is O(n) which sucks a little */
@@ -884,6 +885,25 @@ newdata:
             memset(&cd.val, 0, rsz);
         } else {
             memcpy(&cd.val, cdp, rsz);
+        }
+        /* set a gc finalizer if provided in metatype */
+        if (decl.type() == ast::C_BUILTIN_STRUCT) {
+            int mt = decl.record().metatype();
+            if (mt != LUA_REFNIL) {
+                luaL_getmetatable(L, lua::CFFI_CDATA_MT);
+                lua_getfield(L, -1, "__ffi_metatypes");
+                lua_rawgeti(L, -1, mt);
+                if (lua_istable(L, -1)) {
+                    lua_getfield(L, -1, "__gc");
+                    if (!lua_isnil(L, -1)) {
+                        cd.gc_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+                    } else {
+                        lua_pop(L, 1);
+                    }
+                }
+                /* metatype, __ffi_metatypes, lua::CFFI_CDATA_MT */
+                lua_pop(L, 3);
+            }
         }
     }
 }

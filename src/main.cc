@@ -46,6 +46,9 @@ struct lib_meta {
             luaL_error(L, "unexpected error: registry reinitialized");
         }
 
+        lua_pushliteral(L, "ffi");
+        lua_setfield(L, -2, "__metatable");
+
         lua_pushcfunction(L, gc);
         lua_setfield(L, -2, "__gc");
 
@@ -250,6 +253,18 @@ struct cdata_meta {
             luaL_error(L, "unexpected error: registry reinitialized");
         }
 
+        lua_pushliteral(L, "ffi");
+        lua_setfield(L, -2, "__metatable");
+
+        /* this will store registered permanent struct/union metatypes
+         *
+         * it's used instead of regular lua registry because there is no
+         * way to reasonably garbage collect these references, and they die
+         * with the rest of the ffi anyway, so...
+         */
+        lua_newtable(L);
+        lua_setfield(L, -2, "__ffi_metatypes");
+
         lua_pushcfunction(L, gc);
         lua_setfield(L, -2, "__gc");
 
@@ -305,6 +320,28 @@ struct ffi_module {
         luaL_checkany(L, 2);
         ffi::make_cdata(L, check_ct(L, 1), ffi::RULE_CAST, 2);
         return 1;
+    }
+
+    static int metatype_f(lua_State *L) {
+        auto &ct = check_ct(L, 1);
+        luaL_argcheck(
+            L, ct.type() == ast::C_BUILTIN_STRUCT, 1,
+            "invalid C type"
+        );
+        if (ct.record().metatype() != LUA_REFNIL) {
+            luaL_error(L, "cannot change a protected metatable");
+        }
+        luaL_checktype(L, 2, LUA_TTABLE);
+
+        /* get the metatypes table on the stack */
+        luaL_getmetatable(L, lua::CFFI_CDATA_MT);
+        lua_getfield(L, -1, "__ffi_metatypes");
+        /* the metatype */
+        lua_pushvalue(L, 2);
+        const_cast<ast::c_struct &>(ct.record()).metatype(luaL_ref(L, -2));
+
+        lua_pushvalue(L, 1);
+        return 1; /* return the ctype */
     }
 
     static int load_f(lua_State *L) {
@@ -688,6 +725,7 @@ struct ffi_module {
             /* data handling */
             {"new", new_f},
             {"cast", cast_f},
+            {"metatype", metatype_f},
             {"typeof", typeof_f},
             {"addressof", addressof_f},
             {"ref", ref_f},
