@@ -1220,6 +1220,11 @@ newlevel:
             tp.~CT();
             new (&tp) ast::c_type{cf, 0};
         } else if (olev->is_arr) {
+            if (tp.vla() && !olev->arrd.empty()) {
+                ls.syntax_error(
+                    "only first bound of an array may have unknown size"
+                );
+            }
             while (!olev->arrd.empty()) {
                 size_t dim = olev->arrd.top().size;
                 int quals = olev->arrd.top().quals;
