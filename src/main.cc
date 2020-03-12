@@ -368,7 +368,18 @@ struct ffi_module {
             return 1;
         }
         auto &ct = check_ct(L, 1);
-        lua_pushinteger(L, ct.libffi_type()->size);
+        if (ct.vla()) {
+            auto sz = luaL_checkinteger(L, 2);
+            if (sz < 0) {
+                return 0;
+            } else {
+                lua_pushinteger(L, ct.ptr_base().alloc_size() * size_t(sz));
+            }
+            return 1;
+        } else if (ct.unbounded()) {
+            return 0;
+        }
+        lua_pushinteger(L, ct.alloc_size());
         return 1;
     }
 
