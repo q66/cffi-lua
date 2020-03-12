@@ -3,7 +3,7 @@
 #include <cassert>
 
 #include <stack>
-#include <queue>
+#include <deque>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -902,21 +902,6 @@ static bool parse_array(lex_state &ls, bool &vla, std::stack<arrdim> &dims) {
     return true;
 }
 
-static ast::c_type build_array(
-    ast::c_type tp, bool vla, std::stack<arrdim> &dims
-) {
-    while (!dims.empty()) {
-        using CT = ast::c_type;
-        size_t dim = dims.top().size;
-        int quals = dims.top().quals;
-        dims.pop();
-        ast::c_type atp{std::move(tp), quals, dim, vla && dims.empty()};
-        tp.~CT();
-        new (&tp) ast::c_type{std::move(atp)};
-    }
-    return tp;
-}
-
 static std::vector<ast::c_param> parse_paramlist(lex_state &ls) {
     int linenum = ls.line_number;
     ls.get();
@@ -942,23 +927,10 @@ static std::vector<ast::c_param> parse_paramlist(lex_state &ls) {
         if (pt.type() == ast::C_BUILTIN_VOID) {
             break;
         }
-        std::stack<arrdim> arrdims;
-        bool vla;
-        /* there was no place to give name elsewhere */
-        if (pname.empty()) {
-            if (ls.t.token == TOK_NAME) {
-                pname = ls.t.value_s;
-                ls.get();
-            }
-            parse_array(ls, vla, arrdims);
-        }
-        /* funcptr context but no name was provided */
         if (pname == "?") {
             pname.clear();
         }
-        params.emplace_back(
-            std::move(pname), build_array(std::move(pt), vla, arrdims)
-        );
+        params.emplace_back(std::move(pname), std::move(pt));
         if (!test_next(ls, ',')) {
             break;
         }
@@ -970,46 +942,180 @@ done_params:
     return params;
 }
 
-/* this attempts to parse function pointers, including fptr-to-fptr-to-etc
- * and references to function pointers and pointers to pointer to points to
- * function pointers and all that nonsense in a compliant way... it's not
- * pretty nor cheap but i did my best
+/* represents a level of parens pair when parsing a type; so e.g. in
+ *
+ * void (*(*(*(*&))))
+ *
+ * we have 4 levels.
  */
-static ast::c_type parse_type_fptr(
-    lex_state &ls, ast::c_type tp, std::string *fpname, bool needn
+struct plevel {
+    plevel():
+        cv{0}, is_term{false}, is_func{false}, is_ref{false},
+        is_arr{false}, is_vla{false}
+    {}
+
+    std::vector<ast::c_param> argl{};
+    std::stack<arrdim> arrd{};
+    int cv: 16;
+    int is_term: 1;
+    int is_func: 1;
+    int is_ref: 1;
+    int is_arr: 1;
+    int is_vla: 1;
+};
+
+/* FIXME: optimize, right now this uses more memory than necessary
+ *
+ * this attempts to implement the complete syntax of how types are parsed
+ * in C; that means it covers pointers, function pointers, references
+ * and arrays, including hopefully correct parenthesization rules and
+ * binding of pointers/references and cv qualifiers...
+ *
+ * it also handles proper parsing and placement of name, e.g. when declaring
+ * function prototypes or dealing with struct members or function arguments,
+ * so you could say it handles not only parsing of types by itself, but really
+ * parsing of declarations in general; if you look down in parse_decl, you can
+ * see that a declaration parse is pretty much just calling parse_type()
+ *
+ * below is described how it works:
+ */
+static ast::c_type parse_type_ptr(
+    lex_state &ls, ast::c_type tp, bool allow_void,
+    std::string *fpname, bool needn
 ) {
-    /*
-     * now the real fun begins, yay, statekeeping
-     *
-     * count the number of (* to see how many levels deep we go
-     *
-     * there can be cv-qualifiers following each *, and there can
-     * be more pointer stuff each with their own cv-qualifiers
-     * after that (e.g. pointer to function pointer); which means
-     * we need a queue (FIFO) of queues; each inner queue contains
-     * a list of '*' to appear, each '*' with its cv-qualifiers
-     *
-     * however, we don't literally need a queue of queues,
-     * a sentinel value between levels will do just fine
+    /* our input is the left-side qualified type; that means constructs such
+     * as 'const int' or 'const unsigned long int'; that much is parsed by
+     * the function that wraps this one
      */
-    int fplevel = 0;
-    std::queue<unsigned char> pcvq;
-    while (ls.t.token == '(') { /* at least (* plus maybe cv and some * */
+
+    /* that means we start with parsing the right-side cv qualfiers that may
+     * follow; at this point we've parsed e.g. 'char const'
+     */
+    tp.cv(parse_cv(ls));
+
+    /*
+     * now the real fun begins, because we're going to be statekeeping
+     *
+     * the C function pointer syntax is quite awful, as is the array syntax
+     * that follows similar conventions - let's start with the simplest
+     * example of a function declaration:
+     *
+     * void const *func_name(int arg);
+     *
+     * that as a whole is a type - there is also a fairly liberal usage of
+     * parenthesis allowed, so we can write this identical declaration:
+     *
+     * void const *(func_name)(int arg);
+     *
+     * now let's turn it into a function pointer declaration - in that case,
+     * the parenthesis becomes mandatory, since we need to bind a pointer to
+     * the function and not to the left-side type:
+     *
+     * void const *(*func_name)(int arg);
+     *
+     * now, there is this fun rule of how the '*' within the parenthesis binds
+     * to something - consider this:
+     *
+     * void const (*ptr_name);
+     *
+     * this is functionally identical to:
+     *
+     * void const *ptr_name;
+     *
+     * in short, if an argument list follows a parenthesized part of the type,
+     * we've created a function type, and the asterisks inside the parens will
+     * now bind to the new function type rather than the 'void const *'
+     *
+     * the same applies to arrays:
+     *
+     * void const *(*thing);      // pointer to pointer to const void
+     * void const *(*thing)[100]; // pointer to array of pointers
+     * void const **thing[100];   // array of pointers to pointers
+     * void const *(*thing[100]); // same as above
+     *
+     * now, what if we wanted to nest this, and create a function that returns
+     * a function pointer? we put the argument list after the name:
+     *
+     * void const *(*func_name(int arg))(float other_arg);
+     *
+     * this is a plain function taking one 'int' argument that returns a
+     * pointer to function taking one 'float' argument and returning a ptr
+     *
+     * what if we wanted to make THIS into a function pointer?
+     *
+     * void const *(*(*func_name)(int arg))(float other_arg);
+     *
+     * now we have a pointer to the same thing as above...
+     *
+     * this can be nested indefinitely, and arrays behave exactly the same;
+     * that also means pointers/references bind left to right (leftmost '*'
+     * is the 'deepest' pointer, e.g. 'void (*&foo)()' is a reference to a
+     * function pointer) while argument lists bind right to left
+     *
+     * array dimensions for multidimensional arrays also bind right to left,
+     * with leftmost dimension being the outermost (which can therefore be of
+     * unknown/variable size, while the others must specify exact sizes)
+     *
+     * cv-qualifiers bind to the thing on their left as usual and can be
+     * specified after any '*' (but not '&'); references behave the same
+     * way as pointers with the difference that you can't have a reference
+     * to a reference, it must terminate the chain
+     *
+     * this is enough background, let's parse:
+     *
+     * first we define a double ended queue containing 'levels'... each level
+     * denotes one matched pair of parens, except the implicit default level
+     * which is always added; new level is delimited by a sentinel value,
+     * and the elements past the sentinel can specify pointers and references
+     *
+     */
+    std::deque<plevel> pcvq;
+    /* normally we'd consume the '(', but remember, first level is implicit */
+    goto newlevel;
+    do {
         ls.get();
-        check(ls, '*'); /* we always need at least one */
-        pcvq.push(1 << 5); /* a tag denoting a level */
+newlevel:
+        /* create the sentinel */
+        pcvq.emplace_back();
+        pcvq.back().is_term = true;
+        /* count all '*' and create element for each */
         while (ls.t.token == '*') {
             ls.get();
-            pcvq.push(parse_cv(ls) >> 8);
+            pcvq.emplace_back();
+            pcvq.back().cv = parse_cv(ls);
         }
+        /* references are handled the same, but we know there can only be
+         * one of them; this actually does not cover all cases, since putting
+         * parenthesis after this will allow you to specify another reference,
+         * but filter this trivial case early on since we can */
         if (ls.t.token == '&') {
             ls.get();
-            pcvq.push(1 << 4); /* reference is trailing and gets its own tag */
+            pcvq.emplace_back();
+            pcvq.back().is_ref = true;
         }
-        ++fplevel;
-    }
-    bool vla = false;
-    std::stack<arrdim> arrdims;
+        /* we've found what might be an array dimension or an argument list,
+         * so break out, we've finished parsing the early bits...
+         */
+        if (ls.t.token == '[') {
+            break;
+        } else if (ls.t.token == '(') {
+            /* these indicate not an arglist, so keep going */
+            switch (ls.lookahead()) {
+                case '*':
+                case '&':
+                case '(':
+                    continue;
+                default:
+                    break;
+            }
+            break;
+        }
+    } while (ls.t.token == '(');
+    /* if 'fpname' was passed, it means we might want to handle a named type
+     * or declaration, with the name being optional or mandatory depending
+     * on 'needn' - if name was optionally requested but not found, we write
+     * a dummy value to tell the caller what happened
+     */
     if (fpname) {
         if (needn || (ls.t.token == TOK_NAME)) {
             /* we're in a context where name can be provided, e.g. if
@@ -1021,109 +1127,146 @@ static ast::c_type parse_type_fptr(
         } else {
             *fpname = "?";
         }
-        /* function pointers can have an array part as well */
-        parse_array(ls, vla, arrdims);
     }
-    /* now to deal with arglists; the first arglist to come syntactically
-     * is actually the outermost arglist, e.g. when declaring a prototype
-     * of a function that returns a fptr that returns a fptr that returns
-     * a fptr, the first arglist is the arglist of the function, the
-     * second arglist is the arglist of the fptr it returns, etc.
+    /* remember when we declared that paramlists and array dimensions bind
+     * right to left, rather than left to right? we now have a queue of levels
+     * available, and we might be at the first, innermost argument list, or
+     * maybe an array; what we do is iterate all sentinels in the queue, but
+     * backwards, starting with the last defined one...
      *
-     * in order to keep track of this bullshit, we need... a stack (LIFO)
-     * and use the previous level counter to check how many we need
+     * once we've found one, we attempt to parse an argument list or an array
+     * dimension depending on what was found, and if nothing was found, that
+     * is fine too - this will alter to what pointers are bound to though
+     *
+     * in short, in 'void (*foo(argl1))(argl2)', 'argl1' will be attached to
+     * level 2, while 'argl2' will be stored in level 1 (the implicit one)
      */
-    std::stack<std::vector<ast::c_param>> arglst;
-    for (; fplevel > 0; --fplevel) {
-        check_next(ls, ')');
-        check(ls, '('); /* starts the arglist */
-        arglst.push(parse_paramlist(ls));
-    }
-    /* we've got all the arglists; on top of the stack there is the arglist
-     * we need for the result of result of result of result of result of ...
-     * so register those and turn them into return types until we have nothing
-     */
-    for (; !arglst.empty(); arglst.pop()) {
-        auto &argl = arglst.top();
-        bool variadic = false;
-        if (!argl.empty() && argl.back().type().type() == ast::C_BUILTIN_VOID) {
-            variadic = true;
-            argl.pop_back();
+    for (auto it = pcvq.rbegin();;) {
+        plevel &clev = *it;
+        if (!clev.is_term) { /* skip non-sentinels */
+            ++it;
+            continue;
         }
-        auto *cf = new ast::c_function{
-            ls.request_name(), std::move(tp), std::move(argl), variadic
-        };
-        ls.store_decl(cf, 0);
-        pcvq.pop(); /* remove the level tag */
-        /* replace what was previously tp; this will become either the
-         * final returned type, or the return type for the function
-         * pointer in the outer level
-         */
-        using CT = ast::c_type;
-        tp.~CT();
-        new (&tp) ast::c_type{cf, pcvq.front()};
-        /* and pop one level from the pointer queue for the current level */
-        pcvq.pop();
-        /* now wrap it in as many pointers left as necessary */
-        for (; !pcvq.empty(); pcvq.pop()) {
-            int cv = pcvq.front();
-            if (cv & (1 << 5)) {
-                /* new level */
-                break;
-            }
-            int cbt = ast::C_BUILTIN_PTR;
-            if (cv & (1 << 4)) {
-                cbt = ast::C_BUILTIN_REF;
-                cv = 0;
-            }
-            ast::c_type ptp{std::move(tp), cv << 8, cbt};
-            tp.~CT();
-            new (&tp) ast::c_type{std::move(ptp)};
-        }
-    }
-    assert(pcvq.empty()); /* just in case */
-    /* and this is finally over */
-    return build_array(std::move(tp), vla, arrdims);
-}
-
-static ast::c_type parse_type_ptr(
-    lex_state &ls, ast::c_type tp, bool allow_void, std::string *fpname,
-    bool needn
-) {
-    for (;;) {
-        /* right-side cv */
-        tp.cv(parse_cv(ls));
-
         if (ls.t.token == '(') {
-            /* function pointer */
-            return parse_type_fptr(ls, std::move(tp), fpname, needn);
+            /* we know it's a paramlist, since all starting '(' of levels
+             * are already consumed since before
+             */
+            clev.argl = parse_paramlist(ls);
+            clev.is_func = true;
+        } else if (ls.t.token == '[') {
+            /* array dimensions may be multiple */
+            bool vla;
+            clev.is_arr = parse_array(ls, vla, clev.arrd);
+            clev.is_vla = vla;
         }
-
-        /* for contexts where void is not allowed,
-         * anything void-based must be a pointer
-         */
-        if (!allow_void && (tp.type() == ast::C_BUILTIN_VOID)) {
-            check(ls, '*');
-        }
-
-        if (ls.t.token == '&') {
-            /* C++ reference */
-            ls.get();
-            return ast::c_type{std::move(tp), 0, ast::C_BUILTIN_REF};
-        }
-
-        /* pointers plus their right side qualifiers */
-        if (ls.t.token == '*') {
-            ls.get();
-            ast::c_type ptp{std::move(tp), parse_cv(ls)};
-            using CT = ast::c_type;
-            tp.~CT();
-            new (&tp) ast::c_type{std::move(ptp)};
-        } else {
+        ++it;
+        /* special case of the implicit level, it's not present in syntax */
+        if (it == pcvq.rend()) {
             break;
         }
+        check_next(ls, ')');
     }
-
+    /* now that arglists and arrays are attached to their respective levels,
+     * we can iterate the queue forward, and execute the appropriate binding
+     * logic, which is as follows:
+     *
+     * we take a pointer to the 'outer' level, which is by default the implicit
+     * one, and start iterating from the second level afterwards; in something
+     * like a function pointer or something parenthesized, this may be another
+     * level already, or it might be a bunch of pointer declarations...
+     *
+     * let's consider our previous, moderately complex example:
+     *
+     * void const *(*(*func_name)(int arg))(float other_arg);
+     *
+     * right now, 'tp' is 'void const *', and the first outer level is the
+     * implicit one, and it has the float arglist attached to it... so, we
+     * start at level 2, and do this:
+     *
+     * void const * -> function<void const *, (float other_arg)>
+     *
+     * now, our level 2 has one '*'; this binds to whatever is currently 'tp',
+     * so as a result, we get:
+     *
+     * function<void const *, (float other_arg)> *
+     *
+     * and that's all, so we set the 'outer' level to level 2 and proceed to
+     * level 3...
+     *
+     * our new 'outer' level has the int arglist, so we do this:
+     *
+     * function<...> * -> function<function<...>, (int arg)>
+     *
+     * and finally bind level 3's '*' to it, which gets us the final type,
+     * which is a pointer to a function returning a pointer to a function.
+     */
+    plevel *olev = &pcvq.front();
+    for (auto it = pcvq.begin() + 1;;) {
+        using CT = ast::c_type;
+        if (olev->is_func) {
+            /* outer level has an arglist */
+            bool variadic = false;
+            if (!olev->argl.empty() && (
+                olev->argl.back().type().type() == ast::C_BUILTIN_VOID
+            )) {
+                variadic = true;
+                olev->argl.pop_back();
+            }
+            auto *cf = new ast::c_function{
+                ls.request_name(), std::move(tp),
+                std::move(olev->argl), variadic
+            };
+            ls.store_decl(cf, 0);
+            tp.~CT();
+            new (&tp) ast::c_type{cf, 0};
+        } else if (olev->is_arr) {
+            while (!olev->arrd.empty()) {
+                size_t dim = olev->arrd.top().size;
+                int quals = olev->arrd.top().quals;
+                olev->arrd.pop();
+                ast::c_type atp{
+                    std::move(tp), quals, dim,
+                    olev->is_vla && olev->arrd.empty()
+                };
+                tp.~CT();
+                new (&tp) ast::c_type{std::move(atp)};
+            }
+        }
+        /* we only had the implicit level all along, so break out */
+        if (it == pcvq.end()) {
+            break;
+        }
+        /* only set the new outer if it's a new sentinel */
+        if (it->is_term) {
+            olev = &*it;
+            ++it;
+        }
+        /* bind pointers and references to whatever is 'tp', which will
+         * be a new thing if an arglist/array is present, and the previous
+         * type if not
+         */
+        while ((it != pcvq.end()) && !it->is_term) {
+            /* references are trailing, we can't make pointers
+             * to them nor we can make references to references
+             */
+            if (tp.type() == ast::C_BUILTIN_REF) {
+                ls.syntax_error("references must be trailing");
+            }
+            ast::c_type ntp{
+                std::move(tp), it->cv,
+                it->is_ref ? ast::C_BUILTIN_REF : ast::C_BUILTIN_PTR
+            };
+            tp.~CT();
+            new (&tp) ast::c_type{std::move(ntp)};
+            ++it;
+        }
+    }
+    /* one last thing: if plain void type is not allowed in this context
+     * and we nevertheless got it, we need to error
+     */
+    if (!allow_void && (tp.type() == ast::C_BUILTIN_VOID)) {
+        ls.syntax_error("void type in forbidden context");
+    }
     return tp;
 }
 
@@ -1569,51 +1712,18 @@ static void parse_decl(lex_state &ls) {
     }
 
     auto tp = parse_type(ls, true, &dname);
-    if (ls.t.token == TOK_typedef) {
-        /* weird ass infix syntax: FROM typedef TO; */
-        ls.get();
-        parse_typedef(ls, std::move(tp), dname, dline);
-        return;
-    }
 
-    bool fptr = false;
-    if (dname.empty()) {
-        check(ls, TOK_NAME);
-        dname = ls.t.value_s;
-        ls.get();
-    } else {
-        fptr = true;
-    }
-
-    /* leftmost type is plain void; so it must be a function */
-    if (tp.type() == ast::C_BUILTIN_VOID) {
-        check(ls, '(');
-    }
-
-    if (ls.t.token == ';') {
+    if (tp.type() != ast::C_BUILTIN_FUNC) {
         ls.store_decl(
             new ast::c_variable{std::move(dname), std::move(tp)}, dline
         );
         return;
-    } else if (ls.t.token != '(') {
-        check(ls, ';');
-        return;
     }
 
-    if (fptr) {
-        /* T (*name)(params)(params); */
-        ls.syntax_error("function declaration returning a function");
-    }
-
-    auto argl = parse_paramlist(ls);
-    bool variadic = false;
-    if (!argl.empty() && (argl.back().type().type() == ast::C_BUILTIN_VOID)) {
-        variadic = true;
-        argl.pop_back();
-    }
-
+    /* FIXME: do not allocate two functions needlessly */
+    auto &func = tp.function();
     ls.store_decl(new ast::c_function{
-        std::move(dname), std::move(tp), std::move(argl), variadic
+        std::move(dname), func.result(), func.params(), func.variadic()
     }, dline);
 }
 
@@ -1662,11 +1772,8 @@ ast::c_type parse_type(lua_State *L, char const *input, char const *iend) {
         lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF};
         ls.get();
         auto tp = parse_type(ls);
-        std::stack<arrdim> arrdims;
-        bool vla;
-        parse_array(ls, vla, arrdims);
         ls.commit();
-        return build_array(std::move(tp), vla, arrdims);
+        return tp;
     } catch (lex_state_error const &e) {
         if (e.token > 0) {
             luaL_error(

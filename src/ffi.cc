@@ -75,7 +75,12 @@ void destroy_cdata(lua_State *L, cdata<ffi::noval> &cd) {
         fd.val.cd->refs.remove(&fd.val.cd);
     }
     switch (cd.decl.type()) {
-        case ast::C_BUILTIN_FPTR:
+        case ast::C_BUILTIN_PTR:
+            if (cd.decl.ptr_base().type() != ast::C_BUILTIN_FUNC) {
+                break;
+            }
+            goto free_aux;
+        free_aux:
         case ast::C_BUILTIN_FUNC: {
             if (!fd.decl.function().variadic()) {
                 break;
@@ -139,7 +144,7 @@ static bool prepare_cif(
 }
 
 static void make_cdata_func(
-    lua_State *L, void (*funp)(), ast::c_function const &func, int cbt,
+    lua_State *L, void (*funp)(), ast::c_function const &func, bool fptr,
     closure_data *cd
 ) {
     size_t nargs = func.params().size();
@@ -174,8 +179,9 @@ static void make_cdata_func(
      *     } val;
      * }
      */
+    ast::c_type funct{&func, 0, funp == nullptr};
     auto &fud = newcdata<fdata>(
-        L, ast::c_type{&func, 0, cbt, funp == nullptr},
+        L, fptr ? ast::c_type{std::move(funct), 0} : std::move(funct),
         func.variadic() ? sizeof(void *) : (
             sizeof(arg_stor_t[nargs]) + sizeof(void *[2 * nargs])
         )
@@ -442,7 +448,9 @@ int to_lua(
             return push_int<time_t>(L, tp, value, lossy);
 
         case ast::C_BUILTIN_REF:
-            if (rule == RULE_CONV) {
+            if ((rule == RULE_CONV) && (
+                tp.ptr_base().type() != ast::C_BUILTIN_FUNC
+            )) {
                 /* for this rule, dereference and pass that */
                 return to_lua(
                     L, tp.ptr_base(), *reinterpret_cast<void * const *>(value),
@@ -454,6 +462,9 @@ int to_lua(
         ptr_ref:
         case ast::C_BUILTIN_VA_LIST:
         case ast::C_BUILTIN_PTR:
+            if (tp.ptr_base().type() == ast::C_BUILTIN_FUNC) {
+                return to_lua(L, tp.ptr_base(), value, rule, lossy);
+            }
             /* pointers should be handled like large cdata, as they need
              * to be represented as userdata objects on lua side either way
              */
@@ -461,10 +472,10 @@ int to_lua(
                 *reinterpret_cast<void * const *>(value);
             return 1;
 
-        case ast::C_BUILTIN_FPTR:
+        case ast::C_BUILTIN_FUNC:
             make_cdata_func(
                 L, *reinterpret_cast<void (* const *)()>(value),
-                tp.function(), ast::C_BUILTIN_FPTR, nullptr
+                tp.function(), true, nullptr
             );
             return 1;
 
@@ -491,7 +502,6 @@ int to_lua(
             return 1;
         }
 
-        case ast::C_BUILTIN_FUNC:
         case ast::C_BUILTIN_INVALID:
             break;
     }
@@ -600,7 +610,6 @@ static void *from_lua_num(
         case ast::C_BUILTIN_VOID:
         case ast::C_BUILTIN_PTR:
         case ast::C_BUILTIN_REF:
-        case ast::C_BUILTIN_FPTR:
         case ast::C_BUILTIN_STRUCT:
         case ast::C_BUILTIN_ARRAY:
         case ast::C_BUILTIN_VA_LIST:
@@ -731,7 +740,7 @@ void *from_lua(
             luaL_error(L, "table initializers not yet implemented");
             break;
         case LUA_TFUNCTION:
-            if (tp.type() != ast::C_BUILTIN_FPTR) {
+            if (!tp.callable()) {
                 luaL_error(
                     L, "cannot convert 'function' to '%s'",
                     tp.serialize().c_str()
@@ -769,7 +778,7 @@ void get_global(lua_State *L, lib::handle dl, const char *sname) {
             }
             make_cdata_func(
                 L, reinterpret_cast<void (*)()>(funp),
-                decl->as<ast::c_function>(), ast::C_BUILTIN_FUNC, nullptr
+                decl->as<ast::c_function>(), false, nullptr
             );
             return;
         }
@@ -835,7 +844,7 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
     } else {
         rsz = decl.alloc_size();
     }
-    if (decl.type() == ast::C_BUILTIN_FPTR) {
+    if (decl.callable()) {
         ffi::closure_data *cd = nullptr;
         if (cdp && ffi::iscdata(L, idx)) {
             /* special handling for closures */
@@ -848,7 +857,7 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
         using FP = void (*)();
         make_cdata_func(
             L, cdp ? *reinterpret_cast<FP *>(cdp) : nullptr,
-            decl.function(), decl.type(), cd
+            decl.function(), decl.type() == ast::C_BUILTIN_PTR, cd
         );
         if (!cdp && !cd) {
             ffi::tocdata<ffi::fdata>(L, -1).val.cd->fref = stor.as<int>();

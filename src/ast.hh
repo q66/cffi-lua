@@ -25,7 +25,6 @@ enum c_builtin {
 
     C_BUILTIN_REF,
     C_BUILTIN_PTR,
-    C_BUILTIN_FPTR,
 
     C_BUILTIN_FUNC,
     C_BUILTIN_STRUCT,
@@ -481,12 +480,10 @@ struct c_type: c_object {
         p_cptr{ctp}, p_type{cbt | C_TYPE_WEAK | uint32_t(qual)}
     {}
 
-    c_type(
-        c_function const *ctp, int qual, int cbt = C_BUILTIN_FPTR,
-        bool cb = false
-    ):
+    c_type(c_function const *ctp, int qual, bool cb = false):
         p_cfptr{ctp}, p_type{
-            cbt | C_TYPE_WEAK | (cb ? C_TYPE_CLOSURE : 0) | uint32_t(qual)
+            C_BUILTIN_FUNC | C_TYPE_WEAK |
+            (cb ? C_TYPE_CLOSURE : 0) | uint32_t(qual)
         }
     {}
 
@@ -570,11 +567,31 @@ struct c_type: c_object {
     }
 
     bool closure() const {
-        return p_type & C_TYPE_CLOSURE;
+        switch (type()) {
+            case C_BUILTIN_FUNC:
+                return p_type & C_TYPE_CLOSURE;
+            case C_BUILTIN_PTR:
+            case C_BUILTIN_REF:
+                return ptr_base().p_type & C_TYPE_CLOSURE;
+            default:
+                break;
+        }
+        return false;
     }
 
     bool scalar() const {
         return type() >= C_BUILTIN_ENUM;
+    }
+
+    bool callable() const {
+        auto tp = type();
+        if (tp == C_BUILTIN_FUNC) {
+            return true;
+        }
+        if ((tp != C_BUILTIN_PTR) && (tp != C_BUILTIN_REF)) {
+            return false;
+        }
+        return ptr_base().type() == C_BUILTIN_FUNC;
     }
 
     bool integer() const {
@@ -605,8 +622,12 @@ struct c_type: c_object {
         return *p_ptr;
     }
 
+    /* only use if you know it's callable() */
     c_function const &function() const {
-        return *p_fptr;
+        if (type() == C_BUILTIN_FUNC) {
+            return *p_fptr;
+        }
+        return *ptr_base().p_fptr;
     }
 
     c_struct const &record() const {

@@ -116,15 +116,9 @@ struct cdata_meta {
             ffi::make_cdata(L, fd.decl, ffi::RULE_CONV, 2);
             return 1;
         }
-        switch (fd.decl.type()) {
-            case ast::C_BUILTIN_FPTR:
-            case ast::C_BUILTIN_FUNC:
-                break;
-            default: {
-                auto s = fd.decl.serialize();
-                luaL_error(L, "'%s' is not callable", s.c_str());
-                break;
-            }
+        if (!fd.decl.callable()) {
+            auto s = fd.decl.serialize();
+            luaL_error(L, "'%s' is not callable", s.c_str());
         }
         if (fd.decl.closure() && !fd.val.cd) {
             luaL_error(L, "bad callback");
@@ -536,7 +530,6 @@ struct ffi_module {
             }
             switch (btp) {
                 case ast::C_BUILTIN_PTR:
-                case ast::C_BUILTIN_FPTR:
                 case ast::C_BUILTIN_STRUCT:
                 case ast::C_BUILTIN_ARRAY:
                 case ast::C_BUILTIN_FUNC:

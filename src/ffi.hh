@@ -49,7 +49,6 @@ struct cdata {
             case ast::C_BUILTIN_PTR:
             case ast::C_BUILTIN_REF:
             case ast::C_BUILTIN_FUNC:
-            case ast::C_BUILTIN_FPTR:
                 return *reinterpret_cast<void **>(&val);
             default:
                 break;

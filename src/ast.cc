@@ -510,7 +510,7 @@ c_type::~c_type() {
         return;
     }
     int tp = type();
-    if ((tp == C_BUILTIN_FPTR) || (tp == C_BUILTIN_FUNC)) {
+    if (tp == C_BUILTIN_FUNC) {
         delete p_fptr;
     } else if (
         (tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_REF) ||
@@ -523,7 +523,7 @@ c_type::~c_type() {
 c_type::c_type(c_type const &v): p_type{v.p_type} {
     bool weak = !owns();
     int tp = type();
-    if ((tp == C_BUILTIN_FPTR) || (tp == C_BUILTIN_FUNC)) {
+    if (tp == C_BUILTIN_FUNC) {
         p_fptr = weak ? v.p_fptr : new c_function{*v.p_fptr};
     } else if (
         (tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_REF) ||
@@ -546,6 +546,10 @@ void c_type::do_serialize(std::string &o) const {
     int ttp = type();
     switch (ttp) {
         case C_BUILTIN_PTR:
+            if (p_ptr->type() == C_BUILTIN_FUNC) {
+                p_ptr->function().do_serialize_full(o, true, tcv);
+                break;
+            }
             p_ptr->do_serialize(o);
             if (o.back() != '*') {
                 o += ' ';
@@ -574,10 +578,9 @@ void c_type::do_serialize(std::string &o) const {
             }
             o += ']';
             break;
-        case C_BUILTIN_FPTR:
         case C_BUILTIN_FUNC:
             /* cv is handled by func serializer */
-            p_fptr->do_serialize_full(o, (ttp == C_BUILTIN_FPTR), tcv);
+            p_fptr->do_serialize_full(o, false, tcv);
             return;
         case C_BUILTIN_STRUCT:
             p_crec->do_serialize(o);
@@ -605,7 +608,6 @@ ffi_type *c_type::libffi_type() const {
         C_BUILTIN_CASE(ARRAY)
         C_BUILTIN_CASE(VA_LIST)
 
-        case C_BUILTIN_FPTR:
         case C_BUILTIN_FUNC:
             return p_fptr->libffi_type();
 
@@ -665,7 +667,6 @@ ffi_type *c_type::libffi_type() const {
 
 size_t c_type::alloc_size() const {
     switch (c_builtin(type())) {
-        case C_BUILTIN_FPTR:
         case C_BUILTIN_FUNC:
             return p_fptr->alloc_size();
         case C_BUILTIN_STRUCT:
@@ -703,17 +704,15 @@ bool c_type::is_same(c_type const &other, bool ignore_cv) const {
             return type() == other.type();
 
         case C_BUILTIN_FUNC:
-        case C_BUILTIN_FPTR:
-            if (
-                /* FIXME: should not be equal but we still need
-                 * to handle converting from func to funcptr
-                 */
-                (other.type() != C_BUILTIN_FUNC) &&
-                (other.type() != C_BUILTIN_FPTR)
-            ) {
+            if (other.type() == C_BUILTIN_PTR) {
+                if (other.ptr_base().type() == C_BUILTIN_FUNC) {
+                    return is_same(other.ptr_base());
+                }
                 return false;
+            } else if (other.type() == C_BUILTIN_FUNC) {
+                return p_cfptr->is_same(*other.p_cfptr);
             }
-            return p_cfptr->is_same(*other.p_cfptr);
+            return false;
 
         case C_BUILTIN_ENUM:
             if (type() != other.type()) {
@@ -728,6 +727,12 @@ bool c_type::is_same(c_type const &other, bool ignore_cv) const {
             return p_crec->is_same(*other.p_crec);
 
         case C_BUILTIN_PTR:
+            if (other.type() == C_BUILTIN_FUNC) {
+                if (ptr_base().type() == C_BUILTIN_FUNC) {
+                    return ptr_base().is_same(other);
+                }
+                return false;
+            }
             if (type() != other.type()) {
                 return false;
             }

@@ -81,7 +81,7 @@ C language syntax support.
 - [x] `struct foo`, `enum foo`
 - [x] `struct`/`union` inside types
 - [x] Arrays
-  - [ ] References/pointers to array
+  - [x] References/pointers to array
 - [ ] Variable length arrays and structs (C99)
 - [ ] `alignas`, `_Alignas`
 

@@ -1,10 +1,9 @@
 local ffi = require("cffi")
 
 ffi.cdef [[
-    // just some typedef tests...
+    // just a typedef test
     typedef char *mbuf;
-    // weird infix syntax is a thing too
-    const void *typedef cptr;
+    typedef char const *cptr;
 
     double strtod(const char *str, char **endptr);
     int puts(char const *str);
