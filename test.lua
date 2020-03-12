@@ -201,6 +201,18 @@ print()
 
 print("# Arrays")
 x = ffi.new("int[3]")
+print("arr: " .. tostring(x) .. " (size: " .. ffi.sizeof(x) .. ")")
+x[0] = 5
+x[1] = 10
+x[2] = 15
+for i = 0, 2 do
+    print("arr[" .. i .. "] = " .. ffi.tonumber(x[i]))
+end
+print()
+
+print("# Variable length arrays")
+x = ffi.new("int[?]", 3)
+print("arr: " .. tostring(x) .. " (size: " .. ffi.sizeof(x) .. ")")
 x[0] = 5
 x[1] = 10
 x[2] = 15

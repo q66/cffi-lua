@@ -877,25 +877,30 @@ struct arrdim {
 };
 
 /* FIXME: when in var declarations, all components must be complete */
-static bool parse_array(lex_state &ls, bool &vla, std::stack<arrdim> &dims) {
+static bool parse_array(lex_state &ls, int &flags, std::stack<arrdim> &dims) {
+    flags = 0;
     if (ls.t.token != '[') {
         return false;
     }
     ls.get();
+    int cv = parse_cv(ls);
     if (ls.t.token == ']') {
-        vla = true;
-        int cv = parse_cv(ls);
+        flags |= ast::C_TYPE_NOSIZE;
         dims.push({0, cv});
         ls.get();
+    } else if (ls.t.token == '?') {
+        /* FIXME: this should only be available in cdata creation contexts */
+        flags |= ast::C_TYPE_VLA;
+        dims.push({0, cv});
+        ls.get();
+        check_next(ls, ']');
     } else {
-        vla = false;
-        int cv = parse_cv(ls);
         dims.push({get_arrsize(ls, parse_cexpr(ls)), cv});
         check_next(ls, ']');
     }
     while (ls.t.token == '[') {
         ls.get();
-        int cv = parse_cv(ls);
+        cv = parse_cv(ls);
         dims.push({get_arrsize(ls, parse_cexpr(ls)), cv});
         check_next(ls, ']');
     }
@@ -950,18 +955,18 @@ done_params:
  */
 struct plevel {
     plevel():
-        cv{0}, is_term{false}, is_func{false}, is_ref{false},
-        is_arr{false}, is_vla{false}
+        cv{0}, flags{0}, is_term{false}, is_func{false}, is_ref{false},
+        is_arr{false}
     {}
 
     std::vector<ast::c_param> argl{};
     std::stack<arrdim> arrd{};
     int cv: 16;
+    int flags: 8;
     int is_term: 1;
     int is_func: 1;
     int is_ref: 1;
     int is_arr: 1;
-    int is_vla: 1;
 };
 
 /* FIXME: optimize, right now this uses more memory than necessary
@@ -1155,9 +1160,10 @@ newlevel:
             clev.is_func = true;
         } else if (ls.t.token == '[') {
             /* array dimensions may be multiple */
-            bool vla;
-            clev.is_arr = parse_array(ls, vla, clev.arrd);
-            clev.is_vla = vla;
+            int flags;
+            clev.is_arr = parse_array(ls, flags, clev.arrd);
+            /* shifted by 16 to fit into bitfield, will be unshifted later */
+            clev.flags = flags >> 16;
         }
         ++it;
         /* special case of the implicit level, it's not present in syntax */
@@ -1220,7 +1226,7 @@ newlevel:
             tp.~CT();
             new (&tp) ast::c_type{cf, 0};
         } else if (olev->is_arr) {
-            if (tp.vla() && !olev->arrd.empty()) {
+            if ((tp.vla() || tp.unbounded()) && !olev->arrd.empty()) {
                 ls.syntax_error(
                     "only first bound of an array may have unknown size"
                 );
@@ -1231,7 +1237,7 @@ newlevel:
                 olev->arrd.pop();
                 ast::c_type atp{
                     std::move(tp), quals, dim,
-                    olev->is_vla && olev->arrd.empty()
+                    (olev->arrd.empty() ? (olev->flags << 16) : 0)
                 };
                 tp.~CT();
                 new (&tp) ast::c_type{std::move(atp)};

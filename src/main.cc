@@ -147,8 +147,8 @@ struct cdata_meta {
                     ptr = reinterpret_cast<unsigned char *>(&cd.val);
                 }
             elsz:
-                /* the base will never be a VLA (VLA to VLA is impossible
-                 * in the parser), so we can rely on * alloc_size
+                /* the base will never be a VLA or of unknown size,
+                 * so we can rely on * alloc_size
                  */
                 elsize = cd.decl.ptr_base().alloc_size();
                 break;
@@ -363,6 +363,10 @@ struct ffi_module {
     }
 
     static int sizeof_f(lua_State *L) {
+        if (ffi::iscdata(L, 1)) {
+            lua_pushinteger(L, ffi::cdata_value_size(L, 1));
+            return 1;
+        }
         auto &ct = check_ct(L, 1);
         lua_pushinteger(L, ct.libffi_type()->size);
         return 1;

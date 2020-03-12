@@ -237,7 +237,8 @@ enum c_cv {
 enum c_type_flags {
     C_TYPE_WEAK = 1 << 16,
     C_TYPE_CLOSURE = 1 << 17,
-    C_TYPE_VLA = 1 << 18
+    C_TYPE_NOSIZE = 1 << 18,
+    C_TYPE_VLA = 1 << 19
 };
 
 enum class c_object_type {
@@ -471,9 +472,9 @@ struct c_type: c_object {
         p_ptr{new c_type{std::move(tp)}}, p_type{cbt | uint32_t(qual)}
     {}
 
-    c_type(c_type tp, int qual, size_t arrlen, bool vla):
+    c_type(c_type tp, int qual, size_t arrlen, int flags):
         p_ptr{new c_type{std::move(tp)}}, p_asize{arrlen},
-        p_type{C_BUILTIN_ARRAY | uint32_t(qual) | (vla ? C_TYPE_VLA : 0)}
+        p_type{C_BUILTIN_ARRAY | uint32_t(qual) | flags}
     {}
 
     c_type(c_type const *ctp, int qual, int cbt = C_BUILTIN_PTR):
@@ -564,6 +565,10 @@ struct c_type: c_object {
 
     bool vla() const {
         return p_type & C_TYPE_VLA;
+    }
+
+    bool unbounded() const {
+        return p_type & C_TYPE_NOSIZE;
     }
 
     bool closure() const {

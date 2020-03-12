@@ -520,7 +520,7 @@ c_type::~c_type() {
     }
 }
 
-c_type::c_type(c_type const &v): p_type{v.p_type} {
+c_type::c_type(c_type const &v): p_asize{v.p_asize}, p_type{v.p_type} {
     bool weak = !owns();
     int tp = type();
     if (tp == C_BUILTIN_FUNC) {
@@ -537,6 +537,7 @@ c_type::c_type(c_type const &v): p_type{v.p_type} {
 
 c_type::c_type(c_type &&v):
     p_ptr{std::exchange(v.p_ptr, nullptr)},
+    p_asize{v.p_asize},
     p_type{v.p_type}
 {}
 
@@ -569,12 +570,12 @@ void c_type::do_serialize(std::string &o) const {
                 o += ' ';
             }
             o += '[';
-            if (!vla()) {
+            if (vla()) {
+                o += '?';
+            } else if (!unbounded()) {
                 char buf[32];
                 snprintf(buf, sizeof(buf), "%zu", array_size());
                 o += static_cast<char const *>(buf);
-            } else {
-                o += '?';
             }
             o += ']';
             break;
@@ -674,7 +675,7 @@ size_t c_type::alloc_size() const {
         case C_BUILTIN_ENUM:
             return p_cenum->alloc_size();
         case C_BUILTIN_ARRAY:
-            /* VLAs may occasionally be zero sized, particularly where
+            /* may occasionally be zero sized, particularly where
              * dealt with entirely on the C side (so we don't know the
              * allocation size). That's fine, this is never relied upon
              * in contexts where that would be important

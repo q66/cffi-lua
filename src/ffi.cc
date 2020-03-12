@@ -839,11 +839,27 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
     arg_stor_t stor{};
     void *cdp = nullptr;
     size_t rsz = 0;
+    if (decl.type() == ast::C_BUILTIN_ARRAY) {
+        if (decl.unbounded()) {
+            luaL_error(L, "size of C type is unknown");
+        } else if (decl.vla()) {
+            auto arrs = luaL_checkinteger(L, idx);
+            if (arrs < 0) {
+                luaL_error(L, "size of C type is unknown");
+            }
+            if (lua_type(L, idx + 1) != LUA_TNONE) {
+                cdp = ffi::from_lua(L, decl, &stor, idx + 1, rsz, rule);
+            }
+            rsz = decl.ptr_base().alloc_size() * size_t(arrs);
+            goto newdata;
+        }
+    }
     if (lua_type(L, idx) != LUA_TNONE) {
         cdp = ffi::from_lua(L, decl, &stor, idx, rsz, rule);
     } else {
         rsz = decl.alloc_size();
     }
+newdata:
     if (decl.callable()) {
         ffi::closure_data *cd = nullptr;
         if (cdp && ffi::iscdata(L, idx)) {

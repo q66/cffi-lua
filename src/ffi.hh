@@ -57,10 +57,7 @@ struct cdata {
     }
 };
 
-/* careful with this; use only if you're sure you have cdata at the index
- * as otherwise it will underflow size_t and get you a ridiculous value
- */
-static inline size_t cdata_value_size(lua_State *L, int idx) {
+static constexpr size_t cdata_value_base() {
     /* can't use cdata directly for the offset, as it's not considered
      * a standard layout type because of ast::c_type, but we don't care
      * about that, we just want to know which offset val is at
@@ -70,7 +67,14 @@ static inline size_t cdata_value_size(lua_State *L, int idx) {
         int pad1, pad2;
         arg_stor_t val;
     };
-    return lua_rawlen(L, idx) - offsetof(T, val);
+    return offsetof(T, val);
+}
+
+/* careful with this; use only if you're sure you have cdata at the index
+ * as otherwise it will underflow size_t and get you a ridiculous value
+ */
+static inline size_t cdata_value_size(lua_State *L, int idx) {
+    return lua_rawlen(L, idx) - cdata_value_base();
 }
 
 struct ctype {
@@ -131,7 +135,14 @@ static inline cdata<T> &newcdata(
 static inline cdata<ffi::noval> &newcdata(
     lua_State *L, ast::c_type const &tp, size_t vals
 ) {
-    return newcdata<ffi::noval>(L, tp, vals - sizeof(ffi::noval));
+    auto *cd = static_cast<cdata<ffi::noval> *>(
+        lua_newuserdata(L, vals + cdata_value_base())
+    );
+    new (&cd->decl) ast::c_type{std::move(tp)};
+    cd->gc_ref = LUA_REFNIL;
+    cd->aux = 0;
+    lua::mark_cdata(L);
+    return *cd;
 }
 
 template<typename ...A>
