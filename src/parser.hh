@@ -24,18 +24,26 @@ union lex_token_u {
     double d;
 };
 
-void parse(lua_State *L, char const *input, char const *iend = nullptr);
+void parse(
+    lua_State *L, char const *input, char const *iend = nullptr, int paridx = -1
+);
 
-static inline void parse(lua_State *L, std::string const &input) {
-    parse(L, input.c_str(), input.c_str() + input.size());
+static inline void parse(
+    lua_State *L, std::string const &input, int paridx = -1
+) {
+    parse(L, input.c_str(), input.c_str() + input.size(), paridx);
 }
 
 ast::c_type parse_type(
-    lua_State *L, char const *input, char const *iend = nullptr
+    lua_State *L, char const *input, char const *iend = nullptr, int paridx = -1
 );
 
-static inline ast::c_type parse_type(lua_State *L, std::string const &input) {
-    return parse_type(L, input.c_str(), input.c_str() + input.size());
+static inline ast::c_type parse_type(
+    lua_State *L, std::string const &input, int paridx = -1
+) {
+    return parse_type(
+        L, input.c_str(), input.c_str() + input.size(), paridx
+    );
 }
 
 ast::c_expr_type parse_number(

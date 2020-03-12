@@ -178,7 +178,7 @@ The APIs the FFI should provide.
 ### Symbols
 
 - [x] `cffi.cdef` (symbol definition)
-  - [ ] Parameterized types
+  - [x] Parameterized types
 - [x] `cffi.C` (global namespace)
 - [x] `cffi.load` (library namespaces)
 
@@ -187,7 +187,7 @@ The APIs the FFI should provide.
 - [x] `cffi.new` (object allocation, minus missing features)
 - [x] `ctype` constructors (object allocation, minus missing features)
 - [x] `cffi.typeof` (`ctype` creation)
-  - [ ] Parameterized types
+  - [x] Parameterized types
 - [x] `cffi.cast` (`cdata` typecasts)
 - [ ] `cffi.metatype` (custom `ctype` metatables)
 - [x] `cffi.gc` (custom `cdata` finalizers)

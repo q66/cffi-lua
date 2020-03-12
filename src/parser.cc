@@ -120,10 +120,10 @@ struct lex_state {
 
     lex_state(
         lua_State *L, char const *str, const char *estr,
-        int pmode = PARSE_MODE_DEFAULT
+        int pmode = PARSE_MODE_DEFAULT, int paridx = -1
     ):
-        p_mode(pmode), stream(str), send(estr), p_buf{},
-        p_dstore{ast::decl_store::get_main(L)}
+        p_mode(pmode), p_pidx(paridx), p_L(L), stream(str),
+        send(estr), p_buf{}, p_dstore{ast::decl_store::get_main(L)}
     {
         /* thread-local, initialize for parsing thread */
         init_kwmap();
@@ -200,7 +200,62 @@ struct lex_state {
         return p_mode;
     }
 
+    void param_maybe_name() {
+        if (t.token != '$') {
+            return;
+        }
+        ensure_pidx();
+        size_t len;
+        char const *str = lua_tolstring(p_L, p_pidx, &len);
+        if (!str) {
+            syntax_error("name expected");
+        }
+        /* replace $ with name */
+        t.token = TOK_NAME;
+        t.value_s = std::string{str, str + len};
+        ++p_pidx;
+    }
+
+    /* FIXME: very preliminary, should support more stuff, more types */
+    void param_maybe_expr() {
+        if (t.token != '$') {
+            return;
+        }
+        ensure_pidx();
+        lua_Integer d = lua_tointeger(p_L, p_pidx);
+        if (!d && !lua_isnumber(p_L, p_pidx)) {
+            syntax_error("integer expected");
+        }
+        /* replace $ with integer */
+        t.token = TOK_INTEGER;
+        if (d < 0) {
+            t.numtag = ast::c_expr_type::LLONG;
+            t.value.ll = d;
+        } else {
+            t.numtag = ast::c_expr_type::ULLONG;
+            t.value.ull = d;
+        }
+        ++p_pidx;
+    }
+
+    ast::c_type param_get_type() {
+        ensure_pidx();
+        if (!luaL_testudata(p_L, p_pidx, lua::CFFI_CDATA_MT)) {
+            syntax_error("type expected");
+        }
+        auto ct = *lua::touserdata<ast::c_type>(p_L, p_pidx);
+        get(); /* consume $ */
+        ++p_pidx;
+        return ct;
+    }
+
 private:
+    void ensure_pidx() {
+        if ((p_pidx <= 0) || lua_isnone(p_L, p_pidx)) {
+            syntax_error("wrong number of type parameters");
+        }
+    }
+
     bool is_newline(int c) {
         return (c == '\n') || (c == '\r');
     }
@@ -524,7 +579,9 @@ cont:
 
     int current = -1;
     int p_mode = PARSE_MODE_DEFAULT;
+    int p_pidx;
 
+    lua_State *p_L;
     char const *stream;
     char const *send;
 
@@ -704,6 +761,9 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
         return unexp;
     }
     /* FIXME: implement non-integer constants */
+    if (ls.t.token == '$') {
+        ls.param_maybe_expr();
+    }
     switch (ls.t.token) {
         case TOK_INTEGER: {
             ast::c_expr ret;
@@ -1122,6 +1182,7 @@ newlevel:
      * a dummy value to tell the caller what happened
      */
     if (fpname) {
+        ls.param_maybe_name();
         if (needn || (ls.t.token == TOK_NAME)) {
             /* we're in a context where name can be provided, e.g. if
              * parsing a typedef or a prototype, this will be the name
@@ -1296,6 +1357,11 @@ static ast::c_type parse_type(
     /* left-side cv */
     int quals = parse_cv(ls);
     int squals = 0;
+
+    /* parameterized types */
+    if (ls.t.token == '$') {
+        return parse_type_ptr(ls, ls.param_get_type(), allow_void, fpn, needn);
+    }
 
     ast::c_builtin cbt = ast::C_BUILTIN_INVALID;
 
@@ -1510,6 +1576,7 @@ static void parse_typedef(
 ) {
     /* the new type name */
     if (aname.empty()) {
+        ls.param_maybe_name();
         check(ls, TOK_NAME);
         aname = ls.t.value_s;
         ls.get();
@@ -1525,6 +1592,7 @@ static ast::c_struct const &parse_struct(lex_state &ls, bool *newst) {
     /* name is optional */
     bool named = false;
     std::string sname = "struct ";
+    ls.param_maybe_name();
     if (ls.t.token == TOK_NAME) {
         sname += ls.t.value_s;
         ls.get();
@@ -1571,6 +1639,7 @@ static ast::c_struct const &parse_struct(lex_state &ls, bool *newst) {
                 ls, ast::c_type{&st, 0}, true, &fname, true
             );
             if (fname.empty()) {
+                ls.param_maybe_name();
                 check(ls, TOK_NAME);
                 fname = ls.t.value_s;
                 ls.get();
@@ -1580,6 +1649,7 @@ static ast::c_struct const &parse_struct(lex_state &ls, bool *newst) {
         }
         auto ft = parse_type(ls, false, &fname);
         if (fname.empty()) {
+            ls.param_maybe_name();
             check(ls, TOK_NAME);
             fname = ls.t.value_s;
             ls.get();
@@ -1618,6 +1688,7 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
     /* name is optional */
     bool named = false;
     std::string ename = "enum ";
+    ls.param_maybe_name();
     if (ls.t.token == TOK_NAME) {
         ename += ls.t.value_s;
         ls.get();
@@ -1650,6 +1721,7 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
     std::vector<ast::c_enum::field> fields;
 
     while (ls.t.token != '}') {
+        ls.param_maybe_name();
         check(ls, TOK_NAME);
         std::string fname = ls.t.value_s;
         ls.get();
@@ -1753,12 +1825,12 @@ static void parse_decls(lex_state &ls) {
     }
 }
 
-void parse(lua_State *L, char const *input, char const *iend) {
+void parse(lua_State *L, char const *input, char const *iend, int paridx) {
     if (!iend) {
         iend = input + strlen(input);
     }
     try {
-        lex_state ls{L, input, iend};
+        lex_state ls{L, input, iend, PARSE_MODE_DEFAULT, paridx};
         /* read first token */
         ls.get();
         parse_decls(ls);
@@ -1775,12 +1847,14 @@ void parse(lua_State *L, char const *input, char const *iend) {
     }
 }
 
-ast::c_type parse_type(lua_State *L, char const *input, char const *iend) {
+ast::c_type parse_type(
+    lua_State *L, char const *input, char const *iend, int paridx
+) {
     if (!iend) {
         iend = input + strlen(input);
     }
     try {
-        lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF};
+        lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF, paridx};
         ls.get();
         auto tp = parse_type(ls);
         ls.commit();

@@ -272,12 +272,14 @@ struct cdata_meta {
 /* the ffi module itself */
 struct ffi_module {
     static int cdef_f(lua_State *L) {
-        parser::parse(L, luaL_checkstring(L, 1));
+        parser::parse(L, luaL_checkstring(L, 1), (lua_gettop(L) > 1) ? 2 : -1);
         return 0;
     }
 
     /* either gets a ctype or makes a ctype from a string */
-    static ast::c_type const &check_ct(lua_State *L, int idx) {
+    static ast::c_type const &check_ct(
+        lua_State *L, int idx, int paridx = -1
+    ) {
         if (ffi::iscval(L, idx)) {
             auto &cd = ffi::tocdata<ffi::noval>(L, idx);
             if (ffi::isctype(cd)) {
@@ -288,7 +290,7 @@ struct ffi_module {
             return ct.decl;
         }
         auto &ct = ffi::newctype(
-            L, parser::parse_type(L, luaL_checkstring(L, idx))
+            L, parser::parse_type(L, luaL_checkstring(L, idx), paridx)
         );
         lua_replace(L, idx);
         return ct.decl;
@@ -314,7 +316,7 @@ struct ffi_module {
     }
 
     static int typeof_f(lua_State *L) {
-        check_ct(L, 1);
+        check_ct(L, 1, (lua_gettop(L) > 1) ? 2 : -1);
         return 1;
     }
 
