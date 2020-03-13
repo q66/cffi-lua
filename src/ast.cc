@@ -505,6 +505,12 @@ void c_function::do_serialize_full(std::string &o, bool fptr, int cv) const {
     o += ")()";
 }
 
+c_type::c_type(c_function tp, int qual, bool cb):
+    p_fptr{new c_function{std::move(tp)}}, p_type{
+        C_BUILTIN_FUNC | (cb ? C_TYPE_CLOSURE : 0) | uint32_t(qual)
+    }
+{}
+
 c_type::~c_type() {
     if (!owns()) {
         return;

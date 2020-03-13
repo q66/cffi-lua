@@ -481,6 +481,8 @@ struct c_type: c_object {
         p_cptr{ctp}, p_type{cbt | C_TYPE_WEAK | uint32_t(qual)}
     {}
 
+    c_type(c_function tp, int qual, bool cb = false);
+
     c_type(c_function const *ctp, int qual, bool cb = false):
         p_cfptr{ctp}, p_type{
             C_BUILTIN_FUNC | C_TYPE_WEAK |
@@ -710,12 +712,9 @@ private:
 };
 
 struct c_function: c_object {
-    c_function(
-        std::string fname, c_type result, std::vector<c_param> params,
-        bool variadic
-    ):
-        p_name{std::move(fname)}, p_result{std::move(result)},
-        p_params{std::move(params)}, p_variadic{variadic}
+    c_function(c_type result, std::vector<c_param> params, bool variadic):
+        p_result{std::move(result)}, p_params{std::move(params)},
+        p_variadic{variadic}
     {}
 
     c_object_type obj_type() const {
@@ -729,7 +728,7 @@ struct c_function: c_object {
     void do_serialize_full(std::string &o, bool fptr, int cv) const;
 
     char const *name() const {
-        return p_name.c_str();
+        return nullptr;
     }
 
     c_type const &result() const {
@@ -755,7 +754,6 @@ struct c_function: c_object {
     }
 
 private:
-    std::string p_name;
     c_type p_result;
     std::vector<c_param> p_params;
     bool p_variadic;

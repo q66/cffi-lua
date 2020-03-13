@@ -1291,13 +1291,9 @@ newlevel:
                 variadic = true;
                 olev->argl.pop_back();
             }
-            auto *cf = new ast::c_function{
-                ls.request_name(), std::move(tp),
-                std::move(olev->argl), variadic
-            };
-            ls.store_decl(cf, 0);
+            ast::c_function cf{std::move(tp), std::move(olev->argl), variadic};
             tp.~CT();
-            new (&tp) ast::c_type{cf, 0};
+            new (&tp) ast::c_type{std::move(cf), 0};
         } else if (olev->is_arr) {
             if ((tp.vla() || tp.unbounded()) && !olev->arrd.empty()) {
                 ls.syntax_error(
