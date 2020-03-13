@@ -641,27 +641,6 @@ ffi_type *c_type::libffi_type() const {
         C_BUILTIN_CASE(LLONG)
         C_BUILTIN_CASE(ULLONG)
 
-        C_BUILTIN_CASE(WCHAR)
-        C_BUILTIN_CASE(CHAR16)
-        C_BUILTIN_CASE(CHAR32)
-
-        C_BUILTIN_CASE(INT8)
-        C_BUILTIN_CASE(INT16)
-        C_BUILTIN_CASE(INT32)
-        C_BUILTIN_CASE(INT64)
-        C_BUILTIN_CASE(UINT8)
-        C_BUILTIN_CASE(UINT16)
-        C_BUILTIN_CASE(UINT32)
-        C_BUILTIN_CASE(UINT64)
-
-        C_BUILTIN_CASE(SIZE)
-        C_BUILTIN_CASE(SSIZE)
-        C_BUILTIN_CASE(INTPTR)
-        C_BUILTIN_CASE(UINTPTR)
-        C_BUILTIN_CASE(PTRDIFF)
-
-        C_BUILTIN_CASE(TIME)
-
         case C_BUILTIN_INVALID:
             break;
 
@@ -774,27 +753,10 @@ bool c_type::is_same(c_type const &other, bool ignore_cv) const {
         case C_BUILTIN_ULONG:
         case C_BUILTIN_LLONG:
         case C_BUILTIN_ULLONG:
-        case C_BUILTIN_WCHAR:
-        case C_BUILTIN_CHAR16:
-        case C_BUILTIN_CHAR32:
-        case C_BUILTIN_INT8:
-        case C_BUILTIN_INT16:
-        case C_BUILTIN_INT32:
-        case C_BUILTIN_INT64:
-        case C_BUILTIN_UINT8:
-        case C_BUILTIN_UINT16:
-        case C_BUILTIN_UINT32:
-        case C_BUILTIN_UINT64:
-        case C_BUILTIN_SIZE:
-        case C_BUILTIN_SSIZE:
-        case C_BUILTIN_INTPTR:
-        case C_BUILTIN_UINTPTR:
-        case C_BUILTIN_PTRDIFF:
-        case C_BUILTIN_TIME:
         case C_BUILTIN_FLOAT:
         case C_BUILTIN_DOUBLE:
         case C_BUILTIN_LDOUBLE:
-            /* basic scalars use builtin libffi types */
+            /* basic arithmetic types use builtin libffi types */
             return libffi_type() == other.libffi_type();
 
         case C_BUILTIN_INVALID:

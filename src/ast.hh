@@ -32,9 +32,11 @@ enum c_builtin {
 
     C_BUILTIN_VA_LIST,
 
-    /* everything past this matches type.scalar() */
+    /* everything past this matches type.arith() */
 
     C_BUILTIN_ENUM,
+
+    C_BUILTIN_BOOL,
 
     C_BUILTIN_CHAR,
     C_BUILTIN_SCHAR,
@@ -48,33 +50,9 @@ enum c_builtin {
     C_BUILTIN_LLONG,
     C_BUILTIN_ULLONG,
 
-    C_BUILTIN_WCHAR,
-    C_BUILTIN_CHAR16,
-    C_BUILTIN_CHAR32,
-
-    C_BUILTIN_INT8,
-    C_BUILTIN_INT16,
-    C_BUILTIN_INT32,
-    C_BUILTIN_INT64,
-
-    C_BUILTIN_UINT8,
-    C_BUILTIN_UINT16,
-    C_BUILTIN_UINT32,
-    C_BUILTIN_UINT64,
-
-    C_BUILTIN_SIZE,
-    C_BUILTIN_SSIZE,
-    C_BUILTIN_INTPTR,
-    C_BUILTIN_UINTPTR,
-    C_BUILTIN_PTRDIFF,
-
-    C_BUILTIN_TIME,
-
     C_BUILTIN_FLOAT,
     C_BUILTIN_DOUBLE,
     C_BUILTIN_LDOUBLE,
-
-    C_BUILTIN_BOOL,
 };
 
 namespace detail {
@@ -85,7 +63,7 @@ namespace detail {
     };
 } /* namespace detail */
 
-/* only defined for scalar types with direct mappings */
+/* only defined for arithmetic types with direct mappings */
 template<c_builtin> struct builtin_traits;
 
 template<> struct builtin_traits<C_BUILTIN_VOID>:
@@ -136,57 +114,6 @@ template<> struct builtin_traits<C_BUILTIN_LLONG>:
 template<> struct builtin_traits<C_BUILTIN_ULLONG>:
     detail::builtin_traits_base<unsigned long long> {};
 
-template<> struct builtin_traits<C_BUILTIN_WCHAR>:
-    detail::builtin_traits_base<wchar_t> {};
-
-template<> struct builtin_traits<C_BUILTIN_CHAR16>:
-    detail::builtin_traits_base<char16_t> {};
-
-template<> struct builtin_traits<C_BUILTIN_CHAR32>:
-    detail::builtin_traits_base<char32_t> {};
-
-template<> struct builtin_traits<C_BUILTIN_INT8>:
-    detail::builtin_traits_base<int8_t> {};
-
-template<> struct builtin_traits<C_BUILTIN_INT16>:
-    detail::builtin_traits_base<int16_t> {};
-
-template<> struct builtin_traits<C_BUILTIN_INT32>:
-    detail::builtin_traits_base<int32_t> {};
-
-template<> struct builtin_traits<C_BUILTIN_INT64>:
-    detail::builtin_traits_base<int64_t> {};
-
-template<> struct builtin_traits<C_BUILTIN_UINT8>:
-    detail::builtin_traits_base<uint8_t> {};
-
-template<> struct builtin_traits<C_BUILTIN_UINT16>:
-    detail::builtin_traits_base<uint16_t> {};
-
-template<> struct builtin_traits<C_BUILTIN_UINT32>:
-    detail::builtin_traits_base<uint32_t> {};
-
-template<> struct builtin_traits<C_BUILTIN_UINT64>:
-    detail::builtin_traits_base<uint64_t> {};
-
-template<> struct builtin_traits<C_BUILTIN_SIZE>:
-    detail::builtin_traits_base<size_t> {};
-
-template<> struct builtin_traits<C_BUILTIN_SSIZE>:
-    detail::builtin_traits_base<typename std::make_signed<size_t>::type> {};
-
-template<> struct builtin_traits<C_BUILTIN_INTPTR>:
-    detail::builtin_traits_base<intptr_t> {};
-
-template<> struct builtin_traits<C_BUILTIN_UINTPTR>:
-    detail::builtin_traits_base<uintptr_t> {};
-
-template<> struct builtin_traits<C_BUILTIN_PTRDIFF>:
-    detail::builtin_traits_base<ptrdiff_t> {};
-
-template<> struct builtin_traits<C_BUILTIN_TIME>:
-    detail::builtin_traits_base<time_t> {};
-
 template<> struct builtin_traits<C_BUILTIN_FLOAT>:
     detail::builtin_traits_base<float> {};
 
@@ -201,15 +128,17 @@ template<> struct builtin_traits<C_BUILTIN_BOOL>:
 
 template<c_builtin t> using builtin_t = typename builtin_traits<t>::type;
 
+namespace detail {
+    template<bool S> struct base_type {
+    };
+} /* namespace detail */
+
 template<typename> constexpr c_builtin builtin_v = C_BUILTIN_INVALID;
 template<> constexpr c_builtin builtin_v<void> = C_BUILTIN_VOID;
 template<> constexpr c_builtin builtin_v<bool> = C_BUILTIN_BOOL;
 template<> constexpr c_builtin builtin_v<char> = C_BUILTIN_CHAR;
 template<> constexpr c_builtin builtin_v<signed char> = C_BUILTIN_SCHAR;
 template<> constexpr c_builtin builtin_v<unsigned char> = C_BUILTIN_UCHAR;
-template<> constexpr c_builtin builtin_v<wchar_t> = C_BUILTIN_WCHAR;
-template<> constexpr c_builtin builtin_v<char16_t> = C_BUILTIN_CHAR16;
-template<> constexpr c_builtin builtin_v<char32_t> = C_BUILTIN_CHAR32;
 template<> constexpr c_builtin builtin_v<short> = C_BUILTIN_SHORT;
 template<> constexpr c_builtin builtin_v<unsigned short> = C_BUILTIN_USHORT;
 template<> constexpr c_builtin builtin_v<int> = C_BUILTIN_INT;
@@ -223,6 +152,22 @@ template<> constexpr c_builtin builtin_v<double> = C_BUILTIN_DOUBLE;
 template<> constexpr c_builtin builtin_v<long double> = C_BUILTIN_LDOUBLE;
 template<typename T> constexpr c_builtin builtin_v<T *> = C_BUILTIN_PTR;
 template<typename T> constexpr c_builtin builtin_v<T &> = C_BUILTIN_REF;
+
+template<> constexpr c_builtin builtin_v<wchar_t> = (
+    std::numeric_limits<wchar_t>::is_signed
+        ? builtin_v<std::make_signed_t<wchar_t>>
+        : builtin_v<std::make_unsigned_t<wchar_t>>
+);
+template<> constexpr c_builtin builtin_v<char16_t> = (
+    std::numeric_limits<char16_t>::is_signed
+        ? builtin_v<std::make_signed_t<char16_t>>
+        : builtin_v<std::make_unsigned_t<char16_t>>
+);
+template<> constexpr c_builtin builtin_v<char32_t> = (
+    std::numeric_limits<char32_t>::is_signed
+        ? builtin_v<std::make_signed_t<char32_t>>
+        : builtin_v<std::make_unsigned_t<char32_t>>
+);
 
 template<c_builtin t>
 inline ffi_type *builtin_ffi_type() {
@@ -526,23 +471,6 @@ struct c_type: c_object {
             case C_BUILTIN_ULONG:   return "unsigned long";
             case C_BUILTIN_LLONG:   return "long long";
             case C_BUILTIN_ULLONG:  return "unsigned long long";
-            case C_BUILTIN_WCHAR:   return "wchar_t";
-            case C_BUILTIN_CHAR16:  return "char16_t";
-            case C_BUILTIN_CHAR32:  return "char32_t";
-            case C_BUILTIN_INT8:    return "int8_t";
-            case C_BUILTIN_INT16:   return "int16_t";
-            case C_BUILTIN_INT32:   return "int32_t";
-            case C_BUILTIN_INT64:   return "int64_t";
-            case C_BUILTIN_UINT8:   return "uint8_t";
-            case C_BUILTIN_UINT16:  return "uint16_t";
-            case C_BUILTIN_UINT32:  return "uint32_t";
-            case C_BUILTIN_UINT64:  return "uint64_t";
-            case C_BUILTIN_SIZE:    return "size_t";
-            case C_BUILTIN_SSIZE:   return "ssize_t";
-            case C_BUILTIN_INTPTR:  return "intptr_t";
-            case C_BUILTIN_UINTPTR: return "uintptr_t";
-            case C_BUILTIN_PTRDIFF: return "ptrdiff_t";
-            case C_BUILTIN_TIME:    return "time_t";
             case C_BUILTIN_FLOAT:   return "float";
             case C_BUILTIN_DOUBLE:  return "double";
             case C_BUILTIN_LDOUBLE: return "long double";
@@ -586,7 +514,7 @@ struct c_type: c_object {
         return false;
     }
 
-    bool scalar() const {
+    bool arith() const {
         return type() >= C_BUILTIN_ENUM;
     }
 
@@ -602,13 +530,7 @@ struct c_type: c_object {
     }
 
     bool integer() const {
-        if (!scalar() || (type() > C_BUILTIN_TIME)) {
-            return false;
-        }
-        if (type() == C_BUILTIN_TIME) {
-            return std::numeric_limits<time_t>::is_integer;
-        }
-        return true;
+        return arith() && (type() < C_BUILTIN_FLOAT);
     }
 
     bool is_unsigned() const {

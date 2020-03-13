@@ -100,8 +100,6 @@ void destroy_closure(closure_data *cd) {
     delete[] reinterpret_cast<unsigned char *>(cd);
 }
 
-using signed_size_t = typename std::make_signed<size_t>::type;
-
 static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
     auto &fud = *static_cast<ffi::cdata<ffi::fdata> *>(data);
     auto &fun = fud.decl.function();
@@ -402,24 +400,6 @@ int to_lua(
             return push_int<int>(L, tp, value, lossy);
         case ast::C_BUILTIN_UINT:
             return push_int<unsigned int>(L, tp, value, lossy);
-        case ast::C_BUILTIN_INT8:
-            return push_int<int8_t>(L, tp, value, lossy);
-        case ast::C_BUILTIN_UINT8:
-            return push_int<uint8_t>(L, tp, value, lossy);
-        case ast::C_BUILTIN_INT16:
-            return push_int<int16_t>(L, tp, value, lossy);
-        case ast::C_BUILTIN_UINT16:
-            return push_int<uint16_t>(L, tp, value, lossy);
-        case ast::C_BUILTIN_INT32:
-            return push_int<int32_t>(L, tp, value, lossy);
-        case ast::C_BUILTIN_UINT32:
-            return push_int<uint32_t>(L, tp, value, lossy);
-        case ast::C_BUILTIN_WCHAR:
-            return push_int<wchar_t>(L, tp, value, lossy);
-        case ast::C_BUILTIN_CHAR16:
-            return push_int<char16_t>(L, tp, value, lossy);
-        case ast::C_BUILTIN_CHAR32:
-            return push_int<char16_t>(L, tp, value, lossy);
         case ast::C_BUILTIN_LONG:
             return push_int<long>(L, tp, value, lossy);
         case ast::C_BUILTIN_ULONG:
@@ -428,25 +408,6 @@ int to_lua(
             return push_int<long long>(L, tp, value, lossy);
         case ast::C_BUILTIN_ULLONG:
             return push_int<unsigned long long>(L, tp, value, lossy);
-        case ast::C_BUILTIN_INT64:
-            return push_int<int64_t>(L, tp, value, lossy);
-        case ast::C_BUILTIN_UINT64:
-            return push_int<uint64_t>(L, tp, value, lossy);
-        case ast::C_BUILTIN_SIZE:
-            return push_int<size_t>(L, tp, value, lossy);
-        case ast::C_BUILTIN_SSIZE:
-            return push_int<signed_size_t>(L, tp, value, lossy);
-        case ast::C_BUILTIN_INTPTR:
-            return push_int<intptr_t>(L, tp, value, lossy);
-        case ast::C_BUILTIN_UINTPTR:
-            return push_int<uintptr_t>(L, tp, value, lossy);
-        case ast::C_BUILTIN_PTRDIFF:
-            return push_int<ptrdiff_t>(L, tp, value, lossy);
-        case ast::C_BUILTIN_TIME:
-            if (!std::numeric_limits<time_t>::is_integer) {
-                return push_flt<time_t>(L, tp, value, lossy);
-            }
-            return push_int<time_t>(L, tp, value, lossy);
 
         case ast::C_BUILTIN_REF:
             if ((rule == RULE_CONV) && (
@@ -566,43 +527,6 @@ static void *from_lua_num(
             return write_int<unsigned long long>(
                 L, index, stor, dsz
             );
-        case ast::C_BUILTIN_WCHAR:
-            return write_int<wchar_t>(L, index, stor, dsz);
-        case ast::C_BUILTIN_CHAR16:
-            return write_int<char16_t>(L, index, stor, dsz);
-        case ast::C_BUILTIN_CHAR32:
-            return write_int<char32_t>(L, index, stor, dsz);
-        case ast::C_BUILTIN_INT8:
-            return write_int<int8_t>(L, index, stor, dsz);
-        case ast::C_BUILTIN_UINT8:
-            return write_int<uint8_t>(L, index, stor, dsz);
-        case ast::C_BUILTIN_INT16:
-            return write_int<int16_t>(L, index, stor, dsz);
-        case ast::C_BUILTIN_UINT16:
-            return write_int<uint16_t>(L, index, stor, dsz);
-        case ast::C_BUILTIN_INT32:
-            return write_int<int32_t>(L, index, stor, dsz);
-        case ast::C_BUILTIN_UINT32:
-            return write_int<uint32_t>(L, index, stor, dsz);
-        case ast::C_BUILTIN_INT64:
-            return write_int<int64_t>(L, index, stor, dsz);
-        case ast::C_BUILTIN_UINT64:
-            return write_int<uint64_t>(L, index, stor, dsz);
-        case ast::C_BUILTIN_SIZE:
-            return write_int<size_t>(L, index, stor, dsz);
-        case ast::C_BUILTIN_SSIZE:
-            return write_int<signed_size_t>(L, index, stor, dsz);
-        case ast::C_BUILTIN_INTPTR:
-            return write_int<intptr_t>(L, index, stor, dsz);
-        case ast::C_BUILTIN_UINTPTR:
-            return write_int<uintptr_t>(L, index, stor, dsz);
-        case ast::C_BUILTIN_PTRDIFF:
-            return write_int<ptrdiff_t>(L, index, stor, dsz);
-        case ast::C_BUILTIN_TIME:
-            if (!std::numeric_limits<time_t>::is_integer) {
-                return write_flt<time_t>(L, index, stor, dsz);
-            }
-            return write_int<time_t>(L, index, stor, dsz);
 
         case ast::C_BUILTIN_ENUM:
             /* TODO: large enums */

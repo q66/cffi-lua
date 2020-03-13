@@ -660,7 +660,7 @@ struct ffi_module {
         return 0;
     }
 
-    static ffi::arg_stor_t &new_scalar(lua_State *L, int cbt) {
+    static ffi::arg_stor_t &new_arith(lua_State *L, int cbt) {
         auto &cd = ffi::newcdata<ffi::arg_stor_t>(
             L, ast::c_type{cbt, 0}
         );
@@ -678,7 +678,7 @@ struct ffi_module {
                 btp = tp->type();
                 val = cd->val;
             }
-            if (tp->scalar()) {
+            if (tp->arith()) {
                 ffi::to_lua(L, *tp, val, ffi::RULE_CONV, true);
                 return 1;
             }
@@ -723,23 +723,23 @@ struct ffi_module {
         auto v = parser::parse_number(L, outv, str, str + lua_rawlen(L, 1));
         switch (v) {
             case ast::c_expr_type::INT:
-                new_scalar(L, ast::C_BUILTIN_INT).as<int>() = outv.i;
+                new_arith(L, ast::C_BUILTIN_INT).as<int>() = outv.i;
                 break;
             case ast::c_expr_type::UINT:
-                new_scalar(L, ast::C_BUILTIN_UINT).as<unsigned int>() = outv.u;
+                new_arith(L, ast::C_BUILTIN_UINT).as<unsigned int>() = outv.u;
                 break;
             case ast::c_expr_type::LONG:
-                new_scalar(L, ast::C_BUILTIN_LONG).as<long>() = outv.l;
+                new_arith(L, ast::C_BUILTIN_LONG).as<long>() = outv.l;
                 break;
             case ast::c_expr_type::ULONG:
-                new_scalar(L, ast::C_BUILTIN_ULONG)
+                new_arith(L, ast::C_BUILTIN_ULONG)
                     .as<unsigned long>() = outv.ul;
                 break;
             case ast::c_expr_type::LLONG:
-                new_scalar(L, ast::C_BUILTIN_LLONG).as<long long>() = outv.ll;
+                new_arith(L, ast::C_BUILTIN_LLONG).as<long long>() = outv.ll;
                 break;
             case ast::c_expr_type::ULLONG:
-                new_scalar(L, ast::C_BUILTIN_ULLONG)
+                new_arith(L, ast::C_BUILTIN_ULLONG)
                     .as<unsigned long long>() = outv.ull;
                 break;
             default:

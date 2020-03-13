@@ -1457,55 +1457,55 @@ qualified:
             cbt = ast::C_BUILTIN_VOID;
             goto btype;
         case TOK_int8_t:
-            cbt = ast::C_BUILTIN_INT8;
+            cbt = ast::builtin_v<int8_t>;
             goto btype;
         case TOK_int16_t:
-            cbt = ast::C_BUILTIN_INT16;
+            cbt = ast::builtin_v<int16_t>;
             goto btype;
         case TOK_int32_t:
-            cbt = ast::C_BUILTIN_INT32;
+            cbt = ast::builtin_v<int32_t>;
             goto btype;
         case TOK_int64_t:
-            cbt = ast::C_BUILTIN_INT64;
+            cbt = ast::builtin_v<int64_t>;
             goto btype;
         case TOK_uint8_t:
-            cbt = ast::C_BUILTIN_UINT8;
+            cbt = ast::builtin_v<uint8_t>;
             goto btype;
         case TOK_uint16_t:
-            cbt = ast::C_BUILTIN_UINT16;
+            cbt = ast::builtin_v<uint16_t>;
             goto btype;
         case TOK_uint32_t:
-            cbt = ast::C_BUILTIN_UINT32;
+            cbt = ast::builtin_v<uint32_t>;
             goto btype;
         case TOK_uint64_t:
-            cbt = ast::C_BUILTIN_UINT64;
+            cbt = ast::builtin_v<uint64_t>;
             goto btype;
         case TOK_uintptr_t:
-            cbt = ast::C_BUILTIN_UINTPTR;
+            cbt = ast::builtin_v<uintptr_t>;
             goto btype;
         case TOK_intptr_t:
-            cbt = ast::C_BUILTIN_INTPTR;
+            cbt = ast::builtin_v<intptr_t>;
             goto btype;
         case TOK_ptrdiff_t:
-            cbt = ast::C_BUILTIN_PTRDIFF;
+            cbt = ast::builtin_v<ptrdiff_t>;
             goto btype;
         case TOK_ssize_t:
-            cbt = ast::C_BUILTIN_SSIZE;
+            cbt = ast::builtin_v<std::make_signed_t<size_t>>;
             goto btype;
         case TOK_size_t:
-            cbt = ast::C_BUILTIN_SIZE;
+            cbt = ast::builtin_v<size_t>;
             goto btype;
         case TOK_va_list:
         case TOK___builtin_va_list:
         case TOK___gnuc_va_list:
             cbt = ast::C_BUILTIN_VA_LIST;
             goto btype;
-        case TOK_time_t:   cbt = ast::C_BUILTIN_TIME;   goto btype;
-        case TOK_wchar_t:  cbt = ast::C_BUILTIN_WCHAR;  goto btype;
-        case TOK_char16_t: cbt = ast::C_BUILTIN_CHAR16; goto btype;
-        case TOK_char32_t: cbt = ast::C_BUILTIN_CHAR32; goto btype;
-        case TOK_float:    cbt = ast::C_BUILTIN_FLOAT;  goto btype;
-        case TOK_double:   cbt = ast::C_BUILTIN_DOUBLE; goto btype;
+        case TOK_time_t:   cbt = ast::builtin_v<time_t>;   goto btype;
+        case TOK_wchar_t:  cbt = ast::builtin_v<wchar_t>;  goto btype;
+        case TOK_char16_t: cbt = ast::builtin_v<char16_t>; goto btype;
+        case TOK_char32_t: cbt = ast::builtin_v<char32_t>; goto btype;
+        case TOK_float:    cbt = ast::C_BUILTIN_FLOAT;     goto btype;
+        case TOK_double:   cbt = ast::C_BUILTIN_DOUBLE;    goto btype;
         case TOK_bool:
         case TOK__Bool:
             cbt = ast::C_BUILTIN_BOOL;
