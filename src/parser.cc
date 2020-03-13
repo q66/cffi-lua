@@ -1800,19 +1800,7 @@ static void parse_decl(lex_state &ls) {
     }
 
     auto tp = parse_type(ls, &dname);
-
-    if (tp.type() != ast::C_BUILTIN_FUNC) {
-        ls.store_decl(
-            new ast::c_variable{std::move(dname), std::move(tp)}, dline
-        );
-        return;
-    }
-
-    /* FIXME: do not allocate two functions needlessly */
-    auto &func = tp.function();
-    ls.store_decl(new ast::c_function{
-        std::move(dname), func.result(), func.params(), func.variadic()
-    }, dline);
+    ls.store_decl(new ast::c_variable{std::move(dname), std::move(tp)}, dline);
 }
 
 static void parse_decls(lex_state &ls) {

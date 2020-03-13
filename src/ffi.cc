@@ -772,25 +772,22 @@ void get_global(lua_State *L, lib::handle dl, const char *sname) {
     }
 
     switch (tp) {
-        case ast::c_object_type::FUNCTION: {
-            void *funp = lib::get_sym(dl, sname);
-            if (!funp) {
-                luaL_error(L, "undefined symbol: %s", sname);
-            }
-            make_cdata_func(
-                L, reinterpret_cast<void (*)()>(funp),
-                decl->as<ast::c_function>(), false, nullptr
-            );
-            return;
-        }
         case ast::c_object_type::VARIABLE: {
             void *symp = lib::get_sym(dl, sname);
             if (!symp) {
                 luaL_error(L, "undefined symbol: %s", sname);
             }
-            to_lua(
-                L, decl->as<ast::c_variable>().type(), symp, RULE_RET
-            );
+            auto &var = decl->as<ast::c_variable>().type();
+            if (var.type() == ast::C_BUILTIN_FUNC) {
+                make_cdata_func(
+                    L, reinterpret_cast<void (*)()>(symp),
+                    var.function(), false, nullptr
+                );
+            } else {
+                to_lua(
+                    L, decl->as<ast::c_variable>().type(), symp, RULE_RET
+                );
+            }
             return;
         }
         case ast::c_object_type::CONSTANT: {
@@ -816,6 +813,10 @@ void set_global(lua_State *L, lib::handle dl, char const *sname, int idx) {
     if (decl->obj_type() != ast::c_object_type::VARIABLE) {
         luaL_error(L, "symbol '%s' is not mutable", decl->name());
     }
+    auto &cv = decl->as<ast::c_variable>().type();
+    if (cv.type() == ast::C_BUILTIN_FUNC) {
+        luaL_error(L, "symbol '%s' is not mutable", decl->name());
+    }
 
     void *symp = lib::get_sym(dl, sname);
     if (!symp) {
@@ -824,9 +825,7 @@ void set_global(lua_State *L, lib::handle dl, char const *sname, int idx) {
     }
 
     size_t rsz;
-    from_lua(
-        L, decl->as<ast::c_variable>().type(), symp, idx, rsz, ffi::RULE_CONV
-    );
+    from_lua(L, cv, symp, idx, rsz, ffi::RULE_CONV);
 }
 
 void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
