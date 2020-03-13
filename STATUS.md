@@ -189,7 +189,7 @@ The APIs the FFI should provide.
 - [x] `cffi.typeof` (`ctype` creation)
   - [x] Parameterized types
 - [x] `cffi.cast` (`cdata` typecasts)
-- [x] `cffi.metatype` (custom `ctype` metatables; only `__gc` for now)
+- [x] `cffi.metatype` (custom `ctype` metatables)
 - [x] `cffi.gc` (custom `cdata` finalizers)
 - [x] `cffi.addressof` (custom extension, like `&`: `T` or `T &` -> `T *`)
 - [x] `cffi.ref` (custom extension: `T &` -> `T &`, `T` -> `T &`)

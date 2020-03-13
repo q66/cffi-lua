@@ -14,11 +14,16 @@ extensions from GCC, MSVC and C++ (where it doesn't conflict with C).
 The project was started because there isn't any FFI for standard Lua that's
 as user friendly as LuaJIT's and doesn't have portability issues.
 
-**This is currently a very rough work in progress and not suitable for production.**
-
 ## Current status
 
-See `STATUS.md` for a detailed listing.
+**The project is currently in alpha state.**. The core featureset is done,
+however some things are missing, such as correct casting rules. The codebase
+is not optimal and there are various C language features that are missing.
+
+It is also not battle tested and there is currently no testsuite yet, so
+I would advise against using it in production for now.
+
+See `STATUS.md` for a detailed/exhaustive listing.
 
 ## Dependencies
 

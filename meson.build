@@ -1,7 +1,7 @@
 # Project definition
 
 project('cffi-lua', ['cpp'],
-    version: '0.0.1',
+    version: '0.0.2',
     default_options: ['buildtype=plain', 'cpp_std=c++14'],
     meson_version: '>=0.46'
 )
