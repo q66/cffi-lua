@@ -79,7 +79,34 @@ struct cdata_meta {
         return 0;
     }
 
+    static bool metatype_check(
+        lua_State *L, int idx, int flag, char const *field
+    ) {
+        auto &cd = ffi::tocdata<ffi::noval>(L, idx);
+        auto tp = cd.decl.type();
+        int mtp, mflags;
+        if (tp == ast::C_BUILTIN_STRUCT) {
+            mtp = cd.decl.record().metatype(mflags);
+        } else if (tp == ast::C_BUILTIN_PTR) {
+            if (cd.decl.ptr_base().type() != ast::C_BUILTIN_STRUCT) {
+                return false;
+            }
+            mtp = cd.decl.ptr_base().record().metatype(mflags);
+        } else {
+            return false;
+        }
+        if (!(mflags & flag)) {
+            return false;
+        }
+        return ffi::metatype_getfield(L, mtp, field);
+    }
+
     static int tostring(lua_State *L) {
+        if (metatype_check(L, 1, ffi::METATYPE_FLAG_TOSTRING, "__tostring")) {
+            lua_pushvalue(L, 1);
+            lua_call(L, 1, 1);
+            return 1;
+        }
         auto &cd = ffi::tocdata<ffi::arg_stor_t>(L, 1);
         if (ffi::isctype(cd)) {
             lua_pushfstring(L, "ctype<%s>", cd.decl.serialize().c_str());
@@ -118,6 +145,12 @@ struct cdata_meta {
         if (ffi::isctype(fd)) {
             ffi::make_cdata(L, fd.decl, ffi::RULE_CONV, 2);
             return 1;
+        }
+        int nargs = lua_gettop(L);
+        if (metatype_check(L, 1, ffi::METATYPE_FLAG_CALL, "__call")) {
+            lua_insert(L, 1);
+            lua_call(L, nargs, LUA_MULTRET);
+            return lua_gettop(L);
         }
         if (!fd.decl.callable()) {
             auto s = fd.decl.serialize();
@@ -209,6 +242,19 @@ struct cdata_meta {
     }
 
     static int index(lua_State *L) {
+        if (metatype_check(L, 1, ffi::METATYPE_FLAG_INDEX, "__index")) {
+            /* if __index is a function, call it */
+            if (lua_isfunction(L, -1)) {
+                /* __index takes 2 args, put it to the beginning and call */
+                lua_insert(L, 1);
+                lua_call(L, 2, 1);
+                return 1;
+            }
+            /* otherwise, index it with key that's on top of the stack */
+            lua_insert(L, -2);
+            lua_gettable(L, -2);
+            return 1;
+        }
         auto &cd = ffi::tocdata<ffi::noval>(L, 1);
         if (cd.decl.closure()) {
             /* callbacks have some methods */
@@ -241,6 +287,11 @@ struct cdata_meta {
     }
 
     static int newindex(lua_State *L) {
+        if (metatype_check(L, 1, ffi::METATYPE_FLAG_NEWINDEX, "__newindex")) {
+            lua_insert(L, 1);
+            lua_call(L, 3, 0);
+            return 0;
+        }
         index_common(L, [L](auto &decl, void *val) {
             size_t rsz;
             ffi::from_lua(L, decl, val, 3, rsz, ffi::RULE_CONV);
@@ -358,6 +409,7 @@ struct ffi_module {
         FIELD_CHECK("newindex", NEWINDEX)
         FIELD_CHECK("call", CALL)
         FIELD_CHECK("gc", GC)
+        FIELD_CHECK("tostring", TOSTRING)
 
 #if LUA_VERSION_NUM > 501
         FIELD_CHECK("pairs", PAIRS)

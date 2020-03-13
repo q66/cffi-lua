@@ -31,24 +31,25 @@ enum metatype_flag {
     METATYPE_FLAG_NEWINDEX = 1 << 13,
     METATYPE_FLAG_CALL     = 1 << 14,
     METATYPE_FLAG_GC       = 1 << 15,
+    METATYPE_FLAG_TOSTRING = 1 << 16,
 
 #if LUA_VERSION_NUM > 501
     /* lua 5.2+ */
-    METATYPE_FLAG_PAIRS    = 1 << 16,
+    METATYPE_FLAG_PAIRS    = 1 << 17,
 
 #if LUA_VERSION_NUM == 502
     /* lua 5.2 only */
-    METATYPE_FLAG_IPAIRS   = 1 << 17,
+    METATYPE_FLAG_IPAIRS   = 1 << 18,
 #endif
 
 #if LUA_VERSION_NUM > 502
     /* lua 5.3+ */
-    METATYPE_FLAG_IDIV     = 1 << 18,
-    METATYPE_FLAG_BAND     = 1 << 19,
-    METATYPE_FLAG_BOR      = 1 << 20,
-    METATYPE_FLAG_BXOR     = 1 << 21,
-    METATYPE_FLAG_BNOT     = 1 << 22,
-    METATYPE_FLAG_SHL      = 1 << 23,
+    METATYPE_FLAG_IDIV     = 1 << 19,
+    METATYPE_FLAG_BAND     = 1 << 20,
+    METATYPE_FLAG_BOR      = 1 << 21,
+    METATYPE_FLAG_BXOR     = 1 << 22,
+    METATYPE_FLAG_BNOT     = 1 << 23,
+    METATYPE_FLAG_SHL      = 1 << 24,
     METATYPE_FLAG_SHR      = 1 << 24,
 #endif /* LUA_VERSION_NUM > 502 */
 #endif /* LUA_VERSION_NUM > 501 */
