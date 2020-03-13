@@ -81,9 +81,7 @@ struct cdata {
      * vararg functions store the number of arguments they have storage
      * prepared for here to avoid reallocating every time; arrays store
      * the "weak flag" here which indicates they only point to others'
-     * memory rather than having their own; structs/unions store metatype
-     * flags here so they don't have to go through metatable lookups on
-     * every operation
+     * memory rather than having their own
      */
     int aux;
     alignas(arg_stor_t) T val;

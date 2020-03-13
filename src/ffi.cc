@@ -895,7 +895,6 @@ newdata:
                     cd.gc_ref = luaL_ref(L, LUA_REGISTRYINDEX);
                 }
             }
-            cd.aux = mf;
         }
     }
 }
