@@ -900,17 +900,34 @@ void c_struct::set_fields(std::vector<field> fields) {
 
     p_fields = std::move(fields);
 
+    /* when dealing with flexible array members, we will need to pad the
+     * struct to satisfy alignment of the flexible member, and use that
+     * as the last member of the struct
+     *
+     * when the last member is a VLA, we don't know the size, so do the
+     * same thing as when flexible, but make the VLA inaccessible
+     */
+    bool flex = !p_fields.empty() && (
+        p_fields.back().type.unbounded() || p_fields.back().type.vla()
+    );
+    size_t nfields = p_fields.size();
+    size_t ffields = flex ? (nfields - 1) : nfields;
+
     p_elements = std::unique_ptr<ffi_type *[]>{
-        new ffi_type *[p_fields.size() + 1]
+        new ffi_type *[nfields + 1]
     };
 
     p_ffi_type.size = p_ffi_type.alignment = 0;
     p_ffi_type.type = FFI_TYPE_STRUCT;
 
-    for (size_t i = 0; i < p_fields.size(); ++i) {
+    for (size_t i = 0; i < ffields; ++i) {
         p_elements[i] = p_fields[i].type.libffi_type();
     }
-    p_elements[p_fields.size()] = nullptr;
+    if (flex) {
+        /* for now null it, so ffi_prep_cif ignores it */
+        p_elements[ffields] = nullptr;
+    }
+    p_elements[nfields] = nullptr;
 
     p_ffi_type.elements = &p_elements[0];
 
@@ -919,6 +936,9 @@ void c_struct::set_fields(std::vector<field> fields) {
      * we can make use of the size/alignment at runtime, so make sure
      * it's guaranteed to be properly filled in, even if the type has
      * not been used with a function
+     *
+     * for flexible array members the resulting size will need to get
+     * padded a bit, do that afterwards
      */
     ffi_cif cif;
     /* this should generally not fail, as we're using the default ABI
@@ -928,6 +948,37 @@ void c_struct::set_fields(std::vector<field> fields) {
     assert(ffi_prep_cif(
         &cif, FFI_DEFAULT_ABI, 0, &p_ffi_type, nullptr
     ) == FFI_OK);
+
+    if (!flex) {
+        return;
+    }
+
+    /* alignment of the base type of the final array */
+    size_t falign = p_fields.back().type.ptr_base().libffi_type()->alignment;
+    size_t padn = p_ffi_type.size % falign;
+
+    /* the current size is an actual multiple, so no padding needed */
+    if (!padn) {
+        return;
+    }
+    /* otherwise create the padding struct */
+    padn = falign - padn;
+    p_felems = std::unique_ptr<ffi_type *[]>{
+        new ffi_type *[padn + 1]
+    };
+
+    /* we know the size and alignment, since it's just padding bytes */
+    p_ffi_flex.size = padn;
+    p_ffi_flex.alignment = 1;
+    for (size_t i = 0; i < padn; ++i) {
+        p_felems[i] = &ffi_type_uchar;
+    }
+    p_felems[padn] = nullptr;
+    p_ffi_flex.elements = &p_felems[0];
+
+    /* and add it as a member + bump the size */
+    p_elements[ffields] = &p_ffi_flex;
+    p_ffi_type.size += padn;
 }
 
 /* decl store implementation, with overlaying for staging */

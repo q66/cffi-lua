@@ -221,6 +221,21 @@ for i = 0, 2 do
 end
 print()
 
+print("# Flexible array members")
+ffi.cdef [[
+    struct flex {
+        int x;
+        double y[];
+    };
+]]
+x = ffi.new("struct flex", 3);
+x.x = 5
+x.y[0] = 10
+x.y[1] = 15
+x.y[2] = 20
+print("2nd member of flexible struct's array part: " .. x.y[1])
+print()
+
 print("# Parameterized types")
 
 print("testing parameterized struct...")

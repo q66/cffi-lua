@@ -905,12 +905,7 @@ struct c_struct: c_object {
     }
 
     size_t alloc_size() const {
-        size_t s = libffi_type()->size;
-        if (!s) {
-            /* zero sized structs must allocate at least a byte */
-            return 1;
-        }
-        return s;
+        return libffi_type()->size;
     }
 
     bool is_same(c_struct const &other) const;
@@ -942,7 +937,9 @@ private:
     std::string p_name;
     std::vector<field> p_fields{};
     std::unique_ptr<ffi_type *[]> p_elements{};
+    std::unique_ptr<ffi_type *[]> p_felems{};
     ffi_type p_ffi_type{};
+    ffi_type p_ffi_flex{};
     int p_metatype = LUA_REFNIL;
     int p_metaflags = 0;
 };

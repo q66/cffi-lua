@@ -1628,6 +1628,8 @@ static ast::c_struct const &parse_struct(lex_state &ls, bool *newst) {
 
     while (ls.t.token != '}') {
         std::string fname{};
+        ast::c_type tp{ast::C_BUILTIN_INVALID, 0};
+        using CT = ast::c_type;
         if (ls.t.token == TOK_struct) {
             bool transp = false;
             auto &st = parse_struct(ls, &transp);
@@ -1635,27 +1637,21 @@ static ast::c_struct const &parse_struct(lex_state &ls, bool *newst) {
                 fields.emplace_back(fname, ast::c_type{&st, 0});
                 continue;
             }
-            auto tp = parse_type_ptr(
+            tp.~CT();
+            new (&tp) CT{parse_type_ptr(
                 ls, ast::c_type{&st, 0}, true, &fname, true
-            );
-            if (fname.empty()) {
-                ls.param_maybe_name();
-                check(ls, TOK_NAME);
-                fname = ls.t.value_s;
-                ls.get();
-            }
-            fields.emplace_back(std::move(fname), std::move(tp));
-            continue;
+            )};
+        } else {
+            tp.~CT();
+            new (&tp) CT{parse_type(ls, false, &fname)};
         }
-        auto ft = parse_type(ls, false, &fname);
-        if (fname.empty()) {
-            ls.param_maybe_name();
-            check(ls, TOK_NAME);
-            fname = ls.t.value_s;
-            ls.get();
-        }
-        fields.emplace_back(std::move(fname), std::move(ft));
+        bool flexible = tp.unbounded();
+        fields.emplace_back(std::move(fname), std::move(tp));
         check_next(ls, ';');
+        /* if we have an unbounded array as an element, it must be last */
+        if (flexible) {
+            break;
+        }
     }
 
     check_match(ls, '}', '{', linenum);
