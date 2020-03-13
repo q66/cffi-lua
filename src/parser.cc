@@ -112,6 +112,7 @@ struct lex_state_error: public std::runtime_error {
 
 enum parse_mode {
     PARSE_MODE_DEFAULT,
+    PARSE_MODE_TYPEDEF,
     PARSE_MODE_NOTCDEF
 };
 
@@ -198,6 +199,12 @@ struct lex_state {
 
     int mode() const {
         return p_mode;
+    }
+
+    int mode(int nmode) {
+        int ret = p_mode;
+        p_mode = nmode;
+        return ret;
     }
 
     void param_maybe_name() {
@@ -742,8 +749,7 @@ static ast::c_expr parse_cexpr(lex_state &ls);
 static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec);
 
 static ast::c_type parse_type(
-    lex_state &ls, bool allow_void = false, std::string *fpname = nullptr,
-    bool needn = true
+    lex_state &ls, std::string *fpname = nullptr, bool needn = true
 );
 
 static ast::c_struct const &parse_struct(lex_state &ls, bool *newst = nullptr);
@@ -973,6 +979,13 @@ static std::vector<ast::c_param> parse_paramlist(lex_state &ls) {
 
     std::vector<ast::c_param> params;
 
+    if (ls.t.token == TOK_void) {
+        if (ls.lookahead() == ')') {
+            ls.get();
+            goto done_params;
+        }
+    }
+
     if (ls.t.token == ')') {
         goto done_params;
     }
@@ -988,7 +1001,7 @@ static std::vector<ast::c_param> parse_paramlist(lex_state &ls) {
             break;
         }
         std::string pname;
-        auto pt = parse_type(ls, params.size() == 0, &pname, false);
+        auto pt = parse_type(ls, &pname, false);
         if (pt.type() == ast::C_BUILTIN_VOID) {
             break;
         }
@@ -1045,8 +1058,7 @@ struct plevel {
  * below is described how it works:
  */
 static ast::c_type parse_type_ptr(
-    lex_state &ls, ast::c_type tp, bool allow_void,
-    std::string *fpname, bool needn
+    lex_state &ls, ast::c_type tp, std::string *fpname, bool needn
 ) {
     /* our input is the left-side qualified type; that means constructs such
      * as 'const int' or 'const unsigned long int'; that much is parsed by
@@ -1336,7 +1348,9 @@ newlevel:
     /* one last thing: if plain void type is not allowed in this context
      * and we nevertheless got it, we need to error
      */
-    if (!allow_void && (tp.type() == ast::C_BUILTIN_VOID)) {
+    if (
+        (ls.mode() == PARSE_MODE_DEFAULT) && (tp.type() == ast::C_BUILTIN_VOID)
+    ) {
         ls.syntax_error("void type in forbidden context");
     }
     return tp;
@@ -1351,16 +1365,14 @@ enum type_signedness {
  * about the real signatures, only about their sizes and signedness and so
  * on to provide to the codegen) but it's a start
  */
-static ast::c_type parse_type(
-    lex_state &ls, bool allow_void, std::string *fpn, bool needn
-) {
+static ast::c_type parse_type(lex_state &ls, std::string *fpn, bool needn) {
     /* left-side cv */
     int quals = parse_cv(ls);
     int squals = 0;
 
     /* parameterized types */
     if (ls.t.token == '$') {
-        return parse_type_ptr(ls, ls.param_get_type(), allow_void, fpn, needn);
+        return parse_type_ptr(ls, ls.param_get_type(), fpn, needn);
     }
 
     ast::c_builtin cbt = ast::C_BUILTIN_INVALID;
@@ -1393,11 +1405,11 @@ static ast::c_type parse_type(
         goto newtype;
     } else if (ls.t.token == TOK_struct) {
         return parse_type_ptr(
-            ls, ast::c_type{&parse_struct(ls), quals}, true, fpn, needn
+            ls, ast::c_type{&parse_struct(ls), quals}, fpn, needn
         );
     } else if (ls.t.token == TOK_enum) {
         return parse_type_ptr(
-            ls, ast::c_type{&parse_enum(ls), quals}, true, fpn, needn
+            ls, ast::c_type{&parse_enum(ls), quals}, fpn, needn
         );
     }
 
@@ -1418,22 +1430,20 @@ qualified:
                 ast::c_type tp{decl->as<ast::c_typedef>().type()};
                 /* merge qualifiers */
                 tp.cv(quals);
-                return parse_type_ptr(
-                    ls, std::move(tp), allow_void, fpn, needn
-                );
+                return parse_type_ptr(ls, std::move(tp), fpn, needn);
             }
             case ast::c_object_type::STRUCT: {
                 ls.get();
                 auto &tp = decl->as<ast::c_struct>();
                 return parse_type_ptr(
-                    ls, ast::c_type{&tp, quals}, true, fpn, needn
+                    ls, ast::c_type{&tp, quals}, fpn, needn
                 );
             }
             case ast::c_object_type::ENUM: {
                 ls.get();
                 auto &tp = decl->as<ast::c_enum>();
                 return parse_type_ptr(
-                    ls, ast::c_type{&tp, quals}, true, fpn, needn
+                    ls, ast::c_type{&tp, quals}, fpn, needn
                 );
             }
             default: {
@@ -1564,13 +1574,9 @@ qualified:
 
 newtype:
     assert(cbt != ast::C_BUILTIN_INVALID);
-    return parse_type_ptr(ls, ast::c_type{cbt, quals}, allow_void, fpn, needn);
+    return parse_type_ptr(ls, ast::c_type{cbt, quals}, fpn, needn);
 }
 
-/* two syntaxes allowed by C:
- * typedef FROM TO;
- * FROM typedef TO;
- */
 static void parse_typedef(
     lex_state &ls, ast::c_type &&tp, std::string &aname, int tline
 ) {
@@ -1639,11 +1645,11 @@ static ast::c_struct const &parse_struct(lex_state &ls, bool *newst) {
             }
             tp.~CT();
             new (&tp) CT{parse_type_ptr(
-                ls, ast::c_type{&st, 0}, true, &fname, true
+                ls, ast::c_type{&st, 0}, &fname, true
             )};
         } else {
             tp.~CT();
-            new (&tp) CT{parse_type(ls, false, &fname)};
+            new (&tp) CT{parse_type(ls, &fname)};
         }
         bool flexible = tp.unbounded();
         fields.emplace_back(std::move(fname), std::move(tp));
@@ -1773,9 +1779,12 @@ static void parse_decl(lex_state &ls) {
     std::string dname;
     switch (ls.t.token) {
         case TOK_typedef: {
-            /* syntax 1: typedef FROM TO; */
+            /* TODO: typedef as a storage class for infix syntax */
             ls.get();
-            parse_typedef(ls, parse_type(ls, true, &dname), dname, dline);
+            /* switch mode for type parsing so we can have void */
+            int oldmode = ls.mode(PARSE_MODE_TYPEDEF);
+            parse_typedef(ls, parse_type(ls, &dname), dname, dline);
+            ls.mode(oldmode);
             return;
         }
         case TOK_struct:
@@ -1790,7 +1799,7 @@ static void parse_decl(lex_state &ls) {
             break;
     }
 
-    auto tp = parse_type(ls, true, &dname);
+    auto tp = parse_type(ls, &dname);
 
     if (tp.type() != ast::C_BUILTIN_FUNC) {
         ls.store_decl(
