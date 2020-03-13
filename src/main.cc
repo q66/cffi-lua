@@ -328,17 +328,65 @@ struct ffi_module {
             L, ct.type() == ast::C_BUILTIN_STRUCT, 1,
             "invalid C type"
         );
-        if (ct.record().metatype() != LUA_REFNIL) {
+        int mflags;
+        if (ct.record().metatype(mflags) != LUA_REFNIL) {
             luaL_error(L, "cannot change a protected metatable");
         }
         luaL_checktype(L, 2, LUA_TTABLE);
+
+#define FIELD_CHECK(fname, flagn) { \
+            lua_getfield(L, 2, "__" fname); \
+            if (!lua_isnil(L, -1)) { \
+                mflags |= ffi::METATYPE_FLAG_##flagn; \
+            } \
+            lua_pop(L, 1); \
+        }
+
+        FIELD_CHECK("add", ADD)
+        FIELD_CHECK("sub", SUB)
+        FIELD_CHECK("mul", MUL)
+        FIELD_CHECK("div", DIV)
+        FIELD_CHECK("mod", MOD)
+        FIELD_CHECK("pow", POW)
+        FIELD_CHECK("unm", UNM)
+        FIELD_CHECK("concat", CONCAT)
+        FIELD_CHECK("len", LEN)
+        FIELD_CHECK("eq", EQ)
+        FIELD_CHECK("lt", LT)
+        FIELD_CHECK("le", LE)
+        FIELD_CHECK("index", INDEX)
+        FIELD_CHECK("newindex", NEWINDEX)
+        FIELD_CHECK("call", CALL)
+        FIELD_CHECK("gc", GC)
+
+#if LUA_VERSION_NUM > 501
+        FIELD_CHECK("pairs", PAIRS)
+
+#if LUA_VERSION_NUM == 502
+        FIELD_CHECK("ipairs", IPAIRS)
+#endif
+
+#if LUA_VERSION_NUM > 502
+        FIELD_CHECK("idiv", IDIV)
+        FIELD_CHECK("band", BAND)
+        FIELD_CHECK("bor", BOR)
+        FIELD_CHECK("bxor", BXOR)
+        FIELD_CHECK("bnot", BNOT)
+        FIELD_CHECK("shl", SHL)
+        FIELD_CHECK("shr", SHR)
+#endif /* LUA_VERSION_NUM > 502 */
+#endif /* LUA_VERSION_NUM > 501 */
+
+#undef FIELD_CHECK
 
         /* get the metatypes table on the stack */
         luaL_getmetatable(L, lua::CFFI_CDATA_MT);
         lua_getfield(L, -1, "__ffi_metatypes");
         /* the metatype */
         lua_pushvalue(L, 2);
-        const_cast<ast::c_struct &>(ct.record()).metatype(luaL_ref(L, -2));
+        const_cast<ast::c_struct &>(ct.record()).metatype(
+            luaL_ref(L, -2), mflags
+        );
 
         lua_pushvalue(L, 1);
         return 1; /* return the ctype */

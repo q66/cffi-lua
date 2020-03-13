@@ -888,22 +888,14 @@ newdata:
         }
         /* set a gc finalizer if provided in metatype */
         if (decl.type() == ast::C_BUILTIN_STRUCT) {
-            int mt = decl.record().metatype();
-            if (mt != LUA_REFNIL) {
-                luaL_getmetatable(L, lua::CFFI_CDATA_MT);
-                lua_getfield(L, -1, "__ffi_metatypes");
-                lua_rawgeti(L, -1, mt);
-                if (lua_istable(L, -1)) {
-                    lua_getfield(L, -1, "__gc");
-                    if (!lua_isnil(L, -1)) {
-                        cd.gc_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-                    } else {
-                        lua_pop(L, 1);
-                    }
+            int mf;
+            int mt = decl.record().metatype(mf);
+            if (mf & METATYPE_FLAG_GC) {
+                if (metatype_getfield(L, mt, "__gc")) {
+                    cd.gc_ref = luaL_ref(L, LUA_REGISTRYINDEX);
                 }
-                /* metatype, __ffi_metatypes, lua::CFFI_CDATA_MT */
-                lua_pop(L, 3);
             }
+            cd.aux = mf;
         }
     }
 }

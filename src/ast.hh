@@ -928,11 +928,13 @@ struct c_struct: c_object {
     /* it is the responsibility of the caller to ensure we're not redefining */
     void set_fields(std::vector<field> fields);
 
-    void metatype(int mt) {
+    void metatype(int mt, int mf) {
         p_metatype = mt;
+        p_metaflags = mf;
     }
 
-    int metatype() const {
+    int metatype(int &flags) const {
+        flags = p_metaflags;
         return p_metatype;
     }
 
@@ -942,6 +944,7 @@ private:
     std::unique_ptr<ffi_type *[]> p_elements{};
     ffi_type p_ffi_type{};
     int p_metatype = LUA_REFNIL;
+    int p_metaflags = 0;
 };
 
 struct c_enum: c_object {

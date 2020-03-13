@@ -13,6 +13,47 @@
 
 namespace ffi {
 
+enum metatype_flag {
+    /* all versions */
+    METATYPE_FLAG_ADD      = 1 << 0,
+    METATYPE_FLAG_SUB      = 1 << 1,
+    METATYPE_FLAG_MUL      = 1 << 2,
+    METATYPE_FLAG_DIV      = 1 << 3,
+    METATYPE_FLAG_MOD      = 1 << 4,
+    METATYPE_FLAG_POW      = 1 << 5,
+    METATYPE_FLAG_UNM      = 1 << 6,
+    METATYPE_FLAG_CONCAT   = 1 << 7,
+    METATYPE_FLAG_LEN      = 1 << 8,
+    METATYPE_FLAG_EQ       = 1 << 9,
+    METATYPE_FLAG_LT       = 1 << 10,
+    METATYPE_FLAG_LE       = 1 << 11,
+    METATYPE_FLAG_INDEX    = 1 << 12,
+    METATYPE_FLAG_NEWINDEX = 1 << 13,
+    METATYPE_FLAG_CALL     = 1 << 14,
+    METATYPE_FLAG_GC       = 1 << 15,
+
+#if LUA_VERSION_NUM > 501
+    /* lua 5.2+ */
+    METATYPE_FLAG_PAIRS    = 1 << 16,
+
+#if LUA_VERSION_NUM == 502
+    /* lua 5.2 only */
+    METATYPE_FLAG_IPAIRS   = 1 << 17,
+#endif
+
+#if LUA_VERSION_NUM > 502
+    /* lua 5.3+ */
+    METATYPE_FLAG_IDIV     = 1 << 18,
+    METATYPE_FLAG_BAND     = 1 << 19,
+    METATYPE_FLAG_BOR      = 1 << 20,
+    METATYPE_FLAG_BXOR     = 1 << 21,
+    METATYPE_FLAG_BNOT     = 1 << 22,
+    METATYPE_FLAG_SHL      = 1 << 23,
+    METATYPE_FLAG_SHR      = 1 << 24,
+#endif /* LUA_VERSION_NUM > 502 */
+#endif /* LUA_VERSION_NUM > 501 */
+};
+
 struct arg_stor_t {
     std::max_align_t pad;
 
@@ -39,7 +80,9 @@ struct cdata {
      * vararg functions store the number of arguments they have storage
      * prepared for here to avoid reallocating every time; arrays store
      * the "weak flag" here which indicates they only point to others'
-     * memory rather than having their own
+     * memory rather than having their own; structs/unions store metatype
+     * flags here so they don't have to go through metatable lookups on
+     * every operation
      */
     int aux;
     alignas(arg_stor_t) T val;
@@ -240,6 +283,24 @@ void get_global(lua_State *L, lib::handle dl, const char *sname);
 void set_global(lua_State *L, lib::handle dl, char const *sname, int idx);
 
 void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx);
+
+static inline bool metatype_getfield(lua_State *L, int mt, char const *fname) {
+    luaL_getmetatable(L, lua::CFFI_CDATA_MT);
+    lua_getfield(L, -1, "__ffi_metatypes");
+    lua_rawgeti(L, -1, mt);
+    if (lua_istable(L, -1)) {
+        lua_getfield(L, -1, fname);
+        if (!lua_isnil(L, -1)) {
+            lua_insert(L, -4);
+            lua_pop(L, 3);
+            return true;
+        } else {
+            lua_pop(L, 1);
+        }
+    }
+    lua_pop(L, 3);
+    return false;
+}
 
 } /* namespace ffi */
 
