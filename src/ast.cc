@@ -761,42 +761,6 @@ bool c_type::is_same(c_type const &other, bool ignore_cv) const {
     return false;
 }
 
-static bool type_converts_to(c_type const &a, c_type const &b, bool ref) {
-    if (ref) {
-        /* if the new type has weaker cv, don't convert */
-        if ((a.cv() & C_CV_CONST) && !(b.cv() & C_CV_CONST)) {
-            return false;
-        }
-        if ((a.cv() & C_CV_VOLATILE) && !(b.cv() & C_CV_VOLATILE)) {
-            return false;
-        }
-    }
-    if (a.type() == C_BUILTIN_PTR) {
-        if ((b.type() != C_BUILTIN_PTR) && (b.type() != C_BUILTIN_REF)) {
-            return false;
-        }
-        return type_converts_to(a.ptr_base(), b.ptr_base(), true);
-    } else if (a.type() == C_BUILTIN_REF) {
-        if (b.type() == C_BUILTIN_REF) {
-            return type_converts_to(a.ptr_base(), b.ptr_base(), false);
-        } else if (b.type() == C_BUILTIN_PTR) {
-            return type_converts_to(a.ptr_base(), b.ptr_base(), true);
-        }
-        return type_converts_to(a.ptr_base(), b, false);
-    } else if (b.type() == C_BUILTIN_REF) {
-        return type_converts_to(a, b.ptr_base(), false);
-    }
-    /* converting between voidptrs is ok in C always */
-    if (ref && ((a.type() == C_BUILTIN_VOID) || (b.type() == C_BUILTIN_VOID))) {
-        return true;
-    }
-    return a.is_same(b);
-}
-
-bool c_type::converts_to(c_type const &other) const {
-    return type_converts_to(*this, other, false);
-}
-
 bool c_function::is_same(c_function const &other) const {
     if (!p_result.is_same(other.p_result)) {
         return false;
