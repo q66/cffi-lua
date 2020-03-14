@@ -734,6 +734,21 @@ static void *from_lua_cdata(
                 L, cd.ptr_base(), tp, *static_cast<void **>(sval),
                 stor, dsz, rule
             );
+        case ast::C_BUILTIN_STRUCT:
+            /* we can initialize pointers and references by address */
+            if (
+                (tp.type() != ast::C_BUILTIN_PTR) &&
+                (tp.type() != ast::C_BUILTIN_REF)
+            ) {
+                break;
+            }
+            if (rule != RULE_CAST) {
+                if (!cv_convertible(cd.cv(), tp.ptr_base().cv())) {
+                    fail_convert_cd(L, cd, tp);
+                }
+            }
+            dsz = sizeof(void *);
+            return &(*static_cast<void **>(stor) = sval);
         default:
             break;
     }
