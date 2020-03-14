@@ -634,6 +634,36 @@ static void *from_lua_cdata_ptr(
                 /* casting: disregard any typing rules */
                 return &cd.val;
             }
+            /* initializing a function pointer/reference */
+            if (tp.ptr_base().type() == ast::C_BUILTIN_FUNC) {
+                if (cd.decl.type() == ast::C_BUILTIN_FUNC) {
+                    /* plain function: check convertible, init from addr */
+                    if (!func_convertible(
+                        cd.decl.function(), tp.ptr_base().function()
+                    )) {
+                        fail_convert_cd(L, cd.decl, tp);
+                    }
+                    return &cd.val;
+                } else if (
+                    (cd.decl.type() != ast::C_BUILTIN_PTR) &&
+                    (cd.decl.type() != ast::C_BUILTIN_REF)
+                ) {
+                    /* otherwise given value must be a pointer/ref */
+                    fail_convert_cd(L, cd.decl, tp);
+                }
+                /* it must be a pointer/ref to function */
+                if (cd.decl.ptr_base().type() != ast::C_BUILTIN_FUNC) {
+                    fail_convert_cd(L, cd.decl, tp);
+                }
+                /* and it must satisfy convertible check */
+                if (!func_convertible(
+                    cd.decl.ptr_base().function(), tp.ptr_base().function()
+                )) {
+                    fail_convert_cd(L, cd.decl, tp);
+                }
+                /* then init from address */
+                return &cd.val;
+            }
             if (!ptr_convertible(cd.decl, tp)) {
                 fail_convert_cd(L, cd.decl, tp);
             }
@@ -655,6 +685,30 @@ static void *from_lua_cdata(
     switch (cd.decl.type()) {
         case ast::C_BUILTIN_PTR:
             return from_lua_cdata_ptr(L, cd, tp, dsz, rule);
+        case ast::C_BUILTIN_FUNC:
+            if (
+                (tp.type() != ast::C_BUILTIN_PTR) &&
+                (tp.type() != ast::C_BUILTIN_REF)
+            ) {
+                /* converting from func: must be to some kind of pointer */
+                fail_convert_cd(L, cd.decl, tp);
+            }
+            if (rule == RULE_CAST) {
+                /* casting: ignore rules, convert to any pointer */
+                dsz = sizeof(void *);
+                return &cd.val;
+            }
+            /* not casting: some rules must be followed */
+            if (tp.ptr_base().type() != ast::C_BUILTIN_FUNC) {
+                fail_convert_cd(L, cd.decl, tp);
+            }
+            if (!func_convertible(
+                cd.decl.function(), tp.ptr_base().function()
+            )) {
+                fail_convert_cd(L, cd.decl, tp);
+            }
+            dsz = sizeof(void *);
+            return &cd.val;
         default:
             break;
     }
