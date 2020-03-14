@@ -674,6 +674,15 @@ void *from_lua(
     lua_State *L, ast::c_type const &tp, void *stor, int index,
     size_t &dsz, int rule
 ) {
+    switch (tp.type()) {
+        case ast::C_BUILTIN_FUNC:
+        case ast::C_BUILTIN_VOID:
+        case ast::C_BUILTIN_INVALID:
+            luaL_error(L, "invalid C type");
+            break;
+        default:
+            break;
+    }
     auto vtp = lua_type(L, index);
     switch (vtp) {
         case LUA_TNIL:
@@ -700,11 +709,11 @@ void *from_lua(
             return from_lua_num(L, tp, stor, index, dsz, rule);
             break;
         case LUA_TSTRING:
-            if (
+            if ((rule == RULE_CAST) || (
                 (tp.type() == ast::C_BUILTIN_PTR) &&
                 (tp.ptr_base().type() == ast::C_BUILTIN_CHAR) &&
-                (tp.ptr_base().cv() & ast::C_CV_CONST)) {
-            } {
+                (tp.ptr_base().cv() & ast::C_CV_CONST)
+            )) {
                 dsz = sizeof(char const *);
                 return &(
                     *static_cast<char const **>(stor) = lua_tostring(L, index)
