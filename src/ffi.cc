@@ -600,7 +600,7 @@ static inline bool ptr_convertible(
     ) {
         return ptr_convertible(fpb, tpb);
     }
-    return fpb.is_same(tpb);
+    return fpb.is_same(tpb, true);
 }
 
 static inline void fail_convert_cd(
@@ -773,8 +773,8 @@ void *from_lua(
             return nullptr;
         default:
             luaL_error(
-                L, "'%s' cannot be used in FFI",
-                lua_typename(L, lua_type(L, index))
+                L, "cannot convert '%s' to '%s'",
+                lua_typename(L, lua_type(L, index)), tp.serialize().c_str()
             );
             break;
     }

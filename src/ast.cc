@@ -686,7 +686,21 @@ bool c_type::is_same(c_type const &other, bool ignore_cv) const {
     switch (c_builtin(type())) {
         case C_BUILTIN_VOID:
         case C_BUILTIN_BOOL:
-            /* simple identity */
+        case C_BUILTIN_VA_LIST:
+        case C_BUILTIN_CHAR:
+        case C_BUILTIN_SCHAR:
+        case C_BUILTIN_UCHAR:
+        case C_BUILTIN_SHORT:
+        case C_BUILTIN_USHORT:
+        case C_BUILTIN_INT:
+        case C_BUILTIN_UINT:
+        case C_BUILTIN_LONG:
+        case C_BUILTIN_ULONG:
+        case C_BUILTIN_LLONG:
+        case C_BUILTIN_ULLONG:
+        case C_BUILTIN_FLOAT:
+        case C_BUILTIN_DOUBLE:
+        case C_BUILTIN_LDOUBLE:
             return type() == other.type();
 
         case C_BUILTIN_FUNC:
@@ -738,26 +752,6 @@ bool c_type::is_same(c_type const &other, bool ignore_cv) const {
                 return false;
             }
             return p_cptr->is_same(*other.p_cptr);
-
-        case C_BUILTIN_VA_LIST:
-            return type() == other.type();
-
-        case C_BUILTIN_CHAR:
-        case C_BUILTIN_SCHAR:
-        case C_BUILTIN_UCHAR:
-        case C_BUILTIN_SHORT:
-        case C_BUILTIN_USHORT:
-        case C_BUILTIN_INT:
-        case C_BUILTIN_UINT:
-        case C_BUILTIN_LONG:
-        case C_BUILTIN_ULONG:
-        case C_BUILTIN_LLONG:
-        case C_BUILTIN_ULLONG:
-        case C_BUILTIN_FLOAT:
-        case C_BUILTIN_DOUBLE:
-        case C_BUILTIN_LDOUBLE:
-            /* basic arithmetic types use builtin libffi types */
-            return libffi_type() == other.libffi_type();
 
         case C_BUILTIN_INVALID:
             break;
