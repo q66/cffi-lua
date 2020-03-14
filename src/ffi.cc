@@ -723,16 +723,39 @@ void *from_lua(
                 L, "cannot convert 'string' to '%s'", tp.serialize().c_str()
             );
             break;
-        case LUA_TUSERDATA:
+        case LUA_TUSERDATA: {
             if (iscdata(L, index)) {
                 return from_lua_cdata(L, tp, stor, index, dsz, rule);
-            } else if (tp.type() == ast::C_BUILTIN_PTR) {
-                /* unqualified void pointer converts to any pointer in C */
+            }
+            auto tpt = tp.type();
+            if (tpt == ast::C_BUILTIN_PTR) {
                 dsz = sizeof(void *);
-                return &(
-                    *static_cast<void **>(stor) = lua_touserdata(L, index)
-                );
-            } else if (isctype(L, index)) {
+                /* special handling for FILE handles */
+                void *ud = lua_touserdata(L, index);
+                if (luaL_testudata(L, index, LUA_FILEHANDLE)) {
+                    FILE **f = static_cast<FILE **>(ud);
+                    return &(*static_cast<void **>(stor) = *f);
+                }
+                /* other userdata: convert to any pointer when
+                 * casting, otherwise only to a void pointer
+                 */
+                if (
+                    (rule == RULE_CAST) ||
+                    (tp.ptr_base().type() == ast::C_BUILTIN_VOID)
+                ) {
+                    return &(*static_cast<void **>(stor) = ud);
+                }
+            } else if ((tpt == ast::C_BUILTIN_REF) && (rule == RULE_CAST)) {
+                /* when casting we can initialize refs from userdata */
+                void *ud = lua_touserdata(L, index);
+                if (luaL_testudata(L, index, LUA_FILEHANDLE)) {
+                    FILE **f = static_cast<FILE **>(ud);
+                    return &(*static_cast<void **>(stor) = *f);
+                }
+                return &(*static_cast<void **>(stor) = ud);
+            }
+            /* error in other cases */
+            if (isctype(L, index)) {
                 luaL_error(
                     L, "cannot convert 'ctype' to '%s'",
                     tp.serialize().c_str()
@@ -744,6 +767,7 @@ void *from_lua(
                 );
             }
             break;
+        }
         case LUA_TLIGHTUSERDATA:
             if (tp.type() == ast::C_BUILTIN_PTR) {
                 dsz = sizeof(void *);
