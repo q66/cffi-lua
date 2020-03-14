@@ -492,7 +492,7 @@ static inline void *write_flt(lua_State *L, int index, void *stor, size_t &s) {
 
 static void *from_lua_num(
     lua_State *L, ast::c_type const &tp, void *stor, int index,
-    size_t &dsz, int
+    size_t &dsz, int rule
 ) {
     switch (ast::c_builtin(tp.type())) {
         case ast::C_BUILTIN_FLOAT:
@@ -532,9 +532,17 @@ static void *from_lua_num(
             /* TODO: large enums */
             return write_int<int>(L, index, stor, dsz);
 
-        case ast::C_BUILTIN_VOID:
         case ast::C_BUILTIN_PTR:
         case ast::C_BUILTIN_REF:
+            if (rule == RULE_CAST) {
+                return &(*static_cast<void **>(stor) = reinterpret_cast<void *>(
+                    size_t(lua_tointeger(L, index))
+                ));
+            }
+            goto converr;
+
+        converr:
+        case ast::C_BUILTIN_VOID:
         case ast::C_BUILTIN_STRUCT:
         case ast::C_BUILTIN_ARRAY:
         case ast::C_BUILTIN_VA_LIST:
