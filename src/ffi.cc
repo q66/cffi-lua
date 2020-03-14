@@ -557,12 +557,99 @@ static void *from_lua_num(
     return nullptr;
 }
 
+static inline bool cv_convertible(int scv, int tcv) {
+    if (!(tcv & ast::C_CV_CONST) && (scv & ast::C_CV_CONST)) {
+        return false;
+    }
+    if (!(tcv & ast::C_CV_VOLATILE) && (scv & ast::C_CV_VOLATILE)) {
+        return false;
+    }
+    return true;
+}
+
+static inline bool func_convertible(
+    ast::c_function const &from, ast::c_function const &to
+) {
+    if (from.variadic() != to.variadic()) {
+        return false;
+    }
+    if (from.params().size() != to.params().size()) {
+        return false;
+    }
+    return true;
+}
+
+static inline bool ptr_convertible(
+    ast::c_type const &from, ast::c_type const &to
+) {
+    auto &fpb = from.ptr_base();
+    auto &tpb = to.ptr_base();
+    if (!cv_convertible(fpb.cv(), tpb.cv())) {
+        return false;
+    }
+    if (
+        (fpb.type() == ast::C_BUILTIN_VOID) ||
+        (tpb.type() == ast::C_BUILTIN_VOID)
+    ) {
+        /* from or to void pointer is always ok */
+        return true;
+    }
+    if (
+        (fpb.type() == ast::C_BUILTIN_PTR) &&
+        (tpb.type() == ast::C_BUILTIN_PTR)
+    ) {
+        return ptr_convertible(fpb, tpb);
+    }
+    return fpb.is_same(tpb);
+}
+
+static inline void fail_convert_cd(
+    lua_State *L, ast::c_type const &from, ast::c_type const &to
+) {
+    luaL_error(
+        L, "cannot convert '%s' to '%s'",
+        from.serialize().c_str(), to.serialize().c_str()
+    );
+}
+
+/* converting from cdata: pointer */
+template<typename T>
+static void *from_lua_cdata_ptr(
+    lua_State *L, T &cd, ast::c_type const &tp, size_t &dsz, int rule
+) {
+    switch (tp.type()) {
+        /* converting to pointer or reference */
+        case ast::C_BUILTIN_PTR:
+        case ast::C_BUILTIN_REF: {
+            dsz = sizeof(void *);
+            if (rule == RULE_CAST) {
+                /* casting: disregard any typing rules */
+                return &cd.val;
+            }
+            if (!ptr_convertible(cd.decl, tp)) {
+                fail_convert_cd(L, cd.decl, tp);
+            }
+            return &cd.val;
+        }
+        /* converting to anything else */
+        default:
+            break;
+    }
+    fail_convert_cd(L, cd.decl, tp);
+    return nullptr;
+}
+
 static void *from_lua_cdata(
     lua_State *L, ast::c_type const &tp, void *stor, int index,
-    size_t &dsz, int
+    size_t &dsz, int rule
 ) {
-    /* special handling for cdata */
     auto &cd = *lua::touserdata<ffi::cdata<void *>>(L, index);
+    switch (cd.decl.type()) {
+        case ast::C_BUILTIN_PTR:
+            return from_lua_cdata_ptr(L, cd, tp, dsz, rule);
+        default:
+            break;
+    }
     if (!cd.decl.converts_to(tp)) {
         luaL_error(
             L, "cannot convert '%s' to '%s'",

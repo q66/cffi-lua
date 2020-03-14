@@ -83,7 +83,7 @@ C language syntax support.
 - [x] Arrays
   - [x] References/pointers to array
 - [x] Variable length arrays (C99)
-- [x] Flexible struct members (C99)
+- [x] Flexible array members (C99)
 - [ ] `alignas`, `_Alignas`
 
 #### Wishlist
