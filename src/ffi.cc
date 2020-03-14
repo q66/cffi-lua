@@ -21,7 +21,7 @@ ffi_type *from_lua_type(lua_State *L, int index) {
         case LUA_TLIGHTUSERDATA:
             return &ffi_type_pointer;
         case LUA_TUSERDATA: {
-            auto *cd = ffi::testcdata<ffi::noval>(L, index);
+            auto *cd = testcdata<noval>(L, index);
             if (!cd) {
                 return &ffi_type_pointer;
             }
@@ -61,7 +61,7 @@ static inline void **fargs_values(void *args, size_t nargs) {
     return reinterpret_cast<void **>(&fargs_types(args, nargs)[nargs]);
 }
 
-void destroy_cdata(lua_State *L, cdata<ffi::noval> &cd) {
+void destroy_cdata(lua_State *L, cdata<noval> &cd) {
     auto &fd = *reinterpret_cast<cdata<fdata> *>(&cd.decl);
     if (cd.gc_ref >= 0) {
         lua_rawgeti(L, LUA_REGISTRYINDEX, cd.gc_ref);
@@ -101,7 +101,7 @@ void destroy_closure(closure_data *cd) {
 }
 
 static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
-    auto &fud = *static_cast<ffi::cdata<ffi::fdata> *>(data);
+    auto &fud = *static_cast<cdata<fdata> *>(data);
     auto &fun = fud.decl.function();
     auto &pars = fun.params();
     size_t fargs = pars.size();
@@ -694,7 +694,6 @@ static void *from_lua_cdata(
         if (!cv_convertible(cd.cv(), tp.ptr_base().cv())) {
             fail_convert_cd(L, cd, tp);
         }
-        /* FIXME: we can convert scalars for const-ref case */
         if (!cd.is_same(tp.ptr_base(), true)) {
             fail_convert_cd(L, cd, tp);
         }
@@ -778,9 +777,14 @@ void *from_lua(
         case ast::C_BUILTIN_ARRAY:
             /* special cased for passing because those are passed by ptr */
             if (rule != RULE_PASS) {
-                luaL_error(L, "arrays are not assignable");
+                luaL_error(L, "invalid C type");
             }
             break;
+        case ast::C_BUILTIN_STRUCT:
+            /* structs can be copied via new/pass but not casted */
+            if (rule == RULE_CAST) {
+                luaL_error(L, "invalid C type");
+            }
         default:
             break;
     }
@@ -826,7 +830,7 @@ void *from_lua(
             break;
         case LUA_TUSERDATA: {
             if (iscdata(L, index)) {
-                auto &cd = *lua::touserdata<ffi::cdata<void *>>(L, index);
+                auto &cd = *lua::touserdata<cdata<void *>>(L, index);
                 return from_lua_cdata(
                     L, cd.decl, tp, &cd.val, stor, dsz, rule
                 );
@@ -886,7 +890,16 @@ void *from_lua(
             }
             break;
         case LUA_TTABLE:
-            luaL_error(L, "table initializers not yet implemented");
+            /* we can't handle table initializers here because the memory
+             * for the new cdata doesn't exist yet by this point...
+             *
+             * but that is only supported for ffi.new, and everything else
+             * should error anyway, so do so here
+             */
+            luaL_error(
+                L, "cannot convert 'table' to '%s'",
+                tp.serialize().c_str()
+            );
             break;
         case LUA_TFUNCTION:
             if (!tp.callable()) {
@@ -908,6 +921,19 @@ void *from_lua(
     }
     assert(false);
     return nullptr;
+}
+
+/* this can't be done in from_lua, because when from_lua is called, the
+ * memory is not allocated yet... so do it here, as a special case
+ */
+static void from_lua_table(
+    lua_State *L, ast::c_type const &decl, void *stor, size_t rsz, int idx
+) {
+    (void)decl;
+    (void)stor;
+    (void)rsz;
+    (void)idx;
+    luaL_error(L, "table initializers not yet implemented");
 }
 
 void get_global(lua_State *L, lib::handle dl, const char *sname) {
@@ -973,7 +999,7 @@ void set_global(lua_State *L, lib::handle dl, char const *sname, int idx) {
     }
 
     size_t rsz;
-    from_lua(L, cv, symp, idx, rsz, ffi::RULE_CONV);
+    from_lua(L, cv, symp, idx, rsz, RULE_CONV);
 }
 
 void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
@@ -987,6 +1013,7 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
     arg_stor_t stor{};
     void *cdp = nullptr;
     size_t rsz = 0;
+    int itype = LUA_TNONE;
     if (decl.type() == ast::C_BUILTIN_ARRAY) {
         if (decl.unbounded()) {
             luaL_error(L, "size of C type is unknown");
@@ -995,11 +1022,14 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
             if (arrs < 0) {
                 luaL_error(L, "size of C type is unknown");
             }
-            if (lua_type(L, idx + 1) != LUA_TNONE) {
-                cdp = ffi::from_lua(L, decl, &stor, idx + 1, rsz, rule);
+            itype = lua_type(L, idx + 1);
+            if ((itype != LUA_TNONE) && (itype != LUA_TTABLE)) {
+                cdp = from_lua(L, decl, &stor, idx + 1, rsz, rule);
             }
             rsz = decl.ptr_base().alloc_size() * size_t(arrs);
             goto newdata;
+        } else {
+            itype = lua_type(L, idx);
         }
     } else if (decl.type() == ast::C_BUILTIN_STRUCT) {
         auto &flds = decl.record().fields();
@@ -1010,8 +1040,9 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
                 if (arrs < 0) {
                     luaL_error(L, "size of C type is unknown");
                 }
-                if (lua_type(L, idx + 1) != LUA_TNONE) {
-                    cdp = ffi::from_lua(L, decl, &stor, idx + 1, rsz, rule);
+                itype = lua_type(L, idx + 1);
+                if ((itype != LUA_TNONE) && (itype != LUA_TTABLE)) {
+                    cdp = from_lua(L, decl, &stor, idx + 1, rsz, rule);
                 }
                 rsz = decl.alloc_size() + (
                     size_t(arrs) * lf.ptr_base().alloc_size()
@@ -1020,17 +1051,18 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
             }
         }
     }
-    if (lua_type(L, idx) != LUA_TNONE) {
-        cdp = ffi::from_lua(L, decl, &stor, idx, rsz, rule);
+    itype = lua_type(L, idx);
+    if ((itype != LUA_TNONE) && ((itype != LUA_TTABLE) || decl.callable())) {
+        cdp = from_lua(L, decl, &stor, idx, rsz, rule);
     } else {
         rsz = decl.alloc_size();
     }
 newdata:
     if (decl.callable()) {
-        ffi::closure_data *cd = nullptr;
-        if (cdp && ffi::iscdata(L, idx)) {
+        closure_data *cd = nullptr;
+        if (cdp && iscdata(L, idx)) {
             /* special handling for closures */
-            auto &fcd = ffi::tocdata<ffi::fdata>(L, idx);
+            auto &fcd = tocdata<fdata>(L, idx);
             if (fcd.decl.closure()) {
                 cd = fcd.val.cd;
                 cdp = nullptr;
@@ -1042,14 +1074,18 @@ newdata:
             decl.function(), decl.type() == ast::C_BUILTIN_PTR, cd
         );
         if (!cdp && !cd) {
-            ffi::tocdata<ffi::fdata>(L, -1).val.cd->fref = stor.as<int>();
+            tocdata<fdata>(L, -1).val.cd->fref = stor.as<int>();
         }
     } else {
-        auto &cd = ffi::newcdata(L, decl, rsz);
+        auto &cd = newcdata(L, decl, rsz);
         if (!cdp) {
             memset(&cd.val, 0, rsz);
         } else {
             memcpy(&cd.val, cdp, rsz);
+        }
+        if (itype == LUA_TTABLE) {
+            /* table initializers need to be done *after* memory alloc */
+            from_lua_table(L, decl, &cd.val, rsz, idx);
         }
         /* set a gc finalizer if provided in metatype */
         if (decl.type() == ast::C_BUILTIN_STRUCT) {
