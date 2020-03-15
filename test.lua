@@ -221,6 +221,13 @@ for i = 0, 2 do
 end
 print()
 
+print("# Arrays initialized with a value")
+x = ffi.new("int[3]", 123);
+print("regular: " .. x[0] .. ", " .. x[1] .. ", " .. x[2])
+x = ffi.new("int[?]", 3, 123);
+print("VLA: " .. x[0] .. ", " .. x[1] .. ", " .. x[2])
+print()
+
 print("# Flexible array members")
 ffi.cdef [[
     struct flex {

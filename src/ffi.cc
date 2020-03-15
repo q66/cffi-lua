@@ -1149,8 +1149,11 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
     }
     arg_stor_t stor{};
     void *cdp = nullptr;
-    size_t rsz = 0;
+    size_t rsz = 0, narr = 0;
     int itype = LUA_TNONE, iidx = idx;
+    if (rule == RULE_CAST) {
+        goto definit;
+    }
     if (decl.type() == ast::C_BUILTIN_ARRAY) {
         if (decl.unbounded()) {
             luaL_error(L, "size of C type is unknown");
@@ -1162,13 +1165,21 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
             ++iidx;
             itype = lua_type(L, idx + 1);
             if ((itype != LUA_TNONE) && (itype != LUA_TTABLE)) {
-                cdp = from_lua(L, decl, &stor, idx + 1, rsz, rule);
+                cdp = from_lua(L, decl.ptr_base(), &stor, idx + 1, rsz, rule);
             }
-            rsz = decl.ptr_base().alloc_size() * size_t(arrs);
+            narr = size_t(arrs);
+            rsz = decl.ptr_base().alloc_size() * narr;
             goto newdata;
-        } else {
-            itype = lua_type(L, idx);
         }
+        itype = lua_type(L, idx);
+        if ((itype != LUA_TNONE) && (itype != LUA_TTABLE)) {
+            cdp = from_lua(L, decl.ptr_base(), &stor, idx, rsz, rule);
+        } else {
+            rsz = decl.alloc_size();
+        }
+        narr = decl.array_size();
+        rsz = decl.ptr_base().alloc_size() * narr;
+        goto newdata;
     } else if (decl.type() == ast::C_BUILTIN_STRUCT) {
         auto &flds = decl.record().fields();
         if (!flds.empty()) {
@@ -1189,9 +1200,17 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
                 goto newdata;
             }
         }
+        itype = lua_type(L, idx);
+        if ((itype != LUA_TNONE) && (itype != LUA_TTABLE)) {
+            cdp = from_lua(L, decl, &stor, idx, rsz, rule);
+        } else {
+            rsz = decl.alloc_size();
+        }
+        goto newdata;
     }
+definit:
     itype = lua_type(L, idx);
-    if ((itype != LUA_TNONE) && ((itype != LUA_TTABLE) || decl.callable())) {
+    if (itype != LUA_TNONE) {
         cdp = from_lua(L, decl, &stor, idx, rsz, rule);
     } else {
         rsz = decl.alloc_size();
@@ -1219,6 +1238,12 @@ newdata:
         auto &cd = newcdata(L, decl, rsz);
         if (!cdp) {
             memset(&cd.val, 0, rsz);
+        } else if (decl.type() == ast::C_BUILTIN_ARRAY) {
+            size_t esz = rsz / narr;
+            auto *val = reinterpret_cast<unsigned char *>(&cd.val);
+            for (size_t i = 0; i < narr; ++i) {
+                memcpy(&val[i * esz], cdp, esz);
+            }
         } else {
             memcpy(&cd.val, cdp, rsz);
         }
