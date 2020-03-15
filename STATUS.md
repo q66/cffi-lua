@@ -184,8 +184,8 @@ The APIs the FFI should provide.
 
 ### cdata manipulation
 
-- [x] `cffi.new` (object allocation, minus missing features)
-- [x] `ctype` constructors (object allocation, minus missing features)
+- [x] `cffi.new` (object allocation)
+- [x] `ctype` constructors (object allocation)
 - [x] `cffi.typeof` (`ctype` creation)
   - [x] Parameterized types
 - [x] `cffi.cast` (`cdata` typecasts)

@@ -17,8 +17,7 @@ as user friendly as LuaJIT's and doesn't have portability issues.
 ## Current status
 
 **The project is currently in alpha state.**. The core featureset is done,
-however some things are missing, such as correct casting rules. The codebase
-is not optimal and there are various C language features that are missing.
+however some things are missing, and the codebase is not optimal.
 
 It is also not battle tested and there is currently no testsuite yet, so
 I would advise against using it in production for now.

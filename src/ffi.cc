@@ -674,10 +674,70 @@ static void from_lua_cdata_ptr(
     fail_convert_cd(L, cd, tp);
 }
 
+template<typename T>
+static void *from_lua_cnumber(
+    lua_State *L, ast::c_type const &cd, ast::c_type const &tp,
+    void *sval, void *stor, size_t &dsz, int rule
+) {
+#define CONV_CASE(name, U) \
+    case ast::C_BUILTIN_##name: \
+        dsz = sizeof(U); \
+        return &(*static_cast<U *>(stor) = *static_cast<T *>(sval));
+
+    switch (tp.type()) {
+        case ast::C_BUILTIN_PTR:
+        case ast::C_BUILTIN_REF:
+            /* only for cast we can initialize pointers with integer addrs */
+            if (rule != RULE_CAST) {
+                break;
+            }
+            /* must not be floating point */
+            if (!std::is_integral<T>::value) {
+                break;
+            }
+            return &(*static_cast<void **>(stor) = reinterpret_cast<void *>(
+                size_t(*static_cast<T *>(sval))
+            ));
+        CONV_CASE(ENUM, int)
+        CONV_CASE(BOOL, bool)
+        CONV_CASE(CHAR, char)
+        CONV_CASE(SCHAR, signed char)
+        CONV_CASE(UCHAR, unsigned char)
+        CONV_CASE(SHORT, short)
+        CONV_CASE(USHORT, unsigned short)
+        CONV_CASE(INT, int)
+        CONV_CASE(UINT, unsigned int)
+        CONV_CASE(LONG, long)
+        CONV_CASE(ULONG, unsigned long)
+        CONV_CASE(LLONG, long long)
+        CONV_CASE(ULLONG, unsigned long long)
+        CONV_CASE(FLOAT, float)
+        CONV_CASE(DOUBLE, double)
+        CONV_CASE(LDOUBLE, long double)
+        default:
+            break;
+    }
+
+#undef CONV_CASE
+
+    luaL_error(
+        L, "cannot convert '%s' to '%s'",
+        cd.serialize().c_str(),
+        tp.serialize().c_str()
+    );
+    return nullptr;
+}
+
 static void *from_lua_cdata(
     lua_State *L, ast::c_type const &cd, ast::c_type const &tp, void *sval,
     void *stor, size_t &dsz, int rule
 ) {
+    /* arrays always decay to pointers first */
+    if (cd.type() == ast::C_BUILTIN_ARRAY) {
+        return from_lua_cdata(
+            L, cd.as_type(ast::C_BUILTIN_PTR), tp, sval, stor, dsz, rule
+        );
+    }
     /* we're passing an argument and the expected type is a reference...
      * this is a special case, the given type must be either a non-reference
      * type that matches the base type of the reference and has same or weaker
@@ -749,18 +809,46 @@ static void *from_lua_cdata(
             dsz = sizeof(void *);
             return &(*static_cast<void **>(stor) = sval);
         default:
+            if (cd.is_same(tp, true)) {
+                dsz = cd.alloc_size();
+                return sval;
+            }
             break;
     }
-    /* FIXME: scalars can be converted */
-    if (!cd.is_same(tp, true)) {
-        luaL_error(
-            L, "cannot convert '%s' to '%s'",
-            cd.serialize().c_str(),
-            tp.serialize().c_str()
-        );
+
+#define CONV_CASE(name, T) \
+    case ast::C_BUILTIN_##name: \
+        return from_lua_cnumber<T>(L, cd, tp, sval, stor, dsz, rule);
+
+    switch (cd.type()) {
+        CONV_CASE(ENUM, int)
+        CONV_CASE(BOOL, bool)
+        CONV_CASE(CHAR, char)
+        CONV_CASE(SCHAR, signed char)
+        CONV_CASE(UCHAR, unsigned char)
+        CONV_CASE(SHORT, short)
+        CONV_CASE(USHORT, unsigned short)
+        CONV_CASE(INT, int)
+        CONV_CASE(UINT, unsigned int)
+        CONV_CASE(LONG, long)
+        CONV_CASE(ULONG, unsigned long)
+        CONV_CASE(LLONG, long long)
+        CONV_CASE(ULLONG, unsigned long long)
+        CONV_CASE(FLOAT, float)
+        CONV_CASE(DOUBLE, double)
+        CONV_CASE(LDOUBLE, long double)
+        default:
+            break;
     }
-    dsz = cd.alloc_size();
-    return sval;
+
+#undef CONV_CASE
+
+    luaL_error(
+        L, "cannot convert '%s' to '%s'",
+        cd.serialize().c_str(),
+        tp.serialize().c_str()
+    );
+    return nullptr;
 }
 
 void *from_lua(
