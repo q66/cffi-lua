@@ -941,15 +941,20 @@ static void from_lua_table_struct(
         char const *fname, ast::c_type const &fld, size_t off
     ) {
         if (init_names) {
-            /* flex array members */
-            if (fld.unbounded()) {
-                return true;
-            }
             lua_getfield(L, idx, fname);
             if (lua_isnil(L, -1)) {
                 lua_pop(L, 1);
-                /* we can init other fields */
-                return false;
+                return fld.unbounded();
+            }
+            /* flex array members */
+            if (fld.unbounded()) {
+                /* the size of the struct minus the flex member plus padding */
+                size_t ssz = decl.alloc_size();
+                /* initialize the last part as in array */
+                size_t asz = rsz - ssz;
+                from_lua_table(L, fld, &val[ssz], asz, lua_gettop(L), -1);
+                lua_pop(L, 1);
+                return true;
             }
         } else {
             /* flex array members */
@@ -959,7 +964,7 @@ static void from_lua_table_struct(
                 /* initialize the last part as in array */
                 size_t asz = rsz - ssz;
                 from_lua_table(L, fld, &val[ssz], asz, idx, sidx);
-                return false;
+                return true;
             }
             lua_rawgeti(L, idx, sidx++);
             if (lua_isnil(L, -1)) {
@@ -1021,7 +1026,7 @@ static void from_lua_table(
     ++sidx;
 
     bool initall = false;
-    if (!decl.vla()) {
+    if (!decl.vla() && !decl.unbounded()) {
         lua_rawgeti(L, idx, sidx);
         if (lua_isnil(L, -1)) {
             initall = true;
@@ -1039,7 +1044,7 @@ static void from_lua_table(
     bool base_struct = (pb.type() == ast::C_BUILTIN_STRUCT);
     for (;;) {
         if (nset >= nelems) {
-            if (decl.vla()) {
+            if (decl.vla() || decl.unbounded()) {
                 lua_pop(L, 1);
                 break;
             }

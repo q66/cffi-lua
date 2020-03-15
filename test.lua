@@ -292,6 +292,8 @@ x = ffi.new("struct sinit", { x = 5, y = 3.14, z = 6.28 })
 print("struct with names: " .. x.x .. ", " .. x.y .. ", " .. x.z)
 x = ffi.new("struct flex", 2, { 5, 10, 15 })
 print("flex struct: " .. x.x .. ", " .. x.y[0] .. ", " .. x.y[1])
+x = ffi.new("struct flex", 2, { x = 5, y = { 10, 15 } })
+print("flex struct with names: " .. x.x .. ", " .. x.y[0] .. ", " .. x.y[1])
 print()
 
 print("## END TESTS ##")
