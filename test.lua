@@ -272,4 +272,26 @@ print("FOO: " .. ffi.tonumber(ffi.C.FOO))
 print("BAR: " .. ffi.tonumber(ffi.C.BAR))
 print()
 
+print("# Table initializers")
+
+ffi.cdef [[
+    struct sinit {
+        int x;
+        float y;
+        double z;
+    };
+]]
+
+x = ffi.new("int[3]", { 5, 10, 15 })
+print("static array: " .. x[0] .. ", " .. x[1] .. ", " .. x[2])
+x = ffi.new("int[?]", 3, { 5, 10, 15 })
+print("VLA: " .. x[0] .. ", " .. x[1] .. ", " .. x[2])
+x = ffi.new("struct sinit", { 5, 3.14, 6.28 })
+print("struct: " .. x.x .. ", " .. x.y .. ", " .. x.z)
+x = ffi.new("struct sinit", { x = 5, y = 3.14, z = 6.28 })
+print("struct with names: " .. x.x .. ", " .. x.y .. ", " .. x.z)
+x = ffi.new("struct flex", 2, { 5, 10, 15 })
+print("flex struct: " .. x.x .. ", " .. x.y[0] .. ", " .. x.y[1])
+print()
+
 print("## END TESTS ##")

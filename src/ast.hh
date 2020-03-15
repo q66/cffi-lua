@@ -852,7 +852,22 @@ struct c_struct: c_object {
         return p_metatype;
     }
 
+    template<typename F>
+    void iter_fields(F &&cb) const {
+        bool end = false;
+        iter_fields([](
+            char const *fname, ast::c_type const &type, size_t off, void *data
+        ) {
+            F &acb = *static_cast<F *>(data);
+            return acb(fname, type, off);
+        }, &cb, 0, end);
+    }
+
 private:
+    size_t iter_fields(bool (*cb)(
+        char const *fname, ast::c_type const &type, size_t off, void *data
+    ), void *data, size_t base, bool &end) const;
+
     std::string p_name;
     std::vector<field> p_fields{};
     std::unique_ptr<ffi_type *[]> p_elements{};

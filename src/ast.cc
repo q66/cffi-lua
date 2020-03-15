@@ -798,26 +798,59 @@ bool c_struct::is_same(c_struct const &other) const {
 }
 
 ptrdiff_t c_struct::field_offset(char const *fname, c_type const *&fld) const {
-    ptrdiff_t base = 0;
-    for (size_t i = 0; i < p_fields.size(); ++i) {
+    ptrdiff_t ret = -1;
+    iter_fields([fname, &ret, &fld](
+        char const *ffname, ast::c_type const &ffld, size_t off
+    ) {
+        if (!strcmp(fname, ffname)) {
+            ret = ptrdiff_t(off);
+            fld = &ffld;
+            return true;
+        }
+        return false;
+    });
+    return ret;
+}
+
+size_t c_struct::iter_fields(bool (*cb)(
+    char const *fname, ast::c_type const &type, size_t off, void *data
+), void *data, size_t obase, bool &end) const {
+    size_t base = 0;
+    size_t nflds = p_fields.size();
+    bool flex = false;
+    if (nflds && p_fields.back().type.unbounded()) {
+         flex = true;
+         --nflds;
+    }
+    for (size_t i = 0; i < nflds; ++i) {
         auto *tp = p_elements[i];
         size_t align = tp->alignment;
         base = ((base + align - 1) / align) * align;
         if (p_fields[i].name.empty()) {
             /* transparent struct is like a real struct member */
             assert(p_fields[i].type.type() == ast::C_BUILTIN_STRUCT);
-            auto moff = p_fields[i].type.record().field_offset(fname, fld);
-            if (moff >= 0) {
-                return base + moff;
+            p_fields[i].type.record().iter_fields(cb, data, base, end);
+            if (end) {
+                return base;
             }
-        } else if (p_fields[i].name == fname) {
-            fld = &p_fields[i].type;
-            return base;
+        } else {
+            end = cb(
+                p_fields[i].name.c_str(), p_fields[i].type, obase + base, data
+            );
+            if (end) {
+                return base;
+            }
         }
         base += tp->size;
     }
-    fld = nullptr;
-    return -1;
+    if (flex) {
+        base = p_ffi_type.size;
+        end = cb(
+            p_fields.back().name.c_str(), p_fields.back().type,
+            obase + base, data
+        );
+    }
+    return base;
 }
 
 void c_struct::set_fields(std::vector<field> fields) {
