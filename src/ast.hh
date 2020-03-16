@@ -219,6 +219,36 @@ enum class c_expr_type {
     TERNARY
 };
 
+static inline int to_builtin_type(c_expr_type v) {
+    switch (v) {
+        case c_expr_type::INT:
+            return C_BUILTIN_INT;
+        case c_expr_type::UINT:
+            return C_BUILTIN_UINT;
+        case c_expr_type::LONG:
+            return C_BUILTIN_LONG;
+        case c_expr_type::ULONG:
+            return C_BUILTIN_ULONG;
+        case c_expr_type::LLONG:
+            return C_BUILTIN_LLONG;
+        case c_expr_type::ULLONG:
+            return C_BUILTIN_ULLONG;
+        case c_expr_type::FLOAT:
+            return C_BUILTIN_FLOAT;
+        case c_expr_type::DOUBLE:
+            return C_BUILTIN_DOUBLE;
+        case c_expr_type::LDOUBLE:
+            return C_BUILTIN_LDOUBLE;
+        case c_expr_type::CHAR:
+            return C_BUILTIN_CHAR;
+        case c_expr_type::BOOL:
+            return C_BUILTIN_BOOL;
+        default:
+            break;
+    }
+    return C_BUILTIN_INVALID;
+}
+
 /* don't forget to update precedences in parser when adding to this */
 enum class c_expr_binop {
     INVALID = 0,

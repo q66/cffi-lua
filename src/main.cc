@@ -168,7 +168,6 @@ struct cdata_meta {
         if (ffi::isctype(cd)) {
             luaL_error(L, "'ctype' is not indexable");
         }
-        /* FIXME: cdata indexes */
         size_t elsize;
         unsigned char *ptr;
         switch (cd.decl.type()) {
@@ -212,7 +211,7 @@ struct cdata_meta {
                 break;
             }
         }
-        auto sidx = luaL_checkinteger(L, 2);
+        size_t sidx = ffi::check_arith<size_t>(L, 2);
         func(cd.decl.ptr_base(), static_cast<void *>(&ptr[sidx * elsize]));
     }
 

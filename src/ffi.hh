@@ -301,6 +301,56 @@ static inline bool metatype_getfield(lua_State *L, int mt, char const *fname) {
     return false;
 }
 
+template<typename T>
+static inline T check_arith(lua_State *L, int idx) {
+    auto *cd = testcdata<arg_stor_t>(L, idx);
+    if (!cd) {
+        goto lval;
+    }
+    switch (cd->decl.type()) {
+        case ast::C_BUILTIN_ENUM:
+            /* TODO: large enums */
+            return T(cd->val.as<int>());
+        case ast::C_BUILTIN_BOOL:
+            return T(cd->val.as<bool>());
+        case ast::C_BUILTIN_CHAR:
+            return T(cd->val.as<char>());
+        case ast::C_BUILTIN_SCHAR:
+            return T(cd->val.as<signed char>());
+        case ast::C_BUILTIN_UCHAR:
+            return T(cd->val.as<unsigned char>());
+        case ast::C_BUILTIN_SHORT:
+            return T(cd->val.as<short>());
+        case ast::C_BUILTIN_USHORT:
+            return T(cd->val.as<unsigned short>());
+        case ast::C_BUILTIN_INT:
+            return T(cd->val.as<int>());
+        case ast::C_BUILTIN_UINT:
+            return T(cd->val.as<unsigned int>());
+        case ast::C_BUILTIN_LONG:
+            return T(cd->val.as<long>());
+        case ast::C_BUILTIN_ULONG:
+            return T(cd->val.as<unsigned long>());
+        case ast::C_BUILTIN_LLONG:
+            return T(cd->val.as<long long>());
+        case ast::C_BUILTIN_ULLONG:
+            return T(cd->val.as<unsigned long long>());
+        case ast::C_BUILTIN_FLOAT:
+            return T(cd->val.as<float>());
+        case ast::C_BUILTIN_DOUBLE:
+            return T(cd->val.as<double>());
+        case ast::C_BUILTIN_LDOUBLE:
+            return T(cd->val.as<long double>());
+        default:
+            break;
+    }
+lval:
+    if (std::is_integral<T>::value) {
+        return T(luaL_checkinteger(L, idx));
+    }
+    return T(luaL_checknumber(L, idx));
+}
+
 } /* namespace ffi */
 
 #endif /* FFI_HH */
