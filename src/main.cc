@@ -722,7 +722,7 @@ struct ffi_module {
     static int eval_f(lua_State *L) {
         /* TODO: accept expressions */
         char const *str = luaL_checkstring(L, 1);
-        parser::lex_token_u outv;
+        ast::c_value outv;
         auto v = parser::parse_number(L, outv, str, str + lua_rawlen(L, 1));
         switch (v) {
             case ast::c_expr_type::INT:

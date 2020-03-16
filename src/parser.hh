@@ -12,18 +12,6 @@
 
 namespace parser {
 
-union lex_token_u {
-    char c;
-    signed int i;
-    signed long l;
-    signed long long ll;
-    unsigned int u;
-    unsigned long ul;
-    unsigned long long ull;
-    float f;
-    double d;
-};
-
 void parse(
     lua_State *L, char const *input, char const *iend = nullptr, int paridx = -1
 );
@@ -47,11 +35,11 @@ static inline ast::c_type parse_type(
 }
 
 ast::c_expr_type parse_number(
-    lua_State *L, lex_token_u &v, char const *input, char const *iend = nullptr
+    lua_State *L, ast::c_value &v, char const *input, char const *iend = nullptr
 );
 
 static inline ast::c_expr_type parse_number(
-    lua_State *L, lex_token_u &v, std::string const &input
+    lua_State *L, ast::c_value &v, std::string const &input
 ) {
     return parse_number(L, v, input.c_str(), input.c_str() + input.size());
 }

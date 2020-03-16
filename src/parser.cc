@@ -82,7 +82,7 @@ struct lex_token {
     int token = -1;
     ast::c_expr_type numtag = ast::c_expr_type::INVALID;
     std::string value_s;
-    lex_token_u value{};
+    ast::c_value value{};
 };
 
 static thread_local std::unordered_map<
@@ -1862,7 +1862,7 @@ ast::c_type parse_type(
 }
 
 ast::c_expr_type parse_number(
-    lua_State *L, lex_token_u &v, char const *input, char const *iend
+    lua_State *L, ast::c_value &v, char const *input, char const *iend
 ) {
     if (!iend) {
         iend = input + strlen(input);

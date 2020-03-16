@@ -278,33 +278,8 @@ union c_value {
     unsigned int u;
     unsigned short us;
     unsigned char uc;
-    /* signed int primitives, fixed size */
-    int64_t i64;
-    int32_t i32;
-    int16_t i16;
-    int8_t i8;
-    /* unsigned int primitives, fixed size */
-    uint64_t u64;
-    uint32_t u32;
-    uint16_t u16;
-    uint8_t u8;
-    /* extra character types */
-    wchar_t w;
-    char16_t c16;
-    char32_t c32;
-    /* other types */
-    size_t sz;
-    typename std::make_signed<size_t>::type ssz;
-    intptr_t ip;
-    uintptr_t uip;
-    ptrdiff_t pd;
-    time_t t;
     /* booleans */
     bool b;
-    /* pointer types */
-    char const *str;
-    void *ptr;
-    void (*fptr)();
 };
 
 struct c_expr {
