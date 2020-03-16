@@ -22,9 +22,9 @@ C language syntax support.
 - [x] Transparent `struct` inside `struct` (extension)
 - [ ] Transparent `enum` inside `struct` (extension)
 - [x] `enum`
-- [ ] `union`
-  - [ ] Transparent `union` inside `struct`
-  - [ ] Transaprent `struct` inside `union`
+- [x] `union`
+  - [x] Transparent `union` inside `struct`
+  - [x] Transaprent `struct` inside `union`
 - [ ] `static const` declarations inside `struct`/`union` (C++ extension)
 
 #### Wishlist
@@ -148,7 +148,7 @@ Implements the functionality provided by the parser.
 - [x] Type conversions
 - [x] Typedefs
 - [x] Structs
-- [ ] Unions
+- [x] Unions
 - [x] Arrays
 - [ ] Alternate calling conventions
 - [ ] Constant expressions

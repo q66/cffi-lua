@@ -536,7 +536,7 @@ c_type::c_type(c_type const &v): p_asize{v.p_asize}, p_type{v.p_type} {
         (tp == C_BUILTIN_ARRAY)
     ) {
         p_ptr = weak ? v.p_ptr : new c_type{*v.p_ptr};
-    } else if ((tp == C_BUILTIN_STRUCT) || (tp == C_BUILTIN_ENUM)) {
+    } else if ((tp == C_BUILTIN_RECORD) || (tp == C_BUILTIN_ENUM)) {
         p_ptr = v.p_ptr;
     }
 }
@@ -589,7 +589,7 @@ void c_type::do_serialize(std::string &o) const {
             /* cv is handled by func serializer */
             p_fptr->do_serialize_full(o, false, tcv);
             return;
-        case C_BUILTIN_STRUCT:
+        case C_BUILTIN_RECORD:
             p_crec->do_serialize(o);
             break;
         default:
@@ -602,6 +602,19 @@ void c_type::do_serialize(std::string &o) const {
     if (tcv & C_CV_VOLATILE) {
         o += " volatile";
     }
+}
+
+bool c_type::passable() const {
+    switch (type()) {
+        case C_BUILTIN_RECORD:
+            return p_crec->passable();
+        case C_BUILTIN_VOID:
+        case C_BUILTIN_INVALID:
+            return false;
+        default:
+            break;
+    }
+    return true;
 }
 
 #define C_BUILTIN_CASE(bt) case C_BUILTIN_##bt: \
@@ -618,7 +631,7 @@ ffi_type *c_type::libffi_type() const {
         case C_BUILTIN_FUNC:
             return p_fptr->libffi_type();
 
-        case C_BUILTIN_STRUCT:
+        case C_BUILTIN_RECORD:
             return p_crec->libffi_type();
         case C_BUILTIN_ENUM:
             return p_cenum->libffi_type();
@@ -655,7 +668,7 @@ size_t c_type::alloc_size() const {
     switch (c_builtin(type())) {
         case C_BUILTIN_FUNC:
             return p_fptr->alloc_size();
-        case C_BUILTIN_STRUCT:
+        case C_BUILTIN_RECORD:
             return p_crec->alloc_size();
         case C_BUILTIN_ENUM:
             return p_cenum->alloc_size();
@@ -720,7 +733,7 @@ bool c_type::is_same(c_type const &other, bool ignore_cv) const {
             }
             return (p_cenum == other.p_cenum);
 
-        case C_BUILTIN_STRUCT:
+        case C_BUILTIN_RECORD:
             if (type() != other.type()) {
                 return false;
             }
@@ -779,25 +792,11 @@ bool c_function::is_same(c_function const &other) const {
     return true;
 }
 
-bool c_struct::is_same(c_struct const &other) const {
-    if (p_ffi_type.size != other.p_ffi_type.size) {
-        return false;
-    }
-    if (p_ffi_type.alignment != other.p_ffi_type.alignment) {
-        return false;
-    }
-    if (p_fields.size() != other.p_fields.size()) {
-        return false;
-    }
-    for (size_t i = 0; i < p_fields.size(); ++i) {
-        if (!p_fields[i].type.is_same(other.p_fields[i].type)) {
-            return false;
-        }
-    }
-    return true;
+bool c_record::is_same(c_record const &other) const {
+    return &other == this;
 }
 
-ptrdiff_t c_struct::field_offset(char const *fname, c_type const *&fld) const {
+ptrdiff_t c_record::field_offset(char const *fname, c_type const *&fld) const {
     ptrdiff_t ret = -1;
     iter_fields([fname, &ret, &fld](
         char const *ffname, ast::c_type const &ffld, size_t off
@@ -812,13 +811,14 @@ ptrdiff_t c_struct::field_offset(char const *fname, c_type const *&fld) const {
     return ret;
 }
 
-size_t c_struct::iter_fields(bool (*cb)(
+size_t c_record::iter_fields(bool (*cb)(
     char const *fname, ast::c_type const &type, size_t off, void *data
 ), void *data, size_t obase, bool &end) const {
     size_t base = 0;
     size_t nflds = p_fields.size();
     bool flex = false;
-    if (nflds && p_fields.back().type.unbounded()) {
+    bool uni = is_union();
+    if (!uni && nflds && p_fields.back().type.unbounded()) {
          flex = true;
          --nflds;
     }
@@ -827,8 +827,8 @@ size_t c_struct::iter_fields(bool (*cb)(
         size_t align = tp->alignment;
         base = ((base + align - 1) / align) * align;
         if (p_fields[i].name.empty()) {
-            /* transparent struct is like a real struct member */
-            assert(p_fields[i].type.type() == ast::C_BUILTIN_STRUCT);
+            /* transparent record is like a real member */
+            assert(p_fields[i].type.type() == ast::C_BUILTIN_RECORD);
             p_fields[i].type.record().iter_fields(cb, data, base, end);
             if (end) {
                 return base;
@@ -841,7 +841,9 @@ size_t c_struct::iter_fields(bool (*cb)(
                 return base;
             }
         }
-        base += tp->size;
+        if (!uni) {
+            base += tp->size;
+        }
     }
     if (flex) {
         base = p_ffi_type.size;
@@ -853,7 +855,7 @@ size_t c_struct::iter_fields(bool (*cb)(
     return base;
 }
 
-void c_struct::set_fields(std::vector<field> fields) {
+void c_record::set_fields(std::vector<field> fields) {
     assert(p_fields.empty());
     assert(!p_elements);
 
@@ -866,7 +868,7 @@ void c_struct::set_fields(std::vector<field> fields) {
      * when the last member is a VLA, we don't know the size, so do the
      * same thing as when flexible, but make the VLA inaccessible
      */
-    bool flex = !p_fields.empty() && (
+    bool flex = !is_union() && !p_fields.empty() && (
         p_fields.back().type.unbounded() || p_fields.back().type.vla()
     );
     size_t nfields = p_fields.size();
@@ -879,6 +881,33 @@ void c_struct::set_fields(std::vector<field> fields) {
     p_ffi_type.size = p_ffi_type.alignment = 0;
     p_ffi_type.type = FFI_TYPE_STRUCT;
 
+    p_ffi_type.elements = &p_elements[0];
+    p_elements[nfields] = nullptr;
+
+    /* for unions, we have a different logic */
+    if (is_union()) {
+        size_t usize = 0, ualign = 0;
+        /* assign the elements as usual, this is for the purpose of
+         * iterating the fields (need quick access to each, and also
+         * in case libffi adds unions in the future so we can adapt
+         * to it more easily), but also check the size of the largest
+         * and the alignment of the most aligned
+         */
+        for (size_t i = 0; i < ffields; ++i) {
+            auto *ft = p_fields[i].type.libffi_type();
+            if (ft->size > usize) {
+                usize = ft->size;
+            }
+            if (ft->alignment > ualign) {
+                ualign = ft->alignment;
+            }
+            p_elements[i] = ft;
+        }
+        p_ffi_type.size = usize;
+        p_ffi_type.alignment = ualign;
+        return;
+    }
+
     for (size_t i = 0; i < ffields; ++i) {
         p_elements[i] = p_fields[i].type.libffi_type();
     }
@@ -886,9 +915,6 @@ void c_struct::set_fields(std::vector<field> fields) {
         /* for now null it, so ffi_prep_cif ignores it */
         p_elements[ffields] = nullptr;
     }
-    p_elements[nfields] = nullptr;
-
-    p_ffi_type.elements = &p_elements[0];
 
     /* fill in the size and alignment with an ugly hack
      *

@@ -457,7 +457,7 @@ int to_lua(
             return 1;
         }
 
-        case ast::C_BUILTIN_STRUCT: {
+        case ast::C_BUILTIN_RECORD: {
             auto sz = tp.alloc_size();
             auto &cd = newcdata(L, tp, sz);
             memcpy(&cd.val, value, sz);
@@ -543,7 +543,7 @@ static void *from_lua_num(
 
         converr:
         case ast::C_BUILTIN_VOID:
-        case ast::C_BUILTIN_STRUCT:
+        case ast::C_BUILTIN_RECORD:
         case ast::C_BUILTIN_ARRAY:
         case ast::C_BUILTIN_VA_LIST:
             luaL_error(
@@ -793,7 +793,7 @@ static void *from_lua_cdata(
                 L, cd.ptr_base(), tp, *static_cast<void **>(sval),
                 stor, dsz, rule
             );
-        case ast::C_BUILTIN_STRUCT:
+        case ast::C_BUILTIN_RECORD:
             /* we can initialize pointers and references by address */
             if (
                 (tp.type() != ast::C_BUILTIN_PTR) &&
@@ -868,7 +868,7 @@ void *from_lua(
                 luaL_error(L, "invalid C type");
             }
             break;
-        case ast::C_BUILTIN_STRUCT:
+        case ast::C_BUILTIN_RECORD:
             /* structs can be copied via new/pass but not casted */
             if (rule == RULE_CAST) {
                 luaL_error(L, "invalid C type");
@@ -1016,7 +1016,7 @@ static void from_lua_table(
     int sidx = -1
 );
 
-static void from_lua_table_struct(
+static void from_lua_table_record(
     lua_State *L, ast::c_type const &decl, void *stor, size_t rsz, int idx,
     bool init_names, int sidx
 ) {
@@ -1024,18 +1024,20 @@ static void from_lua_table_struct(
     if (sb.fields().empty()) {
         return;
     }
+    bool uni = sb.is_union();
     auto *val = static_cast<unsigned char *>(stor);
-    sb.iter_fields([L, init_names, rsz, idx, &decl, &sidx, val](
+    bool filled = false;
+    sb.iter_fields([L, rsz, val, &decl, &sidx, &filled, idx, init_names, uni](
         char const *fname, ast::c_type const &fld, size_t off
     ) {
         if (init_names) {
             lua_getfield(L, idx, fname);
             if (lua_isnil(L, -1)) {
                 lua_pop(L, 1);
-                return fld.unbounded();
+                return uni || fld.unbounded();
             }
             /* flex array members */
-            if (fld.unbounded()) {
+            if (!uni && fld.unbounded()) {
                 /* the size of the struct minus the flex member plus padding */
                 size_t ssz = decl.alloc_size();
                 /* initialize the last part as in array */
@@ -1046,7 +1048,7 @@ static void from_lua_table_struct(
             }
         } else {
             /* flex array members */
-            if (fld.unbounded()) {
+            if (!uni && fld.unbounded()) {
                 /* the size of the struct minus the flex member plus padding */
                 size_t ssz = decl.alloc_size();
                 /* initialize the last part as in array */
@@ -1061,7 +1063,7 @@ static void from_lua_table_struct(
                 return true;
             }
         }
-        bool elem_struct = (fld.type() == ast::C_BUILTIN_STRUCT);
+        bool elem_struct = (fld.type() == ast::C_BUILTIN_RECORD);
         bool elem_arr = (fld.type() == ast::C_BUILTIN_ARRAY);
         if ((elem_arr || elem_struct) && lua_istable(L, -1)) {
             from_lua_table(L, fld, &val[off], fld.alloc_size(), lua_gettop(L));
@@ -1071,9 +1073,13 @@ static void from_lua_table_struct(
             void *ep = from_lua(L, fld, &sv, -1, esz, RULE_CONV);
             memcpy(&val[off], ep, esz);
         }
+        filled = true;
         lua_pop(L, 1);
-        return false;
+        return uni;
     });
+    if (uni && !filled) {
+        memset(stor, 0, rsz);
+    }
 }
 
 /* this can't be done in from_lua, because when from_lua is called, the
@@ -1099,15 +1105,17 @@ static void from_lua_table(
     /* there is no initializer... or is there? structs may use names */
     if (lua_isnil(L, -1)) {
         lua_pop(L, 1);
-        if (decl.type() == ast::C_BUILTIN_STRUCT) {
-            from_lua_table_struct(L, decl, stor, rsz, idx, true, sidx);
+        if (decl.type() == ast::C_BUILTIN_RECORD) {
+            from_lua_table_record(L, decl, stor, rsz, idx, true, sidx);
+        } else {
+            memset(stor, 0, rsz);
         }
         return;
     }
 
-    if (decl.type() == ast::C_BUILTIN_STRUCT) {
+    if (decl.type() == ast::C_BUILTIN_RECORD) {
         lua_pop(L, 1);
-        from_lua_table_struct(L, decl, stor, rsz, idx, false, sidx);
+        from_lua_table_record(L, decl, stor, rsz, idx, false, sidx);
         return;
     }
 
@@ -1129,7 +1137,7 @@ static void from_lua_table(
     size_t nset = 0;
 
     bool base_array = (pb.type() == ast::C_BUILTIN_ARRAY);
-    bool base_struct = (pb.type() == ast::C_BUILTIN_STRUCT);
+    bool base_struct = (pb.type() == ast::C_BUILTIN_RECORD);
     for (;;) {
         if (nset >= nelems) {
             if (decl.vla() || decl.unbounded()) {
@@ -1158,6 +1166,10 @@ static void from_lua_table(
         } else if (nset >= nelems) {
             break;
         }
+    }
+    if (nset < nelems) {
+        /* fill possible remaining space with zeroes */
+        memset(val, 0, bsize * (nelems - nset));
     }
 }
 
@@ -1268,7 +1280,7 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
         narr = decl.array_size();
         rsz = decl.ptr_base().alloc_size() * narr;
         goto newdata;
-    } else if (decl.type() == ast::C_BUILTIN_STRUCT) {
+    } else if (decl.type() == ast::C_BUILTIN_RECORD) {
         auto &flds = decl.record().fields();
         if (!flds.empty()) {
             auto &lf = flds.back().type;
@@ -1340,7 +1352,7 @@ newdata:
             from_lua_table(L, decl, &cd.val, rsz, iidx);
         }
         /* set a gc finalizer if provided in metatype */
-        if (decl.type() == ast::C_BUILTIN_STRUCT) {
+        if (decl.type() == ast::C_BUILTIN_RECORD) {
             int mf;
             int mt = decl.record().metatype(mf);
             if (mf & METATYPE_FLAG_GC) {

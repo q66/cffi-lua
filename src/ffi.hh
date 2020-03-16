@@ -50,7 +50,7 @@ enum metatype_flag {
     METATYPE_FLAG_BXOR     = 1 << 22,
     METATYPE_FLAG_BNOT     = 1 << 23,
     METATYPE_FLAG_SHL      = 1 << 24,
-    METATYPE_FLAG_SHR      = 1 << 24,
+    METATYPE_FLAG_SHR      = 1 << 25,
 #endif /* LUA_VERSION_NUM > 502 */
 #endif /* LUA_VERSION_NUM > 501 */
 };

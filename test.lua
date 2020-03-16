@@ -303,4 +303,35 @@ x = ffi.new("struct flex", 2, { x = 5, y = { 10, 15 } })
 print("flex struct with names: " .. x.x .. ", " .. x.y[0] .. ", " .. x.y[1])
 print()
 
+print("# Unions")
+
+ffi.cdef [[
+    union utest {
+        struct {
+            int x;
+            int y;
+        };
+        long z;
+    };
+]]
+
+x = ffi.new("union utest")
+x.x = 5
+x.y = 10
+print("union: " .. x.x .. ", " .. x.y .. ", " .. tostring(x.z))
+
+ffi.cdef [[
+    union utestb {
+        char const *s;
+        size_t a;
+    };
+]]
+
+local str = "hello world"
+x = ffi.new("union utestb", { str })
+print("table initialized union: " .. tostring(x.s) .. ", " .. tostring(x.a))
+x = ffi.new("union utestb", { s = str })
+print("table initialized union (via name): " .. tostring(x.s) .. ", " .. tostring(x.a))
+print()
+
 print("## END TESTS ##")

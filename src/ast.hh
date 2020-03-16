@@ -27,7 +27,7 @@ enum c_builtin {
     C_BUILTIN_PTR,
 
     C_BUILTIN_FUNC,
-    C_BUILTIN_STRUCT,
+    C_BUILTIN_RECORD,
     C_BUILTIN_ARRAY,
 
     C_BUILTIN_VA_LIST,
@@ -192,7 +192,7 @@ enum class c_object_type {
     VARIABLE,
     CONSTANT,
     TYPEDEF,
-    STRUCT,
+    RECORD,
     ENUM,
     TYPE,
     PARAM,
@@ -410,7 +410,7 @@ struct c_object {
 };
 
 struct c_function;
-struct c_struct;
+struct c_record;
 struct c_enum;
 
 struct c_type: c_object {
@@ -440,8 +440,8 @@ struct c_type: c_object {
         }
     {}
 
-    c_type(c_struct const *ctp, int qual):
-        p_crec{ctp}, p_type{C_BUILTIN_STRUCT | C_TYPE_WEAK | uint32_t(qual)}
+    c_type(c_record const *ctp, int qual):
+        p_crec{ctp}, p_type{C_BUILTIN_RECORD | C_TYPE_WEAK | uint32_t(qual)}
     {}
 
     c_type(c_enum const *ctp, int qual):
@@ -534,6 +534,8 @@ struct c_type: c_object {
         return ptr_base().type() == C_BUILTIN_FUNC;
     }
 
+    bool passable() const;
+
     bool integer() const {
         return arith() && (type() < C_BUILTIN_FLOAT);
     }
@@ -564,7 +566,7 @@ struct c_type: c_object {
         return *ptr_base().p_fptr;
     }
 
-    c_struct const &record() const {
+    c_record const &record() const {
         return *p_crec;
     }
 
@@ -593,7 +595,7 @@ private:
         c_function *p_fptr;
         c_type const *p_cptr;
         c_function const *p_cfptr;
-        c_struct const *p_crec;
+        c_record const *p_crec;
         c_enum const *p_cenum;
     };
     size_t p_asize = 0;
@@ -793,7 +795,8 @@ private:
     c_type p_type;
 };
 
-struct c_struct: c_object {
+/* represents a record type: can be a struct or a union */
+struct c_record: c_object {
     struct field {
         field(std::string nm, c_type &&tp):
             name{std::move(nm)}, type(std::move(tp))
@@ -803,16 +806,18 @@ struct c_struct: c_object {
         c_type type;
     };
 
-    c_struct(std::string ename, std::vector<field> fields):
-        p_name{std::move(ename)}
+    c_record(std::string ename, std::vector<field> fields, bool is_uni = false):
+        p_name{std::move(ename)}, p_uni{is_uni}
     {
         set_fields(std::move(fields));
     }
 
-    c_struct(std::string ename): p_name{std::move(ename)} {}
+    c_record(std::string ename, bool is_uni = false):
+        p_name{std::move(ename)}, p_uni{is_uni}
+    {}
 
     c_object_type obj_type() const {
-        return c_object_type::STRUCT;
+        return c_object_type::RECORD;
     }
 
     void do_serialize(std::string &o) const {
@@ -832,12 +837,31 @@ struct c_struct: c_object {
         return libffi_type()->size;
     }
 
-    bool is_same(c_struct const &other) const;
+    bool is_same(c_record const &other) const;
 
     ptrdiff_t field_offset(char const *fname, c_type const *&fld) const;
 
     bool opaque() const {
         return !p_elements;
+    }
+
+    bool passable() const {
+        if (opaque() || is_union()) {
+            return false;
+        }
+        bool ret = true;
+        iter_fields([&ret](auto *, auto &type, size_t) {
+            if (!type.passable()) {
+                ret = false;
+                return true;
+            }
+            return false;
+        });
+        return ret;
+    }
+
+    bool is_union() const {
+        return p_uni;
     }
 
     std::vector<field> const &fields() const {
@@ -881,6 +905,7 @@ private:
     ffi_type p_ffi_flex{};
     int p_metatype = LUA_REFNIL;
     int p_metaflags = 0;
+    bool p_uni;
 };
 
 struct c_enum: c_object {

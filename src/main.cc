@@ -85,10 +85,10 @@ struct cdata_meta {
         auto &cd = ffi::tocdata<ffi::noval>(L, idx);
         auto tp = cd.decl.type();
         int mtp, mflags;
-        if (tp == ast::C_BUILTIN_STRUCT) {
+        if (tp == ast::C_BUILTIN_RECORD) {
             mtp = cd.decl.record().metatype(mflags);
         } else if (tp == ast::C_BUILTIN_PTR) {
-            if (cd.decl.ptr_base().type() != ast::C_BUILTIN_STRUCT) {
+            if (cd.decl.ptr_base().type() != ast::C_BUILTIN_RECORD) {
                 return false;
             }
             mtp = cd.decl.ptr_base().record().metatype(mflags);
@@ -192,7 +192,7 @@ struct cdata_meta {
                 func(cd.decl.ptr_base(), cd.val);
                 return;
             }
-            case ast::C_BUILTIN_STRUCT: {
+            case ast::C_BUILTIN_RECORD: {
                 char const *fname = luaL_checkstring(L, 2);
                 ast::c_type const *outf;
                 auto foff = cd.decl.record().field_offset(fname, outf);
@@ -375,7 +375,7 @@ struct ffi_module {
     static int metatype_f(lua_State *L) {
         auto &ct = check_ct(L, 1);
         luaL_argcheck(
-            L, ct.type() == ast::C_BUILTIN_STRUCT, 1,
+            L, ct.type() == ast::C_BUILTIN_RECORD, 1,
             "invalid C type"
         );
         int mflags;
@@ -435,7 +435,7 @@ struct ffi_module {
         lua_getfield(L, -1, "__ffi_metatypes");
         /* the metatype */
         lua_pushvalue(L, 2);
-        const_cast<ast::c_struct &>(ct.record()).metatype(
+        const_cast<ast::c_record &>(ct.record()).metatype(
             luaL_ref(L, -2), mflags
         );
 
@@ -533,7 +533,7 @@ struct ffi_module {
     static int offsetof_f(lua_State *L) {
         auto &ct = check_ct(L, 1);
         char const *fname = luaL_checkstring(L, 2);
-        if (ct.type() != ast::C_BUILTIN_STRUCT) {
+        if (ct.type() != ast::C_BUILTIN_RECORD) {
             return 0;
         }
         auto &cs = ct.record();
@@ -556,7 +556,7 @@ struct ffi_module {
             return 1;
         }
         auto &cd = ffi::tocdata<ffi::noval>(L, 2);
-        if (ct.type() == ast::C_BUILTIN_STRUCT) {
+        if (ct.type() == ast::C_BUILTIN_RECORD) {
             /* if ct is a struct, accept pointers/refs to the struct */
             /* TODO: also applies to union */
             auto ctp = cd.decl.type();
@@ -686,7 +686,7 @@ struct ffi_module {
             }
             switch (btp) {
                 case ast::C_BUILTIN_PTR:
-                case ast::C_BUILTIN_STRUCT:
+                case ast::C_BUILTIN_RECORD:
                 case ast::C_BUILTIN_ARRAY:
                 case ast::C_BUILTIN_FUNC:
                     /* these may appear */

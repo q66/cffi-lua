@@ -20,8 +20,8 @@ namespace parser {
 
 /* stdint types might as well also be builtin... */
 #define KEYWORDS KW(alignof), KW(const), KW(enum), KW(extern), KW(sizeof), \
-    KW(struct), KW(typedef), KW(signed), KW(unsigned), KW(volatile), \
-    KW(void), \
+    KW(struct), KW(signed), KW(typedef), KW(union), KW(unsigned), \
+    KW(volatile), KW(void), \
     \
     KW(__alignof__), KW(__const__), KW(__volatile__), \
     \
@@ -752,7 +752,7 @@ static ast::c_type parse_type(
     lex_state &ls, std::string *fpname = nullptr, bool needn = true
 );
 
-static ast::c_struct const &parse_struct(lex_state &ls, bool *newst = nullptr);
+static ast::c_record const &parse_record(lex_state &ls, bool *newst = nullptr);
 static ast::c_enum const &parse_enum(lex_state &ls);
 
 static ast::c_expr parse_cexpr_simple(lex_state &ls) {
@@ -1002,7 +1002,12 @@ static std::vector<ast::c_param> parse_paramlist(lex_state &ls) {
         }
         std::string pname;
         auto pt = parse_type(ls, &pname, false);
-        if (pt.type() == ast::C_BUILTIN_VOID) {
+        /* check if argument type can be passed by value */
+        if (!pt.passable()) {
+            std::string buf = "'";
+            buf += pt.serialize();
+            buf += "' cannot be passed by value";
+            ls.syntax_error(buf);
             break;
         }
         if (pname == "?") {
@@ -1280,8 +1285,37 @@ newlevel:
      * which is a pointer to a function returning a pointer to a function.
      */
     plevel *olev = &pcvq.front();
-    for (auto it = pcvq.begin() + 1;;) {
+    for (auto it = pcvq.begin() + 1;; ++it) {
         using CT = ast::c_type;
+        /* for the implicit level, its pointers/ref are bound to current 'tp',
+         * as there is definitely no outer arglist or anything, and we need
+         * to make sure return types for functions are properly built, e.g.
+         *
+         * void *(*foo)()
+         *
+         * here 'tp' is 'void' at first, we need to make it into a 'void *'
+         * before proceeding to 2nd level, which will then attach the arglist
+         *
+         * for any further level, bind pointers and reférences to whatever is
+         * 'tp' at the time, which will be a new thing if an arglist is there,
+         * or the previous type if not
+         */
+        while ((it != pcvq.end()) && !it->is_term) {
+            /* references are trailing, we can't make pointers
+             * to them nor we can make references to references
+             */
+            if (tp.type() == ast::C_BUILTIN_REF) {
+                ls.syntax_error("references must be trailing");
+            }
+            ast::c_type ntp{
+                std::move(tp), it->cv,
+                it->is_ref ? ast::C_BUILTIN_REF : ast::C_BUILTIN_PTR
+            };
+            tp.~CT();
+            new (&tp) ast::c_type{std::move(ntp)};
+            ++it;
+        }
+        /* now attach the function or array or whatever */
         if (olev->is_func) {
             /* outer level has an arglist */
             bool variadic = false;
@@ -1290,6 +1324,17 @@ newlevel:
             )) {
                 variadic = true;
                 olev->argl.pop_back();
+            }
+            /* check if return type can be passed */
+            if (
+                (tp.type() == ast::C_BUILTIN_ARRAY) ||
+                ((tp.type() != ast::C_BUILTIN_VOID) && !tp.passable())
+            ) {
+                std::string buf = "'";
+                buf += tp.serialize();
+                buf += "' cannot be passed by value";
+                ls.syntax_error(buf);
+                break;
             }
             ast::c_function cf{std::move(tp), std::move(olev->argl), variadic};
             tp.~CT();
@@ -1312,34 +1357,10 @@ newlevel:
                 new (&tp) ast::c_type{std::move(atp)};
             }
         }
-        /* we only had the implicit level all along, so break out */
         if (it == pcvq.end()) {
             break;
         }
-        /* only set the new outer if it's a new sentinel */
-        if (it->is_term) {
-            olev = &*it;
-            ++it;
-        }
-        /* bind pointers and references to whatever is 'tp', which will
-         * be a new thing if an arglist/array is present, and the previous
-         * type if not
-         */
-        while ((it != pcvq.end()) && !it->is_term) {
-            /* references are trailing, we can't make pointers
-             * to them nor we can make references to references
-             */
-            if (tp.type() == ast::C_BUILTIN_REF) {
-                ls.syntax_error("references must be trailing");
-            }
-            ast::c_type ntp{
-                std::move(tp), it->cv,
-                it->is_ref ? ast::C_BUILTIN_REF : ast::C_BUILTIN_PTR
-            };
-            tp.~CT();
-            new (&tp) ast::c_type{std::move(ntp)};
-            ++it;
-        }
+        olev = &*it;
     }
     /* one last thing: if plain void type is not allowed in this context
      * and we nevertheless got it, we need to error
@@ -1399,9 +1420,9 @@ static ast::c_type parse_type(lex_state &ls, std::string *fpn, bool needn) {
             cbt = ast::C_BUILTIN_UINT;
         }
         goto newtype;
-    } else if (ls.t.token == TOK_struct) {
+    } else if ((ls.t.token == TOK_struct) || (ls.t.token == TOK_union)) {
         return parse_type_ptr(
-            ls, ast::c_type{&parse_struct(ls), quals}, fpn, needn
+            ls, ast::c_type{&parse_record(ls), quals}, fpn, needn
         );
     } else if (ls.t.token == TOK_enum) {
         return parse_type_ptr(
@@ -1428,9 +1449,9 @@ qualified:
                 tp.cv(quals);
                 return parse_type_ptr(ls, std::move(tp), fpn, needn);
             }
-            case ast::c_object_type::STRUCT: {
+            case ast::c_object_type::RECORD: {
                 ls.get();
-                auto &tp = decl->as<ast::c_struct>();
+                auto &tp = decl->as<ast::c_record>();
                 return parse_type_ptr(
                     ls, ast::c_type{&tp, quals}, fpn, needn
                 );
@@ -1587,13 +1608,14 @@ static void parse_typedef(
     ls.store_decl(new ast::c_typedef{std::move(aname), std::move(tp)}, tline);
 }
 
-static ast::c_struct const &parse_struct(lex_state &ls, bool *newst) {
+static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
     int sline = ls.line_number;
-    ls.get(); /* struct keyword */
+    bool is_uni = (ls.t.token == TOK_union);
+    ls.get(); /* struct/union keyword */
 
     /* name is optional */
     bool named = false;
-    std::string sname = "struct ";
+    std::string sname = is_uni ? "union " : "struct ";
     ls.param_maybe_name();
     if (ls.t.token == TOK_NAME) {
         sname += ls.t.value_s;
@@ -1614,27 +1636,27 @@ static ast::c_struct const &parse_struct(lex_state &ls, bool *newst) {
     /* opaque */
     if (!test_next(ls, '{')) {
         auto *oldecl = ls.lookup(sname.c_str());
-        if (!oldecl || (oldecl->obj_type() != ast::c_object_type::STRUCT)) {
+        if (!oldecl || (oldecl->obj_type() != ast::c_object_type::RECORD)) {
             mode_error();
             /* different type or not stored yet, raise error or store */
-            auto *p = new ast::c_struct{std::move(sname)};
+            auto *p = new ast::c_record{std::move(sname), is_uni};
             ls.store_decl(p, sline);
             return *p;
         }
-        return oldecl->as<ast::c_struct>();
+        return oldecl->as<ast::c_record>();
     }
 
     mode_error();
 
-    std::vector<ast::c_struct::field> fields;
+    std::vector<ast::c_record::field> fields;
 
     while (ls.t.token != '}') {
         std::string fname{};
         ast::c_type tp{ast::C_BUILTIN_INVALID, 0};
         using CT = ast::c_type;
-        if (ls.t.token == TOK_struct) {
+        if ((ls.t.token == TOK_struct) || (ls.t.token == TOK_union)) {
             bool transp = false;
-            auto &st = parse_struct(ls, &transp);
+            auto &st = parse_record(ls, &transp);
             if (transp && test_next(ls, ';')) {
                 fields.emplace_back(fname, ast::c_type{&st, 0});
                 continue;
@@ -1659,8 +1681,8 @@ static ast::c_struct const &parse_struct(lex_state &ls, bool *newst) {
     check_match(ls, '}', '{', linenum);
 
     auto *oldecl = ls.lookup(sname.c_str());
-    if (oldecl && (oldecl->obj_type() == ast::c_object_type::STRUCT)) {
-        auto &st = oldecl->as<ast::c_struct>();
+    if (oldecl && (oldecl->obj_type() == ast::c_object_type::RECORD)) {
+        auto &st = oldecl->as<ast::c_record>();
         if (st.opaque()) {
             /* previous declaration was opaque; prevent redef errors */
             st.set_fields(std::move(fields));
@@ -1674,7 +1696,7 @@ static ast::c_struct const &parse_struct(lex_state &ls, bool *newst) {
     if (newst) {
         *newst = true;
     }
-    auto *p = new ast::c_struct{std::move(sname), std::move(fields)};
+    auto *p = new ast::c_record{std::move(sname), std::move(fields), is_uni};
     ls.store_decl(p, sline);
     return *p;
 }
@@ -1784,7 +1806,8 @@ static void parse_decl(lex_state &ls) {
             return;
         }
         case TOK_struct:
-            parse_struct(ls);
+        case TOK_union:
+            parse_record(ls);
             return;
         case TOK_enum:
             parse_enum(ls);
