@@ -273,6 +273,7 @@ static c_value eval_binary(c_expr const &e, c_expr_type &et) {
         promote_int(lval, let); \
         promote_int(rval, ret); \
         convert_bin(lval, let, rval, ret); \
+        et = let; \
         switch (let) { \
             case c_expr_type::INT: retv.i = lval.i op rval.i; break; \
             case c_expr_type::UINT: retv.u = lval.u op rval.u; break; \
@@ -292,6 +293,7 @@ static c_value eval_binary(c_expr const &e, c_expr_type &et) {
         promote_int(lval, let); \
         promote_int(rval, ret); \
         convert_bin(lval, let, rval, ret); \
+        et = let; \
         switch (let) { \
             case c_expr_type::INT: retv.i = lval.i op rval.i; break; \
             case c_expr_type::UINT: retv.u = lval.u op rval.u; break; \
@@ -323,6 +325,7 @@ static c_value eval_binary(c_expr const &e, c_expr_type &et) {
     case c_expr_binop::opn: \
         promote_int(lval, let); \
         promote_int(rval, ret); \
+        et = let; \
         switch (let) { \
             case c_expr_type::INT: SHIFT_CASE_INNER(i, op); break; \
             case c_expr_type::UINT: SHIFT_CASE_INNER(u, op); break; \
@@ -440,7 +443,7 @@ static c_value eval_ternary(c_expr const &e, c_expr_type &et) {
 
 c_value c_expr::eval(c_expr_type &et, bool promote) const {
     c_value ret;
-    switch (type) {
+    switch (type()) {
         case c_expr_type::BINARY:
             return eval_binary(*this, et);
         case c_expr_type::UNARY:
@@ -448,25 +451,25 @@ c_value c_expr::eval(c_expr_type &et, bool promote) const {
         case c_expr_type::TERNARY:
             return eval_ternary(*this, et);
         case c_expr_type::INT:
-            ret.i = val.i; et = type; break;
+            ret.i = val.i; et = c_expr_type::INT; break;
         case c_expr_type::UINT:
-            ret.u = val.u; et = type; break;
+            ret.u = val.u; et = c_expr_type::UINT; break;
         case c_expr_type::LONG:
-            ret.l = val.l; et = type; break;
+            ret.l = val.l; et = c_expr_type::LONG; break;
         case c_expr_type::ULONG:
-            ret.ul = val.ul; et = type; break;
+            ret.ul = val.ul; et = c_expr_type::ULONG; break;
         case c_expr_type::LLONG:
-            ret.ll = val.ll; et = type; break;
+            ret.ll = val.ll; et = c_expr_type::LLONG; break;
         case c_expr_type::ULLONG:
-            ret.ull = val.ull; et = type; break;
+            ret.ull = val.ull; et = c_expr_type::ULLONG; break;
         case c_expr_type::FLOAT:
-            ret.f = val.f; et = type; break;
+            ret.f = val.f; et = c_expr_type::FLOAT; break;
         case c_expr_type::DOUBLE:
-            ret.d = val.d; et = type; break;
+            ret.d = val.d; et = c_expr_type::DOUBLE; break;
         case c_expr_type::CHAR:
-            ret.c = val.c; et = type; break;
+            ret.c = val.c; et = c_expr_type::CHAR; break;
         case c_expr_type::BOOL:
-            ret.b = val.b; et = type; break;
+            ret.b = val.b; et = c_expr_type::BOOL; break;
         default:
             ret.i = 0; et = c_expr_type::INVALID; break;
     }

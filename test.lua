@@ -334,4 +334,10 @@ x = ffi.new("union utestb", { s = str })
 print("table initialized union (via name): " .. tostring(x.s) .. ", " .. tostring(x.a))
 print()
 
+print("# Cdata arithmetic")
+local a = ffi.new("int", 150)
+local b = ffi.new("short", 300)
+print("int(150) + short(300) == " .. tostring(a + b))
+print()
+
 print("## END TESTS ##")

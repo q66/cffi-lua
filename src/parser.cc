@@ -761,7 +761,7 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
         ls.get();
         auto exp = parse_cexpr_bin(ls, unprec);
         ast::c_expr unexp;
-        unexp.type = ast::c_expr_type::UNARY;
+        unexp.type(ast::c_expr_type::UNARY);
         unexp.un.op = unop;
         unexp.un.expr = expr_dup(std::move(exp)).release();
         return unexp;
@@ -773,7 +773,7 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
     switch (ls.t.token) {
         case TOK_INTEGER: {
             ast::c_expr ret;
-            ret.type = ls.t.numtag;
+            ret.type(ls.t.numtag);
             memcpy(&ret.val, &ls.t.value, sizeof(ls.t.value));
             ls.get();
             return ret;
@@ -790,10 +790,10 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
             ast::c_expr ret;
             size_t align = tp.libffi_type()->size;
             if (sizeof(unsigned long long) > sizeof(void *)) {
-                ret.type = ast::c_expr_type::ULONG;
+                ret.type(ast::c_expr_type::ULONG);
                 ret.val.ul = static_cast<unsigned long>(align);
             } else {
-                ret.type = ast::c_expr_type::ULLONG;
+                ret.type(ast::c_expr_type::ULLONG);
                 ret.val.ull = static_cast<unsigned long long>(align);
             }
             return ret;
@@ -808,10 +808,10 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
             ast::c_expr ret;
             size_t align = tp.libffi_type()->alignment;
             if (sizeof(unsigned long long) > sizeof(void *)) {
-                ret.type = ast::c_expr_type::ULONG;
+                ret.type(ast::c_expr_type::ULONG);
                 ret.val.ul = static_cast<unsigned long>(align);
             } else {
-                ret.type = ast::c_expr_type::ULLONG;
+                ret.type(ast::c_expr_type::ULLONG);
                 ret.val.ull = static_cast<unsigned long long>(align);
             }
             return ret;
@@ -852,7 +852,7 @@ static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec) {
             check_next(ls, ':');
             ast::c_expr fexp = parse_cexpr_bin(ls, ifprec);
             ast::c_expr tern;
-            tern.type = ast::c_expr_type::TERNARY;
+            tern.type(ast::c_expr_type::TERNARY);
             tern.tern.cond = expr_dup(std::move(lhs)).release();
             tern.tern.texpr = expr_dup(std::move(texp)).release();
             tern.tern.fexpr = expr_dup(std::move(fexp)).release();
@@ -865,7 +865,7 @@ static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec) {
         int nprec = prec + 1;
         ast::c_expr rhs = parse_cexpr_bin(ls, nprec);
         ast::c_expr bin;
-        bin.type = ast::c_expr_type::BINARY;
+        bin.type(ast::c_expr_type::BINARY);
         bin.bin.op = op;
         bin.bin.lhs = expr_dup(std::move(lhs)).release();
         bin.bin.rhs = expr_dup(std::move(rhs)).release();

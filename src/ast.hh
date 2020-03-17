@@ -285,11 +285,7 @@ enum class c_expr_unop {
     BNOT  // ~
 };
 
-/* this is a universal union to store C values converted from
- * Lua values before they're passed to the function itself
- *
- * non-primitive Lua values are always boxed, so we know the max size
- */
+/* this stores primitive values in a way that can be passed to the evaluator */
 union c_value {
     /* fp primitives, unknown size */
     long double ld;
@@ -313,11 +309,11 @@ union c_value {
 };
 
 struct c_expr {
-    c_expr(): type(c_expr_type::INVALID) {}
+    c_expr(int flags = 0): p_type(int(c_expr_type::INVALID) | flags) {}
 
     c_expr(c_expr const &) = delete;
-    c_expr(c_expr &&e): type(e.type) {
-        e.type = c_expr_type::INVALID;
+    c_expr(c_expr &&e): p_type(e.p_type) {
+        e.p_type = int(c_expr_type::INVALID);
         /* copy largest union */
         memcpy(&tern, &e.tern, sizeof(e.tern));
     }
@@ -325,8 +321,8 @@ struct c_expr {
     c_expr &operator=(c_expr const &) = delete;
     c_expr &operator=(c_expr &&e) {
         clear();
-        type = e.type;
-        e.type = c_expr_type::INVALID;
+        p_type = e.p_type;
+        e.p_type = int(c_expr_type::INVALID);
         memcpy(&tern, &e.tern, sizeof(e.tern));
         return *this;
     }
@@ -334,8 +330,6 @@ struct c_expr {
     ~c_expr() {
         clear();
     }
-
-    c_expr_type type;
 
     struct unary {
         c_expr_unop op;
@@ -363,9 +357,27 @@ struct c_expr {
 
     c_value eval(c_expr_type &et, bool promote = false) const;
 
+    c_expr_type type() const {
+        return c_expr_type(p_type & 0xFF);
+    }
+
+    void type(c_expr_type tp) {
+        p_type ^= int(type());
+        p_type |= int(tp);
+    }
+
+    bool owns() const {
+        return !bool(p_type & C_TYPE_WEAK);
+    }
+
 private:
+    int p_type;
+
     void clear() {
-        switch (type) {
+        if (!owns()) {
+            return;
+        }
+        switch (type()) {
             case c_expr_type::UNARY:
                 delete un.expr;
                 break;
@@ -885,7 +897,7 @@ struct c_record: c_object {
     void iter_fields(F &&cb) const {
         bool end = false;
         iter_fields([](
-            char const *fname, ast::c_type const &type, size_t off, void *data
+            char const *fname, c_type const &type, size_t off, void *data
         ) {
             F &acb = *static_cast<F *>(data);
             return acb(fname, type, off);
@@ -894,7 +906,7 @@ struct c_record: c_object {
 
 private:
     size_t iter_fields(bool (*cb)(
-        char const *fname, ast::c_type const &type, size_t off, void *data
+        char const *fname, c_type const &type, size_t off, void *data
     ), void *data, size_t base, bool &end) const;
 
     std::string p_name;

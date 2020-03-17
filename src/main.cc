@@ -182,10 +182,13 @@ struct cdata_meta {
                     ptr = reinterpret_cast<unsigned char *>(&cd.val);
                 }
             elsz:
-                /* the base will never be a VLA or of unknown size,
-                 * so we can rely on * alloc_size
-                 */
                 elsize = cd.decl.ptr_base().alloc_size();
+                if (!elsize) {
+                    luaL_error(
+                        L, "attempt to index an incomplete type '%s'",
+                        cd.decl.serialize().c_str()
+                    );
+                }
                 break;
             case ast::C_BUILTIN_REF: {
                 /* no need to deal with the type size nonsense */
@@ -280,7 +283,9 @@ struct cdata_meta {
             return 0;
         }
         index_common(L, [L](auto &decl, void *val) {
-            ffi::to_lua(L, decl, val, ffi::RULE_CONV);
+            if (!ffi::to_lua(L, decl, val, ffi::RULE_CONV)) {
+                luaL_error(L, "invalid C type");
+            }
         });
         return 1;
     }
@@ -296,6 +301,123 @@ struct cdata_meta {
             ffi::from_lua(L, decl, val, 3, rsz, ffi::RULE_CONV);
         });
         return 0;
+    }
+
+    /* this follows LuaJIT rules for cdata arithmetic: each operand is
+     * converted to signed 64-bit integer unless one of them is an
+     * unsigned 64-bit integer, in which case both become unsigned
+     */
+    template<typename T, ast::c_expr_type et>
+    static void promote_to_64bit(ast::c_expr_type &t, void *v) {
+        switch (t) {
+            case ast::c_expr_type::INT:
+                *static_cast<T *>(v) = T(*static_cast<int *>(v));
+                break;
+            case ast::c_expr_type::UINT:
+                *static_cast<T *>(v) = T(*static_cast<unsigned int *>(v));
+                break;
+            case ast::c_expr_type::LONG:
+                *static_cast<T *>(v) = T(*static_cast<long *>(v));
+                break;
+            case ast::c_expr_type::ULONG:
+                *static_cast<T *>(v) = T(*static_cast<unsigned long *>(v));
+                break;
+            case ast::c_expr_type::LLONG:
+                *static_cast<T *>(v) = T(*static_cast<long long *>(v));
+                break;
+            case ast::c_expr_type::FLOAT:
+                *static_cast<T *>(v) = T(*static_cast<float *>(v));
+                break;
+            case ast::c_expr_type::DOUBLE:
+                *static_cast<T *>(v) = T(*static_cast<double *>(v));
+                break;
+            case ast::c_expr_type::LDOUBLE:
+                *static_cast<T *>(v) = T(*static_cast<long double *>(v));
+                break;
+            default: break;
+        }
+        t = et;
+    }
+
+    static void promote_sides(
+        ast::c_expr_type &lt, ast::c_value &lv,
+        ast::c_expr_type &rt, ast::c_value &rv
+    ) {
+        if (sizeof(long) == sizeof(long long)) {
+            switch (lt) {
+                case ast::c_expr_type::LONG:
+                    lt = ast::c_expr_type::LLONG; break;
+                case ast::c_expr_type::ULONG:
+                    lt = ast::c_expr_type::ULLONG; break;
+                default:
+                    break;
+            }
+            switch (rt) {
+                case ast::c_expr_type::LONG:
+                    rt = ast::c_expr_type::LLONG; break;
+                case ast::c_expr_type::ULONG:
+                    rt = ast::c_expr_type::ULLONG; break;
+                default:
+                    break;
+            }
+        }
+        if (
+            (lt == ast::c_expr_type::ULLONG) ||
+            (rt == ast::c_expr_type::ULLONG)
+        ) {
+            promote_to_64bit<
+                unsigned long long, ast::c_expr_type::ULLONG
+            >(lt, &lv);
+            promote_to_64bit<
+                unsigned long long, ast::c_expr_type::ULLONG
+            >(rt, &rv);
+        } else {
+            promote_to_64bit<long long, ast::c_expr_type::LLONG>(lt, &lv);
+            promote_to_64bit<long long, ast::c_expr_type::LLONG>(rt, &rv);
+        }
+    }
+
+    static int add(lua_State *L) {
+        auto *cd1 = ffi::testcdata<void *>(L, 1);
+        auto *cd2 = ffi::testcdata<void *>(L, 2);
+        /* custom metatypes, either operand */
+        if (
+            (cd1 && metatype_check(L, 1, ffi::METATYPE_FLAG_ADD, "__add")) ||
+            (cd2 && metatype_check(L, 2, ffi::METATYPE_FLAG_ADD, "__add"))
+        ) {
+            lua_insert(L, 1);
+            lua_call(L, 2, 1);
+            return 1;
+        }
+        /* pointer arithmetic */
+        if (cd1 && (cd1->decl.type() == ast::C_BUILTIN_PTR)) {
+            auto d = ffi::check_arith<ptrdiff_t>(L, 2);
+            auto *p = static_cast<unsigned char *>(cd1->val);
+            auto &ret = ffi::newcdata<void *>(L, cd1->decl);
+            ret.val = p + d;
+            return 1;
+        } else if (cd2 && (cd2->decl.type() == ast::C_BUILTIN_PTR)) {
+            auto d = ffi::check_arith<ptrdiff_t>(L, 1);
+            auto *p = static_cast<unsigned char *>(cd2->val);
+            auto &ret = ffi::newcdata<void *>(L, cd2->decl);
+            ret.val = d + p;
+            return 1;
+        }
+        /* regular arithmetic */
+        ast::c_expr bexp{ast::C_TYPE_WEAK}, lhs, rhs;
+        ast::c_expr_type retp;
+        ast::c_expr_type lt = ffi::check_arith_expr(L, 1, lhs.val);
+        ast::c_expr_type rt = ffi::check_arith_expr(L, 2, rhs.val);
+        promote_sides(lt, lhs.val, rt, rhs.val);
+        lhs.type(lt);
+        rhs.type(rt);
+        bexp.type(ast::c_expr_type::BINARY);
+        bexp.bin.op = ast::c_expr_binop::ADD;
+        bexp.bin.lhs = &lhs;
+        bexp.bin.rhs = &rhs;
+        auto rv = bexp.eval(retp, true);
+        ffi::make_cdata_arith(L, retp, rv);
+        return 1;
     }
 
     static void setup(lua_State *L) {
@@ -329,6 +451,9 @@ struct cdata_meta {
 
         lua_pushcfunction(L, tostring);
         lua_setfield(L, -2, "__tostring");
+
+        lua_pushcfunction(L, add);
+        lua_setfield(L, -2, "__add");
 
         lua_pop(L, 1);
     }
@@ -662,13 +787,6 @@ struct ffi_module {
         return 0;
     }
 
-    static ffi::arg_stor_t &new_arith(lua_State *L, int cbt) {
-        auto &cd = ffi::newcdata<ffi::arg_stor_t>(
-            L, ast::c_type{cbt, 0}
-        );
-        return cd.val;
-    }
-
     static int tonumber_f(lua_State *L) {
         auto *cd = ffi::testcdata<void *>(L, 1);
         if (cd) {
@@ -723,31 +841,7 @@ struct ffi_module {
         char const *str = luaL_checkstring(L, 1);
         ast::c_value outv;
         auto v = parser::parse_number(L, outv, str, str + lua_rawlen(L, 1));
-        switch (v) {
-            case ast::c_expr_type::INT:
-                new_arith(L, ast::C_BUILTIN_INT).as<int>() = outv.i;
-                break;
-            case ast::c_expr_type::UINT:
-                new_arith(L, ast::C_BUILTIN_UINT).as<unsigned int>() = outv.u;
-                break;
-            case ast::c_expr_type::LONG:
-                new_arith(L, ast::C_BUILTIN_LONG).as<long>() = outv.l;
-                break;
-            case ast::c_expr_type::ULONG:
-                new_arith(L, ast::C_BUILTIN_ULONG)
-                    .as<unsigned long>() = outv.ul;
-                break;
-            case ast::c_expr_type::LLONG:
-                new_arith(L, ast::C_BUILTIN_LLONG).as<long long>() = outv.ll;
-                break;
-            case ast::c_expr_type::ULLONG:
-                new_arith(L, ast::C_BUILTIN_ULLONG)
-                    .as<unsigned long long>() = outv.ull;
-                break;
-            default:
-                luaL_error(L, "NYI");
-                break;
-        }
+        ffi::make_cdata_arith(L, v, outv);
         return 1;
     }
 

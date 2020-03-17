@@ -2,6 +2,7 @@
 #define FFI_HH
 
 #include <cstddef>
+#include <limits>
 #include <type_traits>
 #include <list>
 
@@ -349,6 +350,124 @@ lval:
         return T(luaL_checkinteger(L, idx));
     }
     return T(luaL_checknumber(L, idx));
+}
+
+static inline ast::c_expr_type check_arith_expr(
+    lua_State *L, int idx, ast::c_value &v
+) {
+    auto *cd = testcdata<arg_stor_t>(L, idx);
+    if (!cd) {
+        goto lval;
+    }
+    switch (cd->decl.type()) {
+        case ast::C_BUILTIN_ENUM:
+            /* TODO: large enums */
+            v.i = cd->val.as<int>();
+            return ast::c_expr_type::INT;
+        case ast::C_BUILTIN_BOOL:
+            v.i = cd->val.as<bool>();
+            return ast::c_expr_type::INT;
+        case ast::C_BUILTIN_CHAR:
+            v.i = cd->val.as<char>();
+            return ast::c_expr_type::INT;
+        case ast::C_BUILTIN_SCHAR:
+            v.i = cd->val.as<signed char>();
+            return ast::c_expr_type::INT;
+        case ast::C_BUILTIN_UCHAR:
+            v.i = cd->val.as<unsigned char>();
+            return ast::c_expr_type::INT;
+        case ast::C_BUILTIN_SHORT:
+            v.i = cd->val.as<short>();
+            return ast::c_expr_type::INT;
+        case ast::C_BUILTIN_USHORT:
+            v.i = cd->val.as<unsigned short>();
+            return ast::c_expr_type::INT;
+        case ast::C_BUILTIN_INT:
+            v.i = cd->val.as<int>();
+            return ast::c_expr_type::INT;
+        case ast::C_BUILTIN_UINT:
+            v.u = cd->val.as<unsigned int>();
+            return ast::c_expr_type::UINT;
+        case ast::C_BUILTIN_LONG:
+            v.l = cd->val.as<long>();
+            return ast::c_expr_type::LONG;
+        case ast::C_BUILTIN_ULONG:
+            v.ul = cd->val.as<unsigned long>();
+            return ast::c_expr_type::ULONG;
+        case ast::C_BUILTIN_LLONG:
+            v.ll = cd->val.as<long long>();
+            return ast::c_expr_type::LLONG;
+        case ast::C_BUILTIN_ULLONG:
+            v.ull = cd->val.as<unsigned long long>();
+            return ast::c_expr_type::ULLONG;
+        case ast::C_BUILTIN_FLOAT:
+            v.f = cd->val.as<float>();
+            return ast::c_expr_type::FLOAT;
+        case ast::C_BUILTIN_DOUBLE:
+            v.d = cd->val.as<double>();
+            return ast::c_expr_type::DOUBLE;
+        case ast::C_BUILTIN_LDOUBLE:
+            v.ld = cd->val.as<long double>();
+            return ast::c_expr_type::LDOUBLE;
+        default:
+            break;
+    }
+lval:
+    /* some logic for conversions of lua numbers into cexprs */
+    static_assert(
+        std::is_integral<lua_Number>::value
+            ? (sizeof(lua_Number) <= sizeof(long long))
+            : (sizeof(lua_Number) <= sizeof(long double)),
+        "invalid lua_Number format"
+    );
+    auto n = luaL_checknumber(L, idx);
+    if (std::is_integral<lua_Number>::value) {
+        if (std::is_signed<lua_Number>::value) {
+            if (sizeof(lua_Number) <= sizeof(int)) {
+                v.i = n;
+                return ast::c_expr_type::INT;
+            } else if (sizeof(lua_Number) <= sizeof(long)) {
+                v.l = n;
+                return ast::c_expr_type::LONG;
+            } else {
+                v.ll = n;
+                return ast::c_expr_type::LLONG;
+            }
+        } else {
+            if (sizeof(lua_Number) <= sizeof(unsigned int)) {
+                v.u = n;
+                return ast::c_expr_type::UINT;
+            } else if (sizeof(lua_Number) <= sizeof(unsigned long)) {
+                v.ul = n;
+                return ast::c_expr_type::ULONG;
+            } else {
+                v.ull = n;
+                return ast::c_expr_type::ULLONG;
+            }
+        }
+    } else if (sizeof(lua_Number) <= sizeof(float)) {
+        v.f = n;
+        return ast::c_expr_type::FLOAT;
+    } else if (sizeof(lua_Number) <= sizeof(double)) {
+        v.d = n;
+        return ast::c_expr_type::DOUBLE;
+    }
+    v.ld = n;
+    return ast::c_expr_type::LDOUBLE;
+}
+
+static inline cdata<arg_stor_t> &make_cdata_arith(
+    lua_State *L, ast::c_expr_type et, ast::c_value const &cv
+) {
+    auto bt = ast::to_builtin_type(et);
+    if (bt == ast::C_BUILTIN_INVALID) {
+        luaL_error(L, "invalid value type");
+    }
+    auto tp = ast::c_type{bt, 0};
+    auto as = tp.alloc_size();
+    auto &cd = newcdata(L, std::move(tp), as);
+    memcpy(&cd.val, &cv, as);
+    return *reinterpret_cast<cdata<arg_stor_t> *>(&cd);
 }
 
 } /* namespace ffi */
