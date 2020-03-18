@@ -420,6 +420,60 @@ struct cdata_meta {
         return 1;
     }
 
+    static int sub(lua_State *L) {
+        auto *cd1 = ffi::testcdata<void *>(L, 1);
+        auto *cd2 = ffi::testcdata<void *>(L, 2);
+        /* custom metatypes, either operand */
+        if (
+            (cd1 && metatype_check(L, 1, ffi::METATYPE_FLAG_ADD, "__add")) ||
+            (cd2 && metatype_check(L, 2, ffi::METATYPE_FLAG_ADD, "__add"))
+        ) {
+            lua_insert(L, 1);
+            lua_call(L, 2, 1);
+            return 1;
+        }
+        /* pointer difference */
+        if (cd1 && (cd1->decl.type() == ast::C_BUILTIN_PTR)) {
+            size_t asize = cd1->decl.ptr_base().alloc_size();
+            if (!asize) {
+                luaL_error(L, "unknown C type size");
+            }
+            auto *base = reinterpret_cast<unsigned char *>(cd1->val);
+            ptrdiff_t ret;
+            if (cd2 && (cd2->decl.type() == ast::C_BUILTIN_PTR)) {
+                if (!cd1->decl.ptr_base().is_same(cd2->decl.ptr_base(), true)) {
+                    luaL_error(
+                        L, "cannot convert '%s' to '%s'",
+                        cd2->decl.serialize().c_str(),
+                        cd1->decl.serialize().c_str()
+                    );
+                }
+                ret = base - reinterpret_cast<unsigned char *>(cd2->val);
+            } else {
+                ret = base - reinterpret_cast<unsigned char *>(
+                    ffi::check_arith<ptrdiff_t>(L, 2)
+                );
+            }
+            lua_pushinteger(L, lua_Integer(ret / asize));
+            return 1;
+        }
+        /* regular arithmetic */
+        ast::c_expr bexp{ast::C_TYPE_WEAK}, lhs, rhs;
+        ast::c_expr_type retp;
+        ast::c_expr_type lt = ffi::check_arith_expr(L, 1, lhs.val);
+        ast::c_expr_type rt = ffi::check_arith_expr(L, 2, rhs.val);
+        promote_sides(lt, lhs.val, rt, rhs.val);
+        lhs.type(lt);
+        rhs.type(rt);
+        bexp.type(ast::c_expr_type::BINARY);
+        bexp.bin.op = ast::c_expr_binop::SUB;
+        bexp.bin.lhs = &lhs;
+        bexp.bin.rhs = &rhs;
+        auto rv = bexp.eval(retp, true);
+        ffi::make_cdata_arith(L, retp, rv);
+        return 1;
+    }
+
     static void setup(lua_State *L) {
         if (!luaL_newmetatable(L, lua::CFFI_CDATA_MT)) {
             luaL_error(L, "unexpected error: registry reinitialized");
@@ -454,6 +508,9 @@ struct cdata_meta {
 
         lua_pushcfunction(L, add);
         lua_setfield(L, -2, "__add");
+
+        lua_pushcfunction(L, sub);
+        lua_setfield(L, -2, "__sub");
 
         lua_pop(L, 1);
     }

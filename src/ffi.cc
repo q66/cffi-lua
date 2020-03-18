@@ -535,6 +535,7 @@ static void *from_lua_num(
         case ast::C_BUILTIN_PTR:
         case ast::C_BUILTIN_REF:
             if (rule == RULE_CAST) {
+                dsz = sizeof(void *);
                 return &(*static_cast<void **>(stor) = reinterpret_cast<void *>(
                     size_t(lua_tointeger(L, index))
                 ));
