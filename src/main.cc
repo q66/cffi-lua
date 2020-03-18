@@ -303,6 +303,54 @@ struct cdata_meta {
         return 0;
     }
 
+    static bool unop_try_mt(
+        lua_State *L, ffi::cdata<void *> *cd, int mtype, char const *mname
+    ) {
+        /* custom metatypes, either operand */
+        if (cd && metatype_check(L, 1, mtype, mname)) {
+            lua_insert(L, 1);
+            lua_call(L, 1, 1);
+            return true;
+        }
+        return false;
+    }
+
+    static bool binop_try_mt(
+        lua_State *L, ffi::cdata<void *> *cd1, ffi::cdata<void *> *cd2,
+        int mtype, char const *mname
+    ) {
+        /* custom metatypes, either operand */
+        if (
+            (cd1 && metatype_check(L, 1, mtype, mname)) ||
+            (cd2 && metatype_check(L, 2, mtype, mname))
+        ) {
+            lua_insert(L, 1);
+            lua_call(L, 2, 1);
+            return true;
+        }
+        return false;
+    }
+
+    static int concat(lua_State *L) {
+        auto *cd1 = ffi::testcdata<void *>(L, 1);
+        auto *cd2 = ffi::testcdata<void *>(L, 2);
+        if (binop_try_mt(L, cd1, cd2, ffi::METATYPE_FLAG_CONCAT, "__concat")) {
+            return 1;
+        }
+        luaL_error(
+            L, "attempt to concatenate '%s' and '%s'",
+            ffi::lua_serialize(L, 1), ffi::lua_serialize(L, 2)
+        );
+    }
+
+    static int len(lua_State *L) {
+        auto *cd = ffi::testcdata<void *>(L, 1);
+        if (unop_try_mt(L, cd, ffi::METATYPE_FLAG_LEN, "__len")) {
+            return 1;
+        }
+        luaL_error(L, "attempt to get length of '%s'", ffi::lua_serialize(L, 1));
+    }
+
     /* this follows LuaJIT rules for cdata arithmetic: each operand is
      * converted to signed 64-bit integer unless one of them is an
      * unsigned 64-bit integer, in which case both become unsigned
@@ -377,52 +425,21 @@ struct cdata_meta {
         }
     }
 
-    static bool unop_try_mt(
-        lua_State *L, ffi::cdata<void *> *cd, int mtype, char const *mname
-    ) {
-        /* custom metatypes, either operand */
-        if (cd && metatype_check(L, 1, mtype, mname)) {
-            lua_insert(L, 1);
-            lua_call(L, 1, 1);
-            return true;
-        }
-        return false;
-    }
-
-    static bool binop_try_mt(
-        lua_State *L, ffi::cdata<void *> *cd1, ffi::cdata<void *> *cd2,
-        int mtype, char const *mname
-    ) {
-        /* custom metatypes, either operand */
-        if (
-            (cd1 && metatype_check(L, 1, mtype, mname)) ||
-            (cd2 && metatype_check(L, 2, mtype, mname))
-        ) {
-            lua_insert(L, 1);
-            lua_call(L, 2, 1);
-            return true;
-        }
-        return false;
-    }
-
-    static int concat(lua_State *L) {
-        auto *cd1 = ffi::testcdata<void *>(L, 1);
-        auto *cd2 = ffi::testcdata<void *>(L, 2);
-        if (binop_try_mt(L, cd1, cd2, ffi::METATYPE_FLAG_CONCAT, "__concat")) {
-            return 1;
-        }
-        luaL_error(
-            L, "attempt to concatenate '%s' and '%s'",
-            ffi::lua_serialize(L, 1), ffi::lua_serialize(L, 2)
-        );
-    }
-
-    static int len(lua_State *L) {
-        auto *cd = ffi::testcdata<void *>(L, 1);
-        if (unop_try_mt(L, cd, ffi::METATYPE_FLAG_LEN, "__len")) {
-            return 1;
-        }
-        luaL_error(L, "attempt to get length of '%s'", ffi::lua_serialize(L, 1));
+    static void arith_64bit_bin(lua_State *L, ast::c_expr_binop op) {
+        /* regular arithmetic */
+        ast::c_expr bexp{ast::C_TYPE_WEAK}, lhs, rhs;
+        ast::c_expr_type retp;
+        ast::c_expr_type lt = ffi::check_arith_expr(L, 1, lhs.val);
+        ast::c_expr_type rt = ffi::check_arith_expr(L, 2, rhs.val);
+        promote_sides(lt, lhs.val, rt, rhs.val);
+        lhs.type(lt);
+        rhs.type(rt);
+        bexp.type(ast::c_expr_type::BINARY);
+        bexp.bin.op = op;
+        bexp.bin.lhs = &lhs;
+        bexp.bin.rhs = &rhs;
+        auto rv = bexp.eval(retp, true);
+        ffi::make_cdata_arith(L, retp, rv);
     }
 
     static int add(lua_State *L) {
@@ -445,20 +462,7 @@ struct cdata_meta {
             ret.val = d + p;
             return 1;
         }
-        /* regular arithmetic */
-        ast::c_expr bexp{ast::C_TYPE_WEAK}, lhs, rhs;
-        ast::c_expr_type retp;
-        ast::c_expr_type lt = ffi::check_arith_expr(L, 1, lhs.val);
-        ast::c_expr_type rt = ffi::check_arith_expr(L, 2, rhs.val);
-        promote_sides(lt, lhs.val, rt, rhs.val);
-        lhs.type(lt);
-        rhs.type(rt);
-        bexp.type(ast::c_expr_type::BINARY);
-        bexp.bin.op = ast::c_expr_binop::ADD;
-        bexp.bin.lhs = &lhs;
-        bexp.bin.rhs = &rhs;
-        auto rv = bexp.eval(retp, true);
-        ffi::make_cdata_arith(L, retp, rv);
+        arith_64bit_bin(L, ast::c_expr_binop::ADD);
         return 1;
     }
 
@@ -493,20 +497,7 @@ struct cdata_meta {
             lua_pushinteger(L, lua_Integer(ret / asize));
             return 1;
         }
-        /* regular arithmetic */
-        ast::c_expr bexp{ast::C_TYPE_WEAK}, lhs, rhs;
-        ast::c_expr_type retp;
-        ast::c_expr_type lt = ffi::check_arith_expr(L, 1, lhs.val);
-        ast::c_expr_type rt = ffi::check_arith_expr(L, 2, rhs.val);
-        promote_sides(lt, lhs.val, rt, rhs.val);
-        lhs.type(lt);
-        rhs.type(rt);
-        bexp.type(ast::c_expr_type::BINARY);
-        bexp.bin.op = ast::c_expr_binop::SUB;
-        bexp.bin.lhs = &lhs;
-        bexp.bin.rhs = &rhs;
-        auto rv = bexp.eval(retp, true);
-        ffi::make_cdata_arith(L, retp, rv);
+        arith_64bit_bin(L, ast::c_expr_binop::SUB);
         return 1;
     }
 
