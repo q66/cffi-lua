@@ -341,6 +341,8 @@ print("int(150) + short(300) == " .. tostring(a + b))
 local a = ffi.cast("int *", 12)
 local b = ffi.cast("int *", 4)
 print("intptr(12) - intptr(4) == " .. (a - b))
+print("int(2) ^ int(4) == " .. tostring(ffi.cast("int", 2) ^ ffi.cast("int", 4)))
+print("-int(150) == " .. tostring(-ffi.cast("int", 150)))
 print()
 
 print("## END TESTS ##")

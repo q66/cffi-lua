@@ -387,28 +387,25 @@ struct cdata_meta {
         t = et;
     }
 
-    static void promote_sides(
-        ast::c_expr_type &lt, ast::c_value &lv,
-        ast::c_expr_type &rt, ast::c_value &rv
-    ) {
+    static void promote_long(ast::c_expr_type &t) {
         if (sizeof(long) == sizeof(long long)) {
-            switch (lt) {
+            switch (t) {
                 case ast::c_expr_type::LONG:
-                    lt = ast::c_expr_type::LLONG; break;
+                    t = ast::c_expr_type::LLONG; break;
                 case ast::c_expr_type::ULONG:
-                    lt = ast::c_expr_type::ULLONG; break;
-                default:
-                    break;
-            }
-            switch (rt) {
-                case ast::c_expr_type::LONG:
-                    rt = ast::c_expr_type::LLONG; break;
-                case ast::c_expr_type::ULONG:
-                    rt = ast::c_expr_type::ULLONG; break;
+                    t = ast::c_expr_type::ULLONG; break;
                 default:
                     break;
             }
         }
+    }
+
+    static void promote_sides(
+        ast::c_expr_type &lt, ast::c_value &lv,
+        ast::c_expr_type &rt, ast::c_value &rv
+    ) {
+        promote_long(lt);
+        promote_long(rt);
         if (
             (lt == ast::c_expr_type::ULLONG) ||
             (rt == ast::c_expr_type::ULLONG)
@@ -501,6 +498,98 @@ struct cdata_meta {
         return 1;
     }
 
+    static int mul(lua_State *L) {
+        auto *cd1 = ffi::testcdata<void *>(L, 1);
+        auto *cd2 = ffi::testcdata<void *>(L, 2);
+        if (!binop_try_mt(L, cd1, cd2, ffi::METATYPE_FLAG_MUL, "__mul")) {
+            arith_64bit_bin(L, ast::c_expr_binop::MUL);
+        }
+        return 1;
+    }
+
+    static int div(lua_State *L) {
+        auto *cd1 = ffi::testcdata<void *>(L, 1);
+        auto *cd2 = ffi::testcdata<void *>(L, 2);
+        if (!binop_try_mt(L, cd1, cd2, ffi::METATYPE_FLAG_DIV, "__div")) {
+            arith_64bit_bin(L, ast::c_expr_binop::DIV);
+        }
+        return 1;
+    }
+
+    static int mod(lua_State *L) {
+        auto *cd1 = ffi::testcdata<void *>(L, 1);
+        auto *cd2 = ffi::testcdata<void *>(L, 2);
+        if (!binop_try_mt(L, cd1, cd2, ffi::METATYPE_FLAG_MOD, "__mod")) {
+            arith_64bit_bin(L, ast::c_expr_binop::MOD);
+        }
+        return 1;
+    }
+
+    template<typename T>
+    static T powimp(T base, T exp) {
+        if (std::is_signed<T>::value && (exp < 0)) {
+            return 0;
+        }
+        T ret = 1;
+        for (;;) {
+            if (exp & 1) {
+                ret *= base;
+            }
+            exp = exp >> 1;
+            if (!exp) {
+                break;
+            }
+            base *= base;
+        }
+        return ret;
+    }
+
+    static int pow(lua_State *L) {
+        auto *cd1 = ffi::testcdata<void *>(L, 1);
+        auto *cd2 = ffi::testcdata<void *>(L, 2);
+        if (binop_try_mt(L, cd1, cd2, ffi::METATYPE_FLAG_POW, "__pow")) {
+            return 1;
+        }
+        ast::c_value lhs, rhs;
+        ast::c_expr_type lt = ffi::check_arith_expr(L, 1, lhs);
+        ast::c_expr_type rt = ffi::check_arith_expr(L, 2, rhs);
+        promote_sides(lt, lhs, rt, rhs);
+        assert(lt == rt);
+        switch (lt) {
+            case ast::c_expr_type::LLONG:
+                lhs.ll = powimp<long long>(lhs.ll, rhs.ll);
+                break;
+            case ast::c_expr_type::ULLONG:
+                lhs.ull = powimp<unsigned long long>(lhs.ull, rhs.ull);
+                break;
+            default:
+                assert(false);
+                break;
+        }
+        ffi::make_cdata_arith(L, lt, lhs);
+        return 1;
+    }
+
+    static int unm(lua_State *L) {
+        auto *cd = ffi::testcdata<void *>(L, 1);
+        if (unop_try_mt(L, cd, ffi::METATYPE_FLAG_UNM, "__unm")) {
+            return 1;
+        }
+        ast::c_expr uexp{ast::C_TYPE_WEAK}, exp;
+        ast::c_expr_type et = ffi::check_arith_expr(L, 1, exp.val);
+        promote_long(et);
+        if (et != ast::c_expr_type::ULLONG) {
+            promote_to_64bit<long long, ast::c_expr_type::LLONG>(et, &exp.val);
+        }
+        exp.type(et);
+        uexp.type(ast::c_expr_type::UNARY);
+        uexp.un.op = ast::c_expr_unop::UNM;
+        uexp.un.expr = &exp;
+        auto rv = uexp.eval(et, true);
+        ffi::make_cdata_arith(L, et, rv);
+        return 1;
+    }
+
     static void setup(lua_State *L) {
         if (!luaL_newmetatable(L, lua::CFFI_CDATA_MT)) {
             luaL_error(L, "unexpected error: registry reinitialized");
@@ -538,6 +627,21 @@ struct cdata_meta {
 
         lua_pushcfunction(L, sub);
         lua_setfield(L, -2, "__sub");
+
+        lua_pushcfunction(L, mul);
+        lua_setfield(L, -2, "__mul");
+
+        lua_pushcfunction(L, div);
+        lua_setfield(L, -2, "__div");
+
+        lua_pushcfunction(L, mod);
+        lua_setfield(L, -2, "__mod");
+
+        lua_pushcfunction(L, pow);
+        lua_setfield(L, -2, "__pow");
+
+        lua_pushcfunction(L, unm);
+        lua_setfield(L, -2, "__unm");
 
         lua_pop(L, 1);
     }
