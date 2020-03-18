@@ -470,6 +470,14 @@ static inline cdata<arg_stor_t> &make_cdata_arith(
     return *reinterpret_cast<cdata<arg_stor_t> *>(&cd);
 }
 
+static inline std::string lua_serialize(lua_State *L, int idx) {
+    auto *cd = testcdata<noval>(L, idx);
+    if (cd) {
+        return cd->decl.serialize();
+    }
+    return lua_typename(L, lua_type(L, idx));
+}
+
 } /* namespace ffi */
 
 #endif /* FFI_HH */

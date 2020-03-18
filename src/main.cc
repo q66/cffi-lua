@@ -377,6 +377,18 @@ struct cdata_meta {
         }
     }
 
+    static bool unop_try_mt(
+        lua_State *L, ffi::cdata<void *> *cd, int mtype, char const *mname
+    ) {
+        /* custom metatypes, either operand */
+        if (cd && metatype_check(L, 1, mtype, mname)) {
+            lua_insert(L, 1);
+            lua_call(L, 1, 1);
+            return true;
+        }
+        return false;
+    }
+
     static bool binop_try_mt(
         lua_State *L, ffi::cdata<void *> *cd1, ffi::cdata<void *> *cd2,
         int mtype, char const *mname
@@ -391,6 +403,26 @@ struct cdata_meta {
             return true;
         }
         return false;
+    }
+
+    static int concat(lua_State *L) {
+        auto *cd1 = ffi::testcdata<void *>(L, 1);
+        auto *cd2 = ffi::testcdata<void *>(L, 2);
+        if (binop_try_mt(L, cd1, cd2, ffi::METATYPE_FLAG_CONCAT, "__concat")) {
+            return 1;
+        }
+        luaL_error(
+            L, "attempt to concatenate '%s' and '%s'",
+            ffi::lua_serialize(L, 1), ffi::lua_serialize(L, 2)
+        );
+    }
+
+    static int len(lua_State *L) {
+        auto *cd = ffi::testcdata<void *>(L, 1);
+        if (unop_try_mt(L, cd, ffi::METATYPE_FLAG_LEN, "__len")) {
+            return 1;
+        }
+        luaL_error(L, "attempt to get length of '%s'", ffi::lua_serialize(L, 1));
     }
 
     static int add(lua_State *L) {
