@@ -377,16 +377,26 @@ struct cdata_meta {
         }
     }
 
-    static int add(lua_State *L) {
-        auto *cd1 = ffi::testcdata<void *>(L, 1);
-        auto *cd2 = ffi::testcdata<void *>(L, 2);
+    static bool binop_try_mt(
+        lua_State *L, ffi::cdata<void *> *cd1, ffi::cdata<void *> *cd2,
+        int mtype, char const *mname
+    ) {
         /* custom metatypes, either operand */
         if (
-            (cd1 && metatype_check(L, 1, ffi::METATYPE_FLAG_ADD, "__add")) ||
-            (cd2 && metatype_check(L, 2, ffi::METATYPE_FLAG_ADD, "__add"))
+            (cd1 && metatype_check(L, 1, mtype, mname)) ||
+            (cd2 && metatype_check(L, 2, mtype, mname))
         ) {
             lua_insert(L, 1);
             lua_call(L, 2, 1);
+            return true;
+        }
+        return false;
+    }
+
+    static int add(lua_State *L) {
+        auto *cd1 = ffi::testcdata<void *>(L, 1);
+        auto *cd2 = ffi::testcdata<void *>(L, 2);
+        if (binop_try_mt(L, cd1, cd2, ffi::METATYPE_FLAG_ADD, "__add")) {
             return 1;
         }
         /* pointer arithmetic */
@@ -423,13 +433,7 @@ struct cdata_meta {
     static int sub(lua_State *L) {
         auto *cd1 = ffi::testcdata<void *>(L, 1);
         auto *cd2 = ffi::testcdata<void *>(L, 2);
-        /* custom metatypes, either operand */
-        if (
-            (cd1 && metatype_check(L, 1, ffi::METATYPE_FLAG_ADD, "__add")) ||
-            (cd2 && metatype_check(L, 2, ffi::METATYPE_FLAG_ADD, "__add"))
-        ) {
-            lua_insert(L, 1);
-            lua_call(L, 2, 1);
+        if (binop_try_mt(L, cd1, cd2, ffi::METATYPE_FLAG_ADD, "__add")) {
             return 1;
         }
         /* pointer difference */
