@@ -288,6 +288,26 @@ static c_value eval_binary(c_expr const &e, c_expr_type &et) {
         } \
         break;
 
+#define CMP_BOOL_CASE(opn, op) \
+    case c_expr_binop::opn: \
+        promote_int(lval, let); \
+        promote_int(rval, ret); \
+        convert_bin(lval, let, rval, ret); \
+        et = c_expr_type::BOOL; \
+        switch (let) { \
+            case c_expr_type::INT: retv.b = lval.i op rval.i; break; \
+            case c_expr_type::UINT: retv.b = lval.u op rval.u; break; \
+            case c_expr_type::LONG: retv.b = lval.l op rval.l; break; \
+            case c_expr_type::ULONG: retv.b = lval.ul op rval.ul; break; \
+            case c_expr_type::LLONG: retv.b = lval.ll op rval.ll; break; \
+            case c_expr_type::ULLONG: retv.b = lval.ull op rval.ull; break; \
+            case c_expr_type::FLOAT: retv.b = lval.f op rval.f; break; \
+            case c_expr_type::DOUBLE: retv.b = lval.d op rval.d; break; \
+            case c_expr_type::LDOUBLE: retv.b = lval.ld op rval.ld; break; \
+            default: assert(false); break; \
+        } \
+        break;
+
 #define BINOP_CASE_NOFLT(opn, op) \
     case c_expr_binop::opn: \
         promote_int(lval, let); \
@@ -383,12 +403,12 @@ static c_value eval_binary(c_expr const &e, c_expr_type &et) {
         BINOP_CASE(DIV, /)
         BINOP_CASE_NOFLT(MOD, %)
 
-        BINOP_CASE(EQ, ==)
-        BINOP_CASE(NEQ, !=)
-        BINOP_CASE(GT, >)
-        BINOP_CASE(LT, <)
-        BINOP_CASE(GE, >=)
-        BINOP_CASE(LE, <=)
+        CMP_BOOL_CASE(EQ, ==)
+        CMP_BOOL_CASE(NEQ, !=)
+        CMP_BOOL_CASE(GT, >)
+        CMP_BOOL_CASE(LT, <)
+        CMP_BOOL_CASE(GE, >=)
+        CMP_BOOL_CASE(LE, <=)
 
         BOOL_CASE(AND, &&)
         BOOL_CASE(OR, ||)
@@ -408,6 +428,7 @@ static c_value eval_binary(c_expr const &e, c_expr_type &et) {
 #undef BOOL_CASE_INNER
 #undef SHIFT_CASE
 #undef SHIFT_CASE_INNER
+#undef CMP_BOOL_CASE
 #undef BINOP_CASE
 
     return retv;

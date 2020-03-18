@@ -155,7 +155,7 @@ Implements the functionality provided by the parser.
   - [x] Simple integer expressions
   - [x] Correct integer promotions
   - [ ] Non-integer type support
-- [ ] `cdata` arithmetic
+- [x] `cdata` arithmetic
 - [x] correct `tostring` on integer `cdata`
 
 ### Wishlist

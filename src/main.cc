@@ -422,10 +422,10 @@ struct cdata_meta {
         }
     }
 
-    static void arith_64bit_bin(lua_State *L, ast::c_expr_binop op) {
-        /* regular arithmetic */
+    static ast::c_value arith_64bit_base(
+        lua_State *L, ast::c_expr_binop op, ast::c_expr_type &retp
+    ) {
         ast::c_expr bexp{ast::C_TYPE_WEAK}, lhs, rhs;
-        ast::c_expr_type retp;
         ast::c_expr_type lt = ffi::check_arith_expr(L, 1, lhs.val);
         ast::c_expr_type rt = ffi::check_arith_expr(L, 2, rhs.val);
         promote_sides(lt, lhs.val, rt, rhs.val);
@@ -435,8 +435,22 @@ struct cdata_meta {
         bexp.bin.op = op;
         bexp.bin.lhs = &lhs;
         bexp.bin.rhs = &rhs;
-        auto rv = bexp.eval(retp, true);
+        return bexp.eval(retp, true);
+    }
+
+    static void arith_64bit_bin(lua_State *L, ast::c_expr_binop op) {
+        /* regular arithmetic */
+        ast::c_expr_type retp;
+        auto rv = arith_64bit_base(L, op, retp);
         ffi::make_cdata_arith(L, retp, rv);
+    }
+
+    static void arith_64bit_cmp(lua_State *L, ast::c_expr_binop op) {
+        /* comparison */
+        ast::c_expr_type retp;
+        auto rv = arith_64bit_base(L, op, retp);
+        assert(retp == ast::c_expr_type::BOOL);
+        lua_pushboolean(L, rv.b);
     }
 
     static int add(lua_State *L) {
@@ -590,6 +604,27 @@ struct cdata_meta {
         return 1;
     }
 
+    static int eq(lua_State *L) {
+        auto *cd1 = ffi::testcdata<void *>(L, 1);
+        auto *cd2 = ffi::testcdata<void *>(L, 2);
+        if (binop_try_mt(L, cd1, cd2, ffi::METATYPE_FLAG_EQ, "__eq")) {
+            return 1;
+        }
+        if (!cd1 || !cd2) {
+            /* equality against non-cdata object is always false */
+            lua_pushboolean(L, false);
+            return 1;
+        }
+        if (!cd1->decl.arith() || !cd2->decl.arith()) {
+            /* if any operand is non-arithmetic, compare by address */
+            lua_pushboolean(L, cd1->get_addr() == cd2->get_addr());
+            return 1;
+        }
+        /* otherwise compare values */
+        arith_64bit_cmp(L, ast::c_expr_binop::EQ);
+        return 1;
+    }
+
     static void setup(lua_State *L) {
         if (!luaL_newmetatable(L, lua::CFFI_CDATA_MT)) {
             luaL_error(L, "unexpected error: registry reinitialized");
@@ -642,6 +677,9 @@ struct cdata_meta {
 
         lua_pushcfunction(L, unm);
         lua_setfield(L, -2, "__unm");
+
+        lua_pushcfunction(L, eq);
+        lua_setfield(L, -2, "__eq");
 
         lua_pop(L, 1);
     }
