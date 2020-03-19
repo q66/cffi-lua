@@ -582,6 +582,13 @@ struct c_type: c_object {
         return *p_crec;
     }
 
+    c_type const &deref() const {
+        if (type() == C_BUILTIN_REF) {
+            return ptr_base();
+        }
+        return *this;
+    }
+
     ffi_type *libffi_type() const;
 
     size_t alloc_size() const;

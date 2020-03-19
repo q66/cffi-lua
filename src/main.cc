@@ -84,7 +84,7 @@ struct cdata_meta {
         auto tp = cd.decl.type();
         if (tp == ast::C_BUILTIN_RECORD) {
             return cd.decl.record().metatype(mflags);
-        } else if (tp == ast::C_BUILTIN_PTR) {
+        } else if ((tp == ast::C_BUILTIN_PTR) || (tp == ast::C_BUILTIN_REF)) {
             if (cd.decl.ptr_base().type() != ast::C_BUILTIN_RECORD) {
                 return LUA_REFNIL;
             }
@@ -616,7 +616,7 @@ struct cdata_meta {
             lua_pushboolean(L, false);
             return 1;
         }
-        if (!cd1->decl.arith() || !cd2->decl.arith()) {
+        if (!cd1->decl.deref().arith() || !cd2->decl.deref().arith()) {
             /* if any operand is non-arithmetic, compare by address */
             lua_pushboolean(L, cd1->get_addr() == cd2->get_addr());
             return 1;
