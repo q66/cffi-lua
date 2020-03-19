@@ -618,11 +618,78 @@ struct cdata_meta {
         }
         if (!cd1->decl.deref().arith() || !cd2->decl.deref().arith()) {
             /* if any operand is non-arithmetic, compare by address */
-            lua_pushboolean(L, cd1->get_addr() == cd2->get_addr());
+            lua_pushboolean(L, cd1->get_deref_addr() == cd2->get_deref_addr());
             return 1;
         }
         /* otherwise compare values */
         arith_64bit_cmp(L, ast::c_expr_binop::EQ);
+        return 1;
+    }
+
+    static bool cmp_base(
+        lua_State *L, ast::c_expr_binop op,
+        ffi::cdata<void *> const *cd1, ffi::cdata<void *> const *cd2
+    ) {
+        if (!cd1 || !cd2) {
+            auto *ccd = (cd1 ? cd1 : cd2);
+            if (!ccd->decl.arith() || !lua_isnumber(L, 2 - !cd1)) {
+                luaL_error(
+                    L, "attempt to compare '%s' with '%s'",
+                    ffi::lua_serialize(L, 1).c_str(),
+                    ffi::lua_serialize(L, 2).c_str()
+                );
+            }
+            arith_64bit_cmp(L, op);
+            return true;
+        }
+        if (cd1->decl.deref().arith() && cd2->decl.deref().arith()) {
+            /* compare values if both are arithmetic types */
+            arith_64bit_cmp(L, op);
+            return true;
+        }
+        /* compare only compatible pointers */
+        if ((
+            (cd1->decl.deref().type() != ast::C_BUILTIN_PTR) ||
+            (cd2->decl.deref().type() != ast::C_BUILTIN_PTR)
+        ) || (!cd1->decl.deref().ptr_base().is_same(
+            cd2->decl.deref().ptr_base(), true
+        ))) {
+            luaL_error(
+                L, "attempt to compare '%s' with '%s'",
+                ffi::lua_serialize(L, 1).c_str(),
+                ffi::lua_serialize(L, 2).c_str()
+            );
+        }
+        return false;
+    }
+
+    static int lt(lua_State *L) {
+        auto *cd1 = ffi::testcdata<void *>(L, 1);
+        auto *cd2 = ffi::testcdata<void *>(L, 2);
+        if (binop_try_mt<ffi::METATYPE_FLAG_LT>(L, cd1, cd2)) {
+            return 1;
+        }
+        if (cmp_base(L, ast::c_expr_binop::LT, cd1, cd2)) {
+            return 1;
+        }
+        lua_pushboolean(L, cd1->get_deref_addr() < cd2->get_deref_addr());
+        return 1;
+    }
+
+    static int le(lua_State *L) {
+        auto *cd1 = ffi::testcdata<void *>(L, 1);
+        auto *cd2 = ffi::testcdata<void *>(L, 2);
+        /* tries both (a <= b) and not (b < a), like lua */
+        if (binop_try_mt<ffi::METATYPE_FLAG_LE>(L, cd1, cd2)) {
+            return 1;
+        } else if (binop_try_mt<ffi::METATYPE_FLAG_LT>(L, cd2, cd1)) {
+            lua_pushboolean(L, !lua_toboolean(L, -1));
+            return 1;
+        }
+        if (cmp_base(L, ast::c_expr_binop::LE, cd1, cd2)) {
+            return 1;
+        }
+        lua_pushboolean(L, cd1->get_deref_addr() <= cd2->get_deref_addr());
         return 1;
     }
 
@@ -681,6 +748,12 @@ struct cdata_meta {
 
         lua_pushcfunction(L, eq);
         lua_setfield(L, -2, "__eq");
+
+        lua_pushcfunction(L, lt);
+        lua_setfield(L, -2, "__lt");
+
+        lua_pushcfunction(L, le);
+        lua_setfield(L, -2, "__le");
 
         lua_pop(L, 1);
     }

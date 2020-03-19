@@ -137,6 +137,19 @@ struct cdata {
         }
         return &val;
     }
+
+    void *get_deref_addr() {
+        if (decl.type() == ast::C_BUILTIN_REF) {
+            switch (decl.ptr_base().type()) {
+                case ast::C_BUILTIN_PTR:
+                case ast::C_BUILTIN_FUNC:
+                    return **reinterpret_cast<void ***>(&val);
+                default:
+                    return *reinterpret_cast<void **>(&val);
+            }
+        }
+        return get_addr();
+    }
 };
 
 static constexpr size_t cdata_value_base() {
