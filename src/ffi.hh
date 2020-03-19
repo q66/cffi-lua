@@ -345,46 +345,63 @@ template<typename T>
 static inline T check_arith(lua_State *L, int idx) {
     auto *cd = testcdata<arg_stor_t>(L, idx);
     if (!cd) {
-        goto lval;
+        if (std::is_integral<T>::value) {
+            return T(luaL_checkinteger(L, idx));
+        }
+        return T(luaL_checknumber(L, idx));
     }
-    switch (cd->decl.type()) {
-        case ast::C_BUILTIN_ENUM:
-            /* TODO: large enums */
-            return T(cd->val.as<int>());
-        case ast::C_BUILTIN_BOOL:
-            return T(cd->val.as<bool>());
-        case ast::C_BUILTIN_CHAR:
-            return T(cd->val.as<char>());
-        case ast::C_BUILTIN_SCHAR:
-            return T(cd->val.as<signed char>());
-        case ast::C_BUILTIN_UCHAR:
-            return T(cd->val.as<unsigned char>());
-        case ast::C_BUILTIN_SHORT:
-            return T(cd->val.as<short>());
-        case ast::C_BUILTIN_USHORT:
-            return T(cd->val.as<unsigned short>());
-        case ast::C_BUILTIN_INT:
-            return T(cd->val.as<int>());
-        case ast::C_BUILTIN_UINT:
-            return T(cd->val.as<unsigned int>());
-        case ast::C_BUILTIN_LONG:
-            return T(cd->val.as<long>());
-        case ast::C_BUILTIN_ULONG:
-            return T(cd->val.as<unsigned long>());
-        case ast::C_BUILTIN_LLONG:
-            return T(cd->val.as<long long>());
-        case ast::C_BUILTIN_ULLONG:
-            return T(cd->val.as<unsigned long long>());
-        case ast::C_BUILTIN_FLOAT:
-            return T(cd->val.as<float>());
-        case ast::C_BUILTIN_DOUBLE:
-            return T(cd->val.as<double>());
-        case ast::C_BUILTIN_LDOUBLE:
-            return T(cd->val.as<long double>());
-        default:
-            break;
+    auto gf = [](int itp, arg_stor_t const &av, T &rv) {
+        switch (itp) {
+            case ast::C_BUILTIN_ENUM:
+                /* TODO: large enums */
+                rv = T(av.as<int>()); break;
+            case ast::C_BUILTIN_BOOL:
+                rv = T(av.as<bool>()); break;
+            case ast::C_BUILTIN_CHAR:
+                rv = T(av.as<char>()); break;
+            case ast::C_BUILTIN_SCHAR:
+                rv = T(av.as<signed char>()); break;
+            case ast::C_BUILTIN_UCHAR:
+                rv = T(av.as<unsigned char>()); break;
+            case ast::C_BUILTIN_SHORT:
+                rv = T(av.as<short>()); break;
+            case ast::C_BUILTIN_USHORT:
+                rv = T(av.as<unsigned short>()); break;
+            case ast::C_BUILTIN_INT:
+                rv = T(av.as<int>()); break;
+            case ast::C_BUILTIN_UINT:
+                rv = T(av.as<unsigned int>()); break;
+            case ast::C_BUILTIN_LONG:
+                rv = T(av.as<long>()); break;
+            case ast::C_BUILTIN_ULONG:
+                rv = T(av.as<unsigned long>()); break;
+            case ast::C_BUILTIN_LLONG:
+                rv = T(av.as<long long>()); break;
+            case ast::C_BUILTIN_ULLONG:
+                rv = T(av.as<unsigned long long>()); break;
+            case ast::C_BUILTIN_FLOAT:
+                rv = T(av.as<float>()); break;
+            case ast::C_BUILTIN_DOUBLE:
+                rv = T(av.as<double>()); break;
+            case ast::C_BUILTIN_LDOUBLE:
+                rv = T(av.as<long double>()); break;
+            default:
+                return false;
+        }
+        return true;
+    };
+    int tp = cd->decl.type();
+    if (tp == ast::C_BUILTIN_REF) {
+        T ret;
+        if (gf(cd->decl.ptr_base().type(), *cd->val.as<arg_stor_t *>(), ret)) {
+            return ret;
+        }
+    } else {
+        T ret;
+        if (gf(tp, cd->val, ret)) {
+            return ret;
+        }
     }
-lval:
     if (std::is_integral<T>::value) {
         return T(luaL_checkinteger(L, idx));
     }
@@ -392,107 +409,119 @@ lval:
 }
 
 static inline ast::c_expr_type check_arith_expr(
-    lua_State *L, int idx, ast::c_value &v
+    lua_State *L, int idx, ast::c_value &iv
 ) {
     auto *cd = testcdata<arg_stor_t>(L, idx);
     if (!cd) {
-        goto lval;
-    }
-    switch (cd->decl.type()) {
-        case ast::C_BUILTIN_ENUM:
-            /* TODO: large enums */
-            v.i = cd->val.as<int>();
-            return ast::c_expr_type::INT;
-        case ast::C_BUILTIN_BOOL:
-            v.i = cd->val.as<bool>();
-            return ast::c_expr_type::INT;
-        case ast::C_BUILTIN_CHAR:
-            v.i = cd->val.as<char>();
-            return ast::c_expr_type::INT;
-        case ast::C_BUILTIN_SCHAR:
-            v.i = cd->val.as<signed char>();
-            return ast::c_expr_type::INT;
-        case ast::C_BUILTIN_UCHAR:
-            v.i = cd->val.as<unsigned char>();
-            return ast::c_expr_type::INT;
-        case ast::C_BUILTIN_SHORT:
-            v.i = cd->val.as<short>();
-            return ast::c_expr_type::INT;
-        case ast::C_BUILTIN_USHORT:
-            v.i = cd->val.as<unsigned short>();
-            return ast::c_expr_type::INT;
-        case ast::C_BUILTIN_INT:
-            v.i = cd->val.as<int>();
-            return ast::c_expr_type::INT;
-        case ast::C_BUILTIN_UINT:
-            v.u = cd->val.as<unsigned int>();
-            return ast::c_expr_type::UINT;
-        case ast::C_BUILTIN_LONG:
-            v.l = cd->val.as<long>();
-            return ast::c_expr_type::LONG;
-        case ast::C_BUILTIN_ULONG:
-            v.ul = cd->val.as<unsigned long>();
-            return ast::c_expr_type::ULONG;
-        case ast::C_BUILTIN_LLONG:
-            v.ll = cd->val.as<long long>();
-            return ast::c_expr_type::LLONG;
-        case ast::C_BUILTIN_ULLONG:
-            v.ull = cd->val.as<unsigned long long>();
-            return ast::c_expr_type::ULLONG;
-        case ast::C_BUILTIN_FLOAT:
-            v.f = cd->val.as<float>();
+        /* some logic for conversions of lua numbers into cexprs */
+        static_assert(
+            std::is_integral<lua_Number>::value
+                ? (sizeof(lua_Number) <= sizeof(long long))
+                : (sizeof(lua_Number) <= sizeof(long double)),
+            "invalid lua_Number format"
+        );
+        auto n = luaL_checknumber(L, idx);
+        if (std::is_integral<lua_Number>::value) {
+            if (std::is_signed<lua_Number>::value) {
+                if (sizeof(lua_Number) <= sizeof(int)) {
+                    iv.i = n;
+                    return ast::c_expr_type::INT;
+                } else if (sizeof(lua_Number) <= sizeof(long)) {
+                    iv.l = n;
+                    return ast::c_expr_type::LONG;
+                } else {
+                    iv.ll = n;
+                    return ast::c_expr_type::LLONG;
+                }
+            } else {
+                if (sizeof(lua_Number) <= sizeof(unsigned int)) {
+                    iv.u = n;
+                    return ast::c_expr_type::UINT;
+                } else if (sizeof(lua_Number) <= sizeof(unsigned long)) {
+                    iv.ul = n;
+                    return ast::c_expr_type::ULONG;
+                } else {
+                    iv.ull = n;
+                    return ast::c_expr_type::ULLONG;
+                }
+            }
+        } else if (sizeof(lua_Number) <= sizeof(float)) {
+            iv.f = n;
             return ast::c_expr_type::FLOAT;
-        case ast::C_BUILTIN_DOUBLE:
-            v.d = cd->val.as<double>();
+        } else if (sizeof(lua_Number) <= sizeof(double)) {
+            iv.d = n;
             return ast::c_expr_type::DOUBLE;
-        case ast::C_BUILTIN_LDOUBLE:
-            v.ld = cd->val.as<long double>();
-            return ast::c_expr_type::LDOUBLE;
-        default:
-            break;
-    }
-lval:
-    /* some logic for conversions of lua numbers into cexprs */
-    static_assert(
-        std::is_integral<lua_Number>::value
-            ? (sizeof(lua_Number) <= sizeof(long long))
-            : (sizeof(lua_Number) <= sizeof(long double)),
-        "invalid lua_Number format"
-    );
-    auto n = luaL_checknumber(L, idx);
-    if (std::is_integral<lua_Number>::value) {
-        if (std::is_signed<lua_Number>::value) {
-            if (sizeof(lua_Number) <= sizeof(int)) {
-                v.i = n;
-                return ast::c_expr_type::INT;
-            } else if (sizeof(lua_Number) <= sizeof(long)) {
-                v.l = n;
-                return ast::c_expr_type::LONG;
-            } else {
-                v.ll = n;
-                return ast::c_expr_type::LLONG;
-            }
-        } else {
-            if (sizeof(lua_Number) <= sizeof(unsigned int)) {
-                v.u = n;
-                return ast::c_expr_type::UINT;
-            } else if (sizeof(lua_Number) <= sizeof(unsigned long)) {
-                v.ul = n;
-                return ast::c_expr_type::ULONG;
-            } else {
-                v.ull = n;
-                return ast::c_expr_type::ULLONG;
-            }
         }
-    } else if (sizeof(lua_Number) <= sizeof(float)) {
-        v.f = n;
-        return ast::c_expr_type::FLOAT;
-    } else if (sizeof(lua_Number) <= sizeof(double)) {
-        v.d = n;
-        return ast::c_expr_type::DOUBLE;
+        iv.ld = n;
+        return ast::c_expr_type::LDOUBLE;
     }
-    v.ld = n;
-    return ast::c_expr_type::LDOUBLE;
+    auto gf = [](int itp, arg_stor_t const &av, ast::c_value &v) {
+        switch (itp) {
+            case ast::C_BUILTIN_ENUM:
+                /* TODO: large enums */
+                v.i = av.as<int>();
+                return ast::c_expr_type::INT;
+            case ast::C_BUILTIN_BOOL:
+                v.i = av.as<bool>();
+                return ast::c_expr_type::INT;
+            case ast::C_BUILTIN_CHAR:
+                v.i = av.as<char>();
+                return ast::c_expr_type::INT;
+            case ast::C_BUILTIN_SCHAR:
+                v.i = av.as<signed char>();
+                return ast::c_expr_type::INT;
+            case ast::C_BUILTIN_UCHAR:
+                v.i = av.as<unsigned char>();
+                return ast::c_expr_type::INT;
+            case ast::C_BUILTIN_SHORT:
+                v.i = av.as<short>();
+                return ast::c_expr_type::INT;
+            case ast::C_BUILTIN_USHORT:
+                v.i = av.as<unsigned short>();
+                return ast::c_expr_type::INT;
+            case ast::C_BUILTIN_INT:
+                v.i = av.as<int>();
+                return ast::c_expr_type::INT;
+            case ast::C_BUILTIN_UINT:
+                v.u = av.as<unsigned int>();
+                return ast::c_expr_type::UINT;
+            case ast::C_BUILTIN_LONG:
+                v.l = av.as<long>();
+                return ast::c_expr_type::LONG;
+            case ast::C_BUILTIN_ULONG:
+                v.ul = av.as<unsigned long>();
+                return ast::c_expr_type::ULONG;
+            case ast::C_BUILTIN_LLONG:
+                v.ll = av.as<long long>();
+                return ast::c_expr_type::LLONG;
+            case ast::C_BUILTIN_ULLONG:
+                v.ull = av.as<unsigned long long>();
+                return ast::c_expr_type::ULLONG;
+            case ast::C_BUILTIN_FLOAT:
+                v.f = av.as<float>();
+                return ast::c_expr_type::FLOAT;
+            case ast::C_BUILTIN_DOUBLE:
+                v.d = av.as<double>();
+                return ast::c_expr_type::DOUBLE;
+            case ast::C_BUILTIN_LDOUBLE:
+                v.ld = av.as<long double>();
+                return ast::c_expr_type::LDOUBLE;
+            default:
+                return ast::c_expr_type::INVALID;
+        }
+    };
+    ast::c_expr_type ret;
+    int tp = cd->decl.type();
+    if (tp == ast::C_BUILTIN_REF) {
+        ret = gf(cd->decl.ptr_base().type(), *cd->val.as<arg_stor_t *>(), iv);
+    } else {
+        ret = gf(tp, cd->val, iv);
+    }
+    if (ret == ast::c_expr_type::INVALID) {
+        luaL_checknumber(L, idx);
+    }
+    /* unreachable */
+    return ret;
 }
 
 static inline cdata<arg_stor_t> &make_cdata_arith(
