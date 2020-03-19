@@ -330,29 +330,49 @@ static c_value eval_binary(c_expr const &e, c_expr_type &et) {
         } \
         break;
 
-#define SHIFT_CASE_INNER(fn, op) \
+#define SHIFT_CASE_INNER(fn, op, nop) \
+    /* shift by negative number is undefined in C, so define it as */ \
+    /* shifting in the other direction; this works like lua 5.3    */ \
     switch (ret) { \
-        case c_expr_type::INT: retv.fn = lval.fn op rval.i; break; \
+        case c_expr_type::INT: \
+            if (rval.i < 0) { \
+                retv.fn = lval.fn nop -rval.i; \
+            } else { \
+                retv.fn = lval.fn op rval.i; \
+            } \
+            break; \
         case c_expr_type::UINT: retv.fn = lval.fn op rval.u; break; \
-        case c_expr_type::LONG: retv.fn = lval.fn op rval.l; break; \
+        case c_expr_type::LONG: \
+            if (rval.l < 0) { \
+                retv.fn = lval.fn nop -rval.l; \
+            } else { \
+                retv.fn = lval.fn op rval.l; \
+            } \
+            break; \
         case c_expr_type::ULONG: retv.fn = lval.fn op rval.u; break; \
-        case c_expr_type::LLONG: retv.fn = lval.fn op rval.ul; break; \
+        case c_expr_type::LLONG: \
+            if (rval.ll < 0) { \
+                retv.fn = lval.fn nop -rval.ll; \
+            } else { \
+                retv.fn = lval.fn op rval.ll; \
+            } \
+            break; \
         case c_expr_type::ULLONG: retv.fn = lval.fn op rval.ull; break; \
         default: assert(false); break; \
     }
 
-#define SHIFT_CASE(opn, op) \
+#define SHIFT_CASE(opn, op, nop) \
     case c_expr_binop::opn: \
         promote_int(lval, let); \
         promote_int(rval, ret); \
         et = let; \
         switch (let) { \
-            case c_expr_type::INT: SHIFT_CASE_INNER(i, op); break; \
-            case c_expr_type::UINT: SHIFT_CASE_INNER(u, op); break; \
-            case c_expr_type::LONG: SHIFT_CASE_INNER(l, op); break; \
-            case c_expr_type::ULONG: SHIFT_CASE_INNER(ul, op); break; \
-            case c_expr_type::LLONG: SHIFT_CASE_INNER(ll, op); break; \
-            case c_expr_type::ULLONG: SHIFT_CASE_INNER(ull, op); break; \
+            case c_expr_type::INT: SHIFT_CASE_INNER(i, op, nop); break; \
+            case c_expr_type::UINT: SHIFT_CASE_INNER(u, op, nop); break; \
+            case c_expr_type::LONG: SHIFT_CASE_INNER(l, op, nop); break; \
+            case c_expr_type::ULONG: SHIFT_CASE_INNER(ul, op, nop); break; \
+            case c_expr_type::LLONG: SHIFT_CASE_INNER(ll, op, nop); break; \
+            case c_expr_type::ULLONG: SHIFT_CASE_INNER(ull, op, nop); break; \
             default: assert(false); break; \
         } \
         break;
@@ -416,8 +436,8 @@ static c_value eval_binary(c_expr const &e, c_expr_type &et) {
         BINOP_CASE_NOFLT(BAND, &)
         BINOP_CASE_NOFLT(BOR, |)
         BINOP_CASE_NOFLT(BXOR, ^)
-        SHIFT_CASE(LSH, <<)
-        SHIFT_CASE(RSH, >>)
+        SHIFT_CASE(LSH, <<, >>)
+        SHIFT_CASE(RSH, >>, <<)
 
         default:
             assert(false);
