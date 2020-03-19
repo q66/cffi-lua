@@ -56,6 +56,45 @@ enum metatype_flag {
 #endif /* LUA_VERSION_NUM > 501 */
 };
 
+static inline constexpr auto metafield_name(metatype_flag flag) {
+    switch (flag) {
+        case METATYPE_FLAG_ADD:      return "__add";
+        case METATYPE_FLAG_SUB:      return "__sub";
+        case METATYPE_FLAG_MUL:      return "__mul";
+        case METATYPE_FLAG_DIV:      return "__div";
+        case METATYPE_FLAG_MOD:      return "__mod";
+        case METATYPE_FLAG_POW:      return "__pow";
+        case METATYPE_FLAG_UNM:      return "__unm";
+        case METATYPE_FLAG_CONCAT:   return "__concat";
+        case METATYPE_FLAG_LEN:      return "__len";
+        case METATYPE_FLAG_EQ:       return "__eq";
+        case METATYPE_FLAG_LT:       return "__lt";
+        case METATYPE_FLAG_LE:       return "__le";
+        case METATYPE_FLAG_INDEX:    return "__index";
+        case METATYPE_FLAG_NEWINDEX: return "__newindex";
+        case METATYPE_FLAG_CALL:     return "__call";
+        case METATYPE_FLAG_GC:       return "__gc";
+        case METATYPE_FLAG_TOSTRING: return "__tostring";
+#if LUA_VERSION_NUM > 501
+        case METATYPE_FLAG_PAIRS:    return "__pairs";
+#if LUA_VERSION_NUM == 502
+        case METATYPE_FLAG_IPAIRS:   return "__ipairs";
+#endif
+#if LUA_VERSION_NUM > 502
+        case METATYPE_FLAG_IDIV:     return "__idiv";
+        case METATYPE_FLAG_BAND:     return "__band";
+        case METATYPE_FLAG_BOR:      return "__bor";
+        case METATYPE_FLAG_BXOR:     return "__bxor";
+        case METATYPE_FLAG_BNOT:     return "__bnot";
+        case METATYPE_FLAG_SHL:      return "__shl";
+        case METATYPE_FLAG_SHR:      return "__shr";
+#endif /* LUA_VERSION_NUM > 502 */
+#endif /* LUA_VERSION_NUM > 501 */
+        default: break;
+    }
+    return "";
+}
+
 struct arg_stor_t {
     std::max_align_t pad;
 
