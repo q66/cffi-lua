@@ -572,9 +572,10 @@ struct cdata_meta {
         return 1;
     }
 
-    static int unm(lua_State *L) {
+    template<ffi::metatype_flag mflag, ast::c_expr_unop uop>
+    static int arith_un(lua_State *L) {
         auto *cd = ffi::testcdata<void *>(L, 1);
-        if (unop_try_mt<ffi::METATYPE_FLAG_UNM>(L, cd)) {
+        if (unop_try_mt<mflag>(L, cd)) {
             return 1;
         }
         ast::c_expr uexp{ast::C_TYPE_WEAK}, exp;
@@ -585,7 +586,7 @@ struct cdata_meta {
         }
         exp.type(et);
         uexp.type(ast::c_expr_type::UNARY);
-        uexp.un.op = ast::c_expr_unop::UNM;
+        uexp.un.op = uop;
         uexp.un.expr = &exp;
         auto rv = uexp.eval(et, true);
         ffi::make_cdata_arith(L, et, rv);
@@ -767,7 +768,9 @@ struct cdata_meta {
         lua_pushcfunction(L, pow);
         lua_setfield(L, -2, "__pow");
 
-        lua_pushcfunction(L, unm);
+        lua_pushcfunction(L, (arith_un<
+            ffi::METATYPE_FLAG_UNM, ast::c_expr_unop::UNM
+        >));
         lua_setfield(L, -2, "__unm");
 
         lua_pushcfunction(L, eq);
@@ -789,6 +792,30 @@ struct cdata_meta {
 #endif
 
 #if LUA_VERSION_NUM > 502
+        lua_pushcfunction(L, (arith_bin<
+            ffi::METATYPE_FLAG_IDIV, ast::c_expr_binop::DIV
+        >));
+        lua_setfield(L, -2, "__idiv");
+
+        lua_pushcfunction(L, (arith_bin<
+            ffi::METATYPE_FLAG_BAND, ast::c_expr_binop::BAND
+        >));
+        lua_setfield(L, -2, "__band");
+
+        lua_pushcfunction(L, (arith_bin<
+            ffi::METATYPE_FLAG_BOR, ast::c_expr_binop::BOR
+        >));
+        lua_setfield(L, -2, "__bor");
+
+        lua_pushcfunction(L, (arith_bin<
+            ffi::METATYPE_FLAG_BXOR, ast::c_expr_binop::BXOR
+        >));
+        lua_setfield(L, -2, "__bxor");
+
+        lua_pushcfunction(L, (arith_un<
+            ffi::METATYPE_FLAG_BNOT, ast::c_expr_unop::BNOT
+        >));
+        lua_setfield(L, -2, "__bnot");
 #endif /* LUA_VERSION_NUM > 502 */
 #endif /* LUA_VERSION_NUM > 501 */
 
