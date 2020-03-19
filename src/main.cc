@@ -306,11 +306,13 @@ struct cdata_meta {
     }
 
     template<ffi::metatype_flag mtype>
-    static inline bool unop_try_mt(lua_State *L, ffi::cdata<void *> *cd) {
+    static inline bool unop_try_mt(
+        lua_State *L, ffi::cdata<void *> *cd, int rvals = 1
+    ) {
         /* custom metatypes, either operand */
         if (cd && metatype_check<mtype>(L, 1)) {
             lua_insert(L, 1);
-            lua_call(L, 1, 1);
+            lua_call(L, 1, rvals);
             return true;
         }
         return false;
@@ -342,6 +344,7 @@ struct cdata_meta {
             L, "attempt to concatenate '%s' and '%s'",
             ffi::lua_serialize(L, 1), ffi::lua_serialize(L, 2)
         );
+        return 0;
     }
 
     static int len(lua_State *L) {
@@ -350,6 +353,7 @@ struct cdata_meta {
             return 1;
         }
         luaL_error(L, "attempt to get length of '%s'", ffi::lua_serialize(L, 1));
+        return 0;
     }
 
     /* this follows LuaJIT rules for cdata arithmetic: each operand is
@@ -676,6 +680,31 @@ struct cdata_meta {
         return 1;
     }
 
+#if LUA_VERSION_NUM > 501
+    static int pairs(lua_State *L) {
+        auto *cd = ffi::testcdata<void *>(L, 1);
+        if (unop_try_mt<ffi::METATYPE_FLAG_PAIRS>(L, cd, 3)) {
+            return 3;
+        }
+        luaL_error(L, "attempt to iterate '%s'", ffi::lua_serialize(L, 1));
+        return 0;
+    }
+
+#if LUA_VERSION_NUM == 502
+    static int ipairs(lua_State *L) {
+        auto *cd = ffi::testcdata<void *>(L, 1);
+        if (unop_try_mt<ffi::METATYPE_FLAG_IPAIRS>(L, cd, 3)) {
+            return 3;
+        }
+        luaL_error(L, "attempt to iterate '%s'", ffi::lua_serialize(L, 1));
+        return 0;
+    }
+#endif
+
+#if LUA_VERSION_NUM > 502
+#endif /* LUA_VERSION_NUM > 502 */
+#endif /* LUA_VERSION_NUM > 501 */
+
     static void setup(lua_State *L) {
         if (!luaL_newmetatable(L, lua::CFFI_CDATA_MT)) {
             luaL_error(L, "unexpected error: registry reinitialized");
@@ -693,6 +722,9 @@ struct cdata_meta {
         lua_newtable(L);
         lua_setfield(L, -2, "__ffi_metatypes");
 
+        lua_pushcfunction(L, tostring);
+        lua_setfield(L, -2, "__tostring");
+
         lua_pushcfunction(L, gc);
         lua_setfield(L, -2, "__gc");
 
@@ -705,8 +737,11 @@ struct cdata_meta {
         lua_pushcfunction(L, newindex);
         lua_setfield(L, -2, "__newindex");
 
-        lua_pushcfunction(L, tostring);
-        lua_setfield(L, -2, "__tostring");
+        lua_pushcfunction(L, concat);
+        lua_setfield(L, -2, "__concat");
+
+        lua_pushcfunction(L, len);
+        lua_setfield(L, -2, "__len");
 
         lua_pushcfunction(L, add);
         lua_setfield(L, -2, "__add");
@@ -743,6 +778,19 @@ struct cdata_meta {
 
         lua_pushcfunction(L, le);
         lua_setfield(L, -2, "__le");
+
+#if LUA_VERSION_NUM > 501
+        lua_pushcfunction(L, pairs);
+        lua_setfield(L, -2, "__pairs");
+
+#if LUA_VERSION_NUM == 502
+        lua_pushcfunction(L, ipairs);
+        lua_setfield(L, -2, "__ipairs");
+#endif
+
+#if LUA_VERSION_NUM > 502
+#endif /* LUA_VERSION_NUM > 502 */
+#endif /* LUA_VERSION_NUM > 501 */
 
         lua_pop(L, 1);
     }
