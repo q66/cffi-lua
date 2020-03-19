@@ -513,29 +513,12 @@ struct cdata_meta {
         return 1;
     }
 
-    static int mul(lua_State *L) {
+    template<ffi::metatype_flag mflag, ast::c_expr_binop bop>
+    static int arith_bin(lua_State *L) {
         auto *cd1 = ffi::testcdata<void *>(L, 1);
         auto *cd2 = ffi::testcdata<void *>(L, 2);
-        if (!binop_try_mt<ffi::METATYPE_FLAG_MUL>(L, cd1, cd2)) {
-            arith_64bit_bin(L, ast::c_expr_binop::MUL);
-        }
-        return 1;
-    }
-
-    static int div(lua_State *L) {
-        auto *cd1 = ffi::testcdata<void *>(L, 1);
-        auto *cd2 = ffi::testcdata<void *>(L, 2);
-        if (!binop_try_mt<ffi::METATYPE_FLAG_DIV>(L, cd1, cd2)) {
-            arith_64bit_bin(L, ast::c_expr_binop::DIV);
-        }
-        return 1;
-    }
-
-    static int mod(lua_State *L) {
-        auto *cd1 = ffi::testcdata<void *>(L, 1);
-        auto *cd2 = ffi::testcdata<void *>(L, 2);
-        if (!binop_try_mt<ffi::METATYPE_FLAG_MOD>(L, cd1, cd2)) {
-            arith_64bit_bin(L, ast::c_expr_binop::MOD);
+        if (!binop_try_mt<mflag>(L, cd1, cd2)) {
+            arith_64bit_bin(L, bop);
         }
         return 1;
     }
@@ -731,13 +714,19 @@ struct cdata_meta {
         lua_pushcfunction(L, sub);
         lua_setfield(L, -2, "__sub");
 
-        lua_pushcfunction(L, mul);
+        lua_pushcfunction(L, (arith_bin<
+            ffi::METATYPE_FLAG_MUL, ast::c_expr_binop::MUL
+        >));
         lua_setfield(L, -2, "__mul");
 
-        lua_pushcfunction(L, div);
+        lua_pushcfunction(L, (arith_bin<
+            ffi::METATYPE_FLAG_DIV, ast::c_expr_binop::DIV
+        >));
         lua_setfield(L, -2, "__div");
 
-        lua_pushcfunction(L, mod);
+        lua_pushcfunction(L, (arith_bin<
+            ffi::METATYPE_FLAG_MOD, ast::c_expr_binop::MOD
+        >));
         lua_setfield(L, -2, "__mod");
 
         lua_pushcfunction(L, pow);
