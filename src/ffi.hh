@@ -427,6 +427,37 @@ static inline ast::c_expr_type check_arith_expr(
     auto *cd = testcdata<arg_stor_t>(L, idx);
     if (!cd) {
         /* some logic for conversions of lua numbers into cexprs */
+#if LUA_VERSION_NUM >= 503
+        static_assert(
+            sizeof(lua_Integer) <= sizeof(long long),
+            "invalid lua_Integer format"
+        );
+        if (lua_isinteger(L, idx)) {
+            if (std::is_signed<lua_Integer>::value) {
+                if (sizeof(lua_Integer) <= sizeof(int)) {
+                    iv.i = lua_tointeger(L, idx);
+                    return ast::c_expr_type::INT;
+                } else if (sizeof(lua_Integer) <= sizeof(long)) {
+                    iv.l = lua_tointeger(L, idx);
+                    return ast::c_expr_type::LONG;
+                } else {
+                    iv.ll = lua_tointeger(L, idx);
+                    return ast::c_expr_type::LLONG;
+                }
+            } else {
+                if (sizeof(lua_Integer) <= sizeof(unsigned int)) {
+                    iv.u = lua_tointeger(L, idx);
+                    return ast::c_expr_type::UINT;
+                } else if (sizeof(lua_Integer) <= sizeof(unsigned long)) {
+                    iv.ul = lua_tointeger(L, idx);
+                    return ast::c_expr_type::ULONG;
+                } else {
+                    iv.ull = lua_tointeger(L, idx);
+                    return ast::c_expr_type::ULLONG;
+                }
+            }
+        }
+#endif
         static_assert(
             std::is_integral<lua_Number>::value
                 ? (sizeof(lua_Number) <= sizeof(long long))

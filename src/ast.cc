@@ -1104,6 +1104,14 @@ c_type from_lua_type(lua_State *L, int index) {
                 builtin_v<lua_Number> != C_BUILTIN_INVALID,
                 "invalid lua_Number definition"
             );
+            static_assert(
+                builtin_v<lua_Integer> != C_BUILTIN_INVALID,
+                "invalid lua_Integer definition"
+            );
+            /* 5.3+; always returns false on <= 5.2 */
+            if (lua_isinteger(L, index)) {
+                return c_type{builtin_v<lua_Integer>, 0};
+            }
             return c_type{builtin_v<lua_Number>, 0};
         case LUA_TSTRING:
             return c_type{c_type{C_BUILTIN_CHAR, C_CV_CONST}, 0};

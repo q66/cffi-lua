@@ -12,6 +12,10 @@ ffi_type *from_lua_type(lua_State *L, int index) {
         case LUA_TBOOLEAN:
             return &ffi_type_uchar;
         case LUA_TNUMBER:
+            /* 5.3+; always returns false on <= 5.2 */
+            if (lua_isinteger(L, index)) {
+                return ffi_traits<lua_Integer>::type();
+            }
             return ffi_traits<lua_Number>::type();
         case LUA_TNIL:
         case LUA_TSTRING:
@@ -334,10 +338,19 @@ template<typename T>
 static inline int push_int(
     lua_State *L, ast::c_type const &tp, void const *value, bool lossy
 ) {
-    /* assumes radix-2 floats... */
+#if LUA_VERSION_NUM < 503
+    /* generally floats, so we're assuming IEEE754 binary floats */
+    static_assert(
+        std::numeric_limits<lua_Number>::radix == std::numeric_limits<T>::radix,
+        "type radix differs"
+    );
+    using LT = lua_Number;
+#else
+    /* on lua 5.3+, we can use integers builtin in the language instead */
+    using LT = lua_Integer;
+#endif
     if ((
-        std::numeric_limits<T>::digits <=
-        std::numeric_limits<lua_Number>::digits
+        std::numeric_limits<T>::digits <= std::numeric_limits<LT>::digits
     ) || lossy) {
         using U = T *;
         lua_pushinteger(L, lua_Integer(*U(value)));
