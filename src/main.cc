@@ -703,6 +703,32 @@ struct cdata_meta {
 #endif
 
 #if LUA_VERSION_NUM > 502
+    template<ffi::metatype_flag mflag, ast::c_expr_binop bop>
+    static int shift_bin(lua_State *L) {
+        auto *cd1 = ffi::testcdata<void *>(L, 1);
+        auto *cd2 = ffi::testcdata<void *>(L, 2);
+        if (binop_try_mt<mflag>(L, cd1, cd2)) {
+            return 1;
+        }
+        ast::c_expr_type retp;
+        ast::c_expr bexp{ast::C_TYPE_WEAK}, lhs, rhs;
+        ast::c_expr_type lt = ffi::check_arith_expr(L, 1, lhs.val);
+        ast::c_expr_type rt = ffi::check_arith_expr(L, 2, rhs.val);
+        /* we're only promoting the left side in shifts */
+        promote_long(lt);
+        if (lt != ast::c_expr_type::ULLONG) {
+            promote_to_64bit<long long, ast::c_expr_type::LLONG>(lt, &lhs.val);
+        }
+        lhs.type(lt);
+        rhs.type(rt);
+        bexp.type(ast::c_expr_type::BINARY);
+        bexp.bin.op = bop;
+        bexp.bin.lhs = &lhs;
+        bexp.bin.rhs = &rhs;
+        auto rv = bexp.eval(retp, true);
+        ffi::make_cdata_arith(L, retp, rv);
+        return 1;
+    }
 #endif /* LUA_VERSION_NUM > 502 */
 #endif /* LUA_VERSION_NUM > 501 */
 
@@ -816,6 +842,16 @@ struct cdata_meta {
             ffi::METATYPE_FLAG_BNOT, ast::c_expr_unop::BNOT
         >));
         lua_setfield(L, -2, "__bnot");
+
+        lua_pushcfunction(L, (shift_bin<
+            ffi::METATYPE_FLAG_SHL, ast::c_expr_binop::LSH
+        >));
+        lua_setfield(L, -2, "__shl");
+
+        lua_pushcfunction(L, (shift_bin<
+            ffi::METATYPE_FLAG_SHR, ast::c_expr_binop::RSH
+        >));
+        lua_setfield(L, -2, "__shr");
 #endif /* LUA_VERSION_NUM > 502 */
 #endif /* LUA_VERSION_NUM > 501 */
 
