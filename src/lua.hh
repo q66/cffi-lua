@@ -80,6 +80,20 @@ static inline void luaL_newlib52(lua_State *L, luaL_Reg const l[]) {
 
 #endif /* LUA_VERSION_NUM == 501 */
 
+#if LUA_VERSION_NUM < 503
+
+static inline int lua_isinteger53(lua_State *L, int) {
+    lua_pushboolean(L, false);
+    return 1;
+}
+
+#ifdef lua_isinteger
+#undef lua_isinteger
+#endif
+#define lua_isinteger lua_isinteger53
+
+#endif /* LUA_VERSION_NUM == 503 */
+
 namespace lua {
 
 static constexpr int CFFI_CTYPE_TAG = -128;
