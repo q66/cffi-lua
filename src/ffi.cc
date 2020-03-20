@@ -7,7 +7,7 @@
 
 namespace ffi {
 
-ffi_type *from_lua_type(lua_State *L, int index) {
+static ffi_type *lua_to_vararg(lua_State *L, int index) {
     switch (lua_type(L, index)) {
         case LUA_TBOOLEAN:
             return &ffi_type_uchar;
@@ -26,7 +26,8 @@ ffi_type *from_lua_type(lua_State *L, int index) {
             return &ffi_type_pointer;
         case LUA_TUSERDATA: {
             auto *cd = testcdata<noval>(L, index);
-            if (!cd) {
+            /* plain userdata or struct values are passed to varargs as ptrs */
+            if (!cd || (cd->decl.type() == ast::C_BUILTIN_RECORD)) {
                 return &ffi_type_pointer;
             }
             return cd->decl.libffi_type();
@@ -270,7 +271,7 @@ static bool prepare_cif_var(
         targs[i] = func.params()[i].libffi_type();
     }
     for (size_t i = fargs; i < nargs; ++i) {
-        targs[i] = from_lua_type(L, i + 2);
+        targs[i] = lua_to_vararg(L, i + 2);
     }
 
     return (ffi_prep_cif_var(
@@ -308,9 +309,14 @@ int call_cif(cdata<fdata> &fud, lua_State *L, size_t largs) {
     /* variable args */
     for (size_t i = nargs; i < targs; ++i) {
         size_t rsz;
-        vals[i] = from_lua(
-            L, ast::from_lua_type(L, i + 2), &pvals[i], i + 2, rsz, RULE_PASS
-        );
+        auto tp = ast::from_lua_type(L, i + 2);
+        if (tp.type() == ast::C_BUILTIN_RECORD) {
+            /* special case for vararg passing of records: by ptr */
+            auto &cd = tocdata<void *>(L, i + 2);
+            memcpy(&pvals[i], &cd.val, sizeof(void *));
+            continue;
+        }
+        vals[i] = from_lua(L, std::move(tp), &pvals[i], i + 2, rsz, RULE_PASS);
     }
 
     ffi_call(&fud.val.cif, fud.val.sym, rval, vals);

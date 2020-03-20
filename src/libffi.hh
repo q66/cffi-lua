@@ -148,8 +148,6 @@ struct ffi_traits<T volatile>: ffi_traits<T> {};
 template<typename T>
 struct ffi_traits<T const volatile>: ffi_traits<T> {};
 
-ffi_type *from_lua_type(int type);
-
 } /* namespace ffi */
 
 #endif /* LIBFFI_HH */
