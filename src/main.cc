@@ -1035,12 +1035,35 @@ struct ffi_module {
         }
         auto &ct = check_ct(L, 1);
         if (ct.vla()) {
-            auto sz = luaL_checkinteger(L, 2);
-            if (sz < 0) {
-                return 0;
+            size_t sz = 0;
+            if (lua_isinteger(L, 2)) {
+                auto isz = lua_tointeger(L, 2);
+                if (isz < 0) {
+                    return 0;
+                }
+                sz = size_t(isz);
+            } else if (lua_isnumber(L, 2)) {
+                auto isz = lua_tonumber(L, 2);
+                if (isz < 0) {
+                    return 0;
+                }
+                sz = size_t(isz);
             } else {
-                lua_pushinteger(L, ct.ptr_base().alloc_size() * size_t(sz));
+                auto &cd = ffi::tocdata<ffi::arg_stor_t>(L, 2);
+                if (!cd.decl.integer()) {
+                    luaL_checkinteger(L, 2);
+                }
+                if (cd.decl.is_unsigned()) {
+                    sz = ffi::check_arith<size_t>(L, 2);
+                } else {
+                    auto isz = ffi::check_arith<long long>(L, 2);
+                    if (isz < 0) {
+                        return 0;
+                    }
+                    sz = size_t(isz);
+                }
             }
+            lua_pushinteger(L, ct.ptr_base().alloc_size() * size_t(sz));
             return 1;
         } else if (ct.unbounded()) {
             return 0;
@@ -1097,7 +1120,7 @@ struct ffi_module {
     static int errno_f(lua_State *L) {
         int cur = errno;
         if (lua_gettop(L) >= 1) {
-            errno = int(luaL_checkinteger(L, 1));
+            errno = ffi::check_arith<int>(L, 1);
         }
         lua_pushinteger(L, cur);
         return 1;
@@ -1123,7 +1146,7 @@ struct ffi_module {
         } else {
             lua_pushlstring(
                 L, static_cast<char const *>(ud.val),
-                size_t(luaL_checkinteger(L, 2))
+                ffi::check_arith<size_t>(L, 2)
             );
         }
         return 1;
@@ -1169,11 +1192,11 @@ struct ffi_module {
             if (lua_gettop(L) <= 2) {
                 len = lua_rawlen(L, 2);
             } else {
-                len = size_t(luaL_checkinteger(L, 3));
+                len = ffi::check_arith<size_t>(L, 3);
             }
         } else {
             src = check_voidptr(L, 2);
-            len = size_t(luaL_checkinteger(L, 3));
+            len = ffi::check_arith<size_t>(L, 3);
         }
         memcpy(dst, src, len);
         return 0;
@@ -1181,7 +1204,7 @@ struct ffi_module {
 
     static int fill_f(lua_State *L) {
         void *dst = check_voidptr(L, 1);
-        size_t len = size_t(luaL_checkinteger(L, 2));
+        size_t len = ffi::check_arith<size_t>(L, 2);
         int byte = int(luaL_optinteger(L, 3, 0));
         memset(dst, byte, len);
         return 0;
