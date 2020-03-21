@@ -82,15 +82,10 @@ static inline void luaL_newlib52(lua_State *L, luaL_Reg const l[]) {
 
 #if LUA_VERSION_NUM < 503
 
-static inline int lua_isinteger53(lua_State *L, int) {
-    lua_pushboolean(L, false);
-    return 1;
-}
-
 #ifdef lua_isinteger
 #undef lua_isinteger
 #endif
-#define lua_isinteger lua_isinteger53
+#define lua_isinteger(L, idx) int(0)
 
 #endif /* LUA_VERSION_NUM == 503 */
 
