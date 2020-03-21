@@ -174,16 +174,8 @@ struct cdata_meta {
         unsigned char *ptr;
         switch (cd.decl.type()) {
             case ast::C_BUILTIN_PTR:
-                ptr = static_cast<unsigned char *>(cd.val);
-                goto elsz;
             case ast::C_BUILTIN_ARRAY:
-                if (cd.aux) {
-                    /* weak array */
-                    ptr = static_cast<unsigned char *>(cd.val);
-                } else {
-                    ptr = reinterpret_cast<unsigned char *>(&cd.val);
-                }
-            elsz:
+                ptr = static_cast<unsigned char *>(cd.val);
                 elsize = cd.decl.ptr_base().alloc_size();
                 if (!elsize) {
                     luaL_error(
@@ -285,7 +277,11 @@ struct cdata_meta {
             return 0;
         }
         index_common(L, [L](auto &decl, void *val) {
-            if (!ffi::to_lua(L, decl, val, ffi::RULE_CONV)) {
+            void *pp = val;
+            if (decl.type() == ast::C_BUILTIN_ARRAY) {
+                pp = &val;
+            }
+            if (!ffi::to_lua(L, decl, pp, ffi::RULE_CONV)) {
                 luaL_error(L, "invalid C type");
             }
         });
@@ -1251,11 +1247,7 @@ struct ffi_module {
 
     static int toretval_f(lua_State *L) {
         auto &cd = ffi::checkcdata<void *>(L, 1);
-        if ((cd.decl.type() == ast::C_BUILTIN_ARRAY) && cd.aux) {
-            ffi::to_lua(L, cd.decl, cd.val, ffi::RULE_RET);
-        } else {
-            ffi::to_lua(L, cd.decl, &cd.val, ffi::RULE_RET);
-        }
+        ffi::to_lua(L, cd.decl, &cd.val, ffi::RULE_RET);
         return 1;
     }
 

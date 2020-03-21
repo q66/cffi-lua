@@ -119,9 +119,7 @@ struct cdata {
     /* auxiliary data that can be used by different cdata
      *
      * vararg functions store the number of arguments they have storage
-     * prepared for here to avoid reallocating every time; arrays store
-     * the "weak flag" here which indicates they only point to others'
-     * memory rather than having their own
+     * prepared for here to avoid reallocating every time
      */
     int aux;
     alignas(arg_stor_t) T val;
@@ -131,6 +129,7 @@ struct cdata {
             case ast::C_BUILTIN_PTR:
             case ast::C_BUILTIN_REF:
             case ast::C_BUILTIN_FUNC:
+            case ast::C_BUILTIN_ARRAY:
                 return *reinterpret_cast<void **>(&val);
             default:
                 break;
@@ -143,6 +142,7 @@ struct cdata {
             switch (decl.ptr_base().type()) {
                 case ast::C_BUILTIN_PTR:
                 case ast::C_BUILTIN_FUNC:
+                case ast::C_BUILTIN_ARRAY:
                     return **reinterpret_cast<void ***>(&val);
                 default:
                     return *reinterpret_cast<void **>(&val);
@@ -163,13 +163,6 @@ static constexpr size_t cdata_value_base() {
         arg_stor_t val;
     };
     return offsetof(T, val);
-}
-
-/* careful with this; use only if you're sure you have cdata at the index
- * as otherwise it will underflow size_t and get you a ridiculous value
- */
-static inline size_t cdata_value_size(lua_State *L, int idx) {
-    return lua_rawlen(L, idx) - cdata_value_base();
 }
 
 struct ctype {
@@ -293,6 +286,20 @@ static inline cdata<T> *testcdata(lua_State *L, int idx) {
 template<typename T>
 static inline cdata<T> &tocdata(lua_State *L, int idx) {
     return *lua::touserdata<ffi::cdata<T>>(L, idx);
+}
+
+/* careful with this; use only if you're sure you have cdata at the index */
+static inline size_t cdata_value_size(lua_State *L, int idx) {
+    auto &cd = tocdata<void *>(L, idx);
+    if (cd.decl.vla()) {
+        /* VLAs only exist on lua side, they are always allocated by us, so
+         * we can be sure they are contained within the lua-allocated block
+         */
+        return lua_rawlen(L, idx) - cdata_value_base() - sizeof(arg_stor_t);
+    } else {
+        /* otherwise the size is known, so fall back to that */
+        return cd.decl.alloc_size();
+    }
 }
 
 void destroy_cdata(lua_State *L, cdata<ffi::noval> &cd);

@@ -465,14 +465,8 @@ int to_lua(
             return push_int<int>(L, tp, value, lossy);
 
         case ast::C_BUILTIN_ARRAY: {
-            /* the new array is weak */
-            auto &cd = newcdata<void *>(L, tp);
-            if (rule == RULE_PASS) {
-                cd.val = *reinterpret_cast<void * const *>(value);
-            } else {
-                cd.val = const_cast<void *>(value);
-            }
-            cd.aux = 1;
+            newcdata<void *>(L, tp).val =
+                *reinterpret_cast<void * const *>(value);
             return 1;
         }
 
@@ -1288,7 +1282,8 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
                 cdp = from_lua(L, decl.ptr_base(), &stor, idx + 1, rsz, rule);
             }
             narr = size_t(arrs);
-            rsz = decl.ptr_base().alloc_size() * narr;
+            /* see below */
+            rsz = decl.ptr_base().alloc_size() * narr + sizeof(arg_stor_t);
             goto newdata;
         }
         itype = lua_type(L, idx);
@@ -1298,7 +1293,14 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
             rsz = decl.alloc_size();
         }
         narr = decl.array_size();
-        rsz = decl.ptr_base().alloc_size() * narr;
+        /* owned arrays consist of an arg_stor_t part, which is an arg_stor_t
+         * because that has the greatest alignment of all scalars and thus is
+         * good enough to follow up with any type afterwards, and the array
+         * part; the arg_stor_t part contains a pointer to the array part
+         * right in the beginning, so we can freely cast between any array
+         * and a pointer, even an owned one
+         */
+        rsz = decl.ptr_base().alloc_size() * narr + sizeof(arg_stor_t);
         goto newdata;
     } else if (decl.type() == ast::C_BUILTIN_RECORD) {
         auto &flds = decl.record().fields();
@@ -1356,20 +1358,39 @@ newdata:
         }
     } else {
         auto &cd = newcdata(L, decl, rsz);
+        void *dptr = nullptr;
+        size_t msz = rsz;
         if (!cdp) {
             memset(&cd.val, 0, rsz);
+            if (decl.type() == ast::C_BUILTIN_ARRAY) {
+                auto *bval = reinterpret_cast<unsigned char *>(&cd.val);
+                dptr = bval + sizeof(arg_stor_t);
+                *reinterpret_cast<void **>(bval) = dptr;
+                msz = rsz - sizeof(arg_stor_t);
+            } else {
+                dptr = &cd.val;
+            }
         } else if (decl.type() == ast::C_BUILTIN_ARRAY) {
-            size_t esz = rsz / narr;
-            auto *val = reinterpret_cast<unsigned char *>(&cd.val);
+            size_t esz = (rsz - sizeof(arg_stor_t)) / narr;
+            /* the base of the alloated block */
+            auto *bval = reinterpret_cast<unsigned char *>(&cd.val);
+            /* the array memory begins after the first arg_stor_t */
+            auto *val = bval + sizeof(arg_stor_t);
+            dptr = val;
+            /* we can treat an array like a pointer, always */
+            *reinterpret_cast<void **>(bval) = val;
+            /* write initializers into the array part */
             for (size_t i = 0; i < narr; ++i) {
                 memcpy(&val[i * esz], cdp, esz);
             }
+            msz = rsz - sizeof(arg_stor_t);
         } else {
-            memcpy(&cd.val, cdp, rsz);
+            dptr = &cd.val;
+            memcpy(dptr, cdp, rsz);
         }
         if (itype == LUA_TTABLE) {
             /* table initializers need to be done *after* memory alloc */
-            from_lua_table(L, decl, &cd.val, rsz, iidx);
+            from_lua_table(L, decl, dptr, msz, iidx);
         }
         /* set a gc finalizer if provided in metatype */
         if (decl.type() == ast::C_BUILTIN_RECORD) {
