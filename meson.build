@@ -110,3 +110,10 @@ cffi_lib = shared_module('cffi',
     cpp_args: extra_cxxflags, name_prefix: '',
     name_suffix: plugin_suffix
 )
+
+# Tests
+
+runner_inc = include_directories('src')
+current_inc = include_directories('.')
+
+subdir('tests')
