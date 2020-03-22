@@ -5,10 +5,11 @@ runner = executable('runner', 'runner.cc', include_directories: [
 ], dependencies: [lua_dep])
 
 test_cases = [
-    # test_name test_file expected_fail
-    ['simple puts testcase', 'simple_puts', false],
-    ['variadic call testcase', 'variadic', false],
-    ['callback testcase', 'callbacks', false],
+    # test_name                      test_file                    expected_fail
+    ['simple example',               'simple_puts',                     false],
+    ['variadic calls',               'variadic',                        false],
+    ['callbacks',                    'callbacks',                       false],
+    ['table initializers',           'table_init',                      false],
 ]
 
 foreach tcase: test_cases
