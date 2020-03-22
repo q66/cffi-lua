@@ -8,6 +8,7 @@ test_cases = [
     # test_name test_file expected_fail
     ['simple puts testcase', 'simple_puts', false],
     ['variadic call testcase', 'variadic', false],
+    ['callback testcase', 'callbacks', false],
 ]
 
 foreach tcase: test_cases

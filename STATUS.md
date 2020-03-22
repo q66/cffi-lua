@@ -156,6 +156,7 @@ Implements the functionality provided by the parser.
   - [x] Correct integer promotions
   - [ ] Non-integer type support
 - [x] `cdata` arithmetic
+  - [ ] Special case for arithmetic on enum + string
 - [x] correct `tostring` on integer `cdata`
 
 ### Wishlist
@@ -246,7 +247,7 @@ supported by `libffi`.
 Build system enhancements TODO.
 
 - [x] Lua version option
-- [ ] Test suite
+- [x] Test suite
 
 ## Code
 
@@ -254,5 +255,5 @@ Various things to do around the existing code.
 
 - [x] `dlopen` etc. abstraction
 - [ ] Type system cleanup
-- [ ] Testing infrastructure
+- [x] Testing infrastructure
 - [ ] ... TBD
