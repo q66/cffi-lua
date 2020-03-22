@@ -1158,7 +1158,11 @@ struct ffi_module {
                 );
             }
             auto ctp = cd.decl.type();
-            if ((ctp != ast::C_BUILTIN_PTR) && (ctp != ast::C_BUILTIN_REF)) {
+            if (
+                (ctp != ast::C_BUILTIN_PTR) &&
+                (ctp != ast::C_BUILTIN_REF) &&
+                (ctp != ast::C_BUILTIN_ARRAY)
+            ) {
                 lua_pushfstring(
                     L, "cannot convert '%s' to 'void *'",
                     cd.decl.serialize().c_str()

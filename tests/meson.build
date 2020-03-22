@@ -10,6 +10,7 @@ test_cases = [
     ['variadic calls',               'variadic',                        false],
     ['callbacks',                    'callbacks',                       false],
     ['table initializers',           'table_init',                      false],
+    ['ffi.copy and fill',            'copy_fill',                       false],
 ]
 
 foreach tcase: test_cases
