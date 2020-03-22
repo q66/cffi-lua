@@ -11,6 +11,11 @@ ffi.cdef [[
         float y;
         double z;
     };
+
+    union uinit {
+        char const *s;
+        size_t a;
+    };
 ]]
 
 local x
@@ -46,3 +51,14 @@ x = ffi.new("struct flex", 2, { x = 5, y = { 10, 15 } })
 assert(x.x == 5)
 assert(x.y[0] == 10)
 assert(x.y[1] == 15)
+
+local str = "hello world"
+x = ffi.new("union uinit", { str })
+assert(ffi.string(x.s) == "hello world")
+assert(x.s == ffi.cast("void *", x.a))
+assert(x.s ~= x.a)
+
+x = ffi.new("union uinit", { s = str })
+assert(ffi.string(x.s) == "hello world")
+assert(x.s == ffi.cast("void *", x.a))
+assert(x.s ~= x.a)

@@ -709,6 +709,7 @@ static void *from_lua_cnumber(
             if (!std::is_integral<T>::value) {
                 break;
             }
+            dsz = sizeof(void *);
             return &(*static_cast<void **>(stor) = reinterpret_cast<void *>(
                 size_t(*static_cast<T *>(sval))
             ));
