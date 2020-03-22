@@ -11,6 +11,7 @@ test_cases = [
     ['callbacks',                    'callbacks',                       false],
     ['table initializers',           'table_init',                      false],
     ['ffi.copy and fill',            'copy_fill',                       false],
+    ['structs and arrays',           'struct_array',                    false],
 ]
 
 foreach tcase: test_cases
