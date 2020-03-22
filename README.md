@@ -80,5 +80,6 @@ included, plus linkage in `LDFLAGS`.
 
 ## Testing
 
-The `test.lua` file can be run to see what the library can currently do.
-Otherwise, you can take `cffi.so` and `require()` it from Lua as usual.
+Simply run `ninja test`. You can see the available test cases in `tests`,
+they also serve as examples. For actual usage, simply install the built
+module in a path specified in your Lua's `package.cpath`.

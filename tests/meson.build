@@ -8,10 +8,10 @@ test_cases = [
     # test_name                      test_file                    expected_fail
     ['simple example',               'simple_puts',                     false],
     ['variadic calls',               'variadic',                        false],
+    ['structs, arrays, unions',      'struct_array',                    false],
+    ['ffi.copy and fill',            'copy_fill',                       false],
     ['callbacks',                    'callbacks',                       false],
     ['table initializers',           'table_init',                      false],
-    ['ffi.copy and fill',            'copy_fill',                       false],
-    ['structs, arrays, unions',      'struct_array',                    false],
 ]
 
 foreach tcase: test_cases
