@@ -1,3 +1,6 @@
+-- TO BE REMOVED
+-- only shows some functionality not yet covered by tests
+
 local ffi = require("cffi")
 
 ffi.cdef [[
@@ -6,11 +9,9 @@ ffi.cdef [[
     typedef char const *cptr;
 
     double strtod(const char *str, char **endptr);
-    int puts(char const *str);
     mbuf strdup(char const *x);
     void *memcpy(void *dest, cptr src, size_t num);
     void free(void *p);
-    int printf(const char *fmt, ...);
 
     enum test {
         FIRST = 1, SECOND, THIRD, FOURTH,
@@ -46,11 +47,6 @@ print()
 
 print("# type of a function")
 print("ffi.C.strtod == " .. tostring(ffi.typeof(ffi.C.strtod)))
-print()
-
-print("# string printing")
-local ret = ffi.C.puts("hello world")
-print("received from puts: " .. ret)
 print()
 
 print("# strtod")
@@ -91,10 +87,6 @@ ffi.gc(foo, function(x)
 end)
 print()
 
-print("# varargs (printf)")
-ffi.C.printf("hello world %g %p \"%s\"\n", 22 / 7, nil, foo)
-print()
-
 print("# type of a ptr")
 local pt = ffi.typeof(foo);
 print("typeof(foo) == " .. tostring(pt))
@@ -125,22 +117,6 @@ print("calling with 'hello world'")
 fp("hello world")
 print()
 
-print("# Callbacks")
-local cb = ffi.cast("void (*)(char const *x)", function(str)
-    print("this is a callback, called from C...")
-    print("passed data: " .. ffi.string(str) .. " (" .. tostring(str) .. ")")
-end)
-cb("hello world")
-print("setting a different callback func...")
-cb:set(function() print("a new callback func") end)
-cb("hello world")
-print("freeing callback via copy...")
-local cb2 = ffi.cast("void (*)(char const *x)", cb)
-cb2:free()
-print("attempt to call now invalid callback:")
-print(pcall(cb, "hello world"))
-print()
-
 print("# Scalar creation")
 local v = ffi.eval("0x1234ABCD5678FFFF")
 print("0x1234ABCD5678FFFF == " .. tostring(v))
@@ -163,84 +139,6 @@ ref[0] = string.byte("b")
 print("new string: " .. ffi.string(foo))
 print("type of string: " .. ffi.type(foo))
 ffi.C.free(foo)
-print()
-
-ffi.cdef [[
-    /* include some paddings to make sure we can have large structs */
-    struct foo {
-        int x;
-        size_t pad1;
-        size_t pad2;
-        struct {
-            char y;
-            size_t pad3;
-            size_t pad4;
-            short z;
-        };
-        size_t pad5;
-        size_t pad6;
-        char const *w;
-    };
-]]
-
-print("# Structs")
-x = ffi.new("struct foo")
-print("new struct: " .. tostring(x))
-local s = "hello"
-x.x = 150
-x.y = 30
-x.z = 25
-x.w = s
-print("members: ")
-print("x: " .. x.x)
-print("y: " .. x.y)
-print("z: " .. x.z)
-print("w: " .. ffi.string(x.w))
-print("offset of z: " .. ffi.offsetof("struct foo", "z"))
-print()
-
-print("# Arrays")
-x = ffi.new("int[3]")
-print("arr: " .. tostring(x) .. " (size: " .. ffi.sizeof(x) .. ")")
-x[0] = 5
-x[1] = 10
-x[2] = 15
-for i = 0, 2 do
-    print("arr[" .. i .. "] = " .. ffi.tonumber(x[i]))
-end
-print()
-
-print("# Variable length arrays")
-x = ffi.new("int[?]", 3)
-print("arr: " .. tostring(x) .. " (size: " .. ffi.sizeof(x) .. ")")
-x[0] = 5
-x[1] = 10
-x[2] = 15
-for i = 0, 2 do
-    print("arr[" .. i .. "] = " .. ffi.tonumber(x[i]))
-end
-print()
-
-print("# Arrays initialized with a value")
-x = ffi.new("int[3]", 123);
-print("regular: " .. x[0] .. ", " .. x[1] .. ", " .. x[2])
-x = ffi.new("int[?]", 3, 123);
-print("VLA: " .. x[0] .. ", " .. x[1] .. ", " .. x[2])
-print()
-
-print("# Flexible array members")
-ffi.cdef [[
-    struct flex {
-        int x;
-        double y[];
-    };
-]]
-x = ffi.new("struct flex", 3);
-x.x = 5
-x.y[0] = 10
-x.y[1] = 15
-x.y[2] = 20
-print("2nd member of flexible struct's array part: " .. x.y[1])
 print()
 
 print("# Parameterized types")
@@ -277,61 +175,6 @@ ffi.cdef([[
 print("created anonymous enum with members FOO and BAR...")
 print("FOO: " .. ffi.tonumber(ffi.C.FOO))
 print("BAR: " .. ffi.tonumber(ffi.C.BAR))
-print()
-
-print("# Table initializers")
-
-ffi.cdef [[
-    struct sinit {
-        int x;
-        float y;
-        double z;
-    };
-]]
-
-x = ffi.new("int[3]", { 5, 10, 15 })
-print("static array: " .. x[0] .. ", " .. x[1] .. ", " .. x[2])
-x = ffi.new("int[?]", 3, { 5, 10, 15 })
-print("VLA: " .. x[0] .. ", " .. x[1] .. ", " .. x[2])
-x = ffi.new("struct sinit", { 5, 3.14, 6.28 })
-print("struct: " .. x.x .. ", " .. x.y .. ", " .. x.z)
-x = ffi.new("struct sinit", { x = 5, y = 3.14, z = 6.28 })
-print("struct with names: " .. x.x .. ", " .. x.y .. ", " .. x.z)
-x = ffi.new("struct flex", 2, { 5, 10, 15 })
-print("flex struct: " .. x.x .. ", " .. x.y[0] .. ", " .. x.y[1])
-x = ffi.new("struct flex", 2, { x = 5, y = { 10, 15 } })
-print("flex struct with names: " .. x.x .. ", " .. x.y[0] .. ", " .. x.y[1])
-print()
-
-print("# Unions")
-
-ffi.cdef [[
-    union utest {
-        struct {
-            int x;
-            int y;
-        };
-        long z;
-    };
-]]
-
-x = ffi.new("union utest")
-x.x = 5
-x.y = 10
-print("union: " .. x.x .. ", " .. x.y .. ", " .. tostring(x.z))
-
-ffi.cdef [[
-    union utestb {
-        char const *s;
-        size_t a;
-    };
-]]
-
-local str = "hello world"
-x = ffi.new("union utestb", { str })
-print("table initialized union: " .. tostring(x.s) .. ", " .. tostring(x.a))
-x = ffi.new("union utestb", { s = str })
-print("table initialized union (via name): " .. tostring(x.s) .. ", " .. tostring(x.a))
 print()
 
 print("# Cdata arithmetic")
