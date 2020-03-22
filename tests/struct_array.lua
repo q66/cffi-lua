@@ -16,6 +16,11 @@ ffi.cdef [[
         char const *w;
     };
 
+    struct flex {
+        int x;
+        double y[];
+    };
+
     union bar {
         struct {
             unsigned char x;
@@ -75,6 +80,19 @@ assert(ffi.sizeof(x) == ffi.sizeof("int") * 3)
 assert(x[0] == 5)
 assert(x[1] == 5)
 assert(x[2] == 5)
+
+-- flexible array members
+
+local x = ffi.new("struct flex", 3);
+x.x = 5
+x.y[0] = 10
+x.y[1] = 15
+x.y[2] = 20
+
+assert(x.x == 5)
+assert(x.y[0] == 10)
+assert(x.y[1] == 15)
+assert(x.y[2] == 20)
 
 -- union
 
