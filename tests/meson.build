@@ -6,7 +6,8 @@ runner = executable('runner', 'runner.cc', include_directories: [
 
 test_cases = [
     # test_name test_file expected_fail
-    ['simple puts testcase', 'simple_puts', false]
+    ['simple puts testcase', 'simple_puts', false],
+    ['variadic call testcase', 'variadic', false],
 ]
 
 foreach tcase: test_cases
