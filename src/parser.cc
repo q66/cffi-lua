@@ -25,6 +25,8 @@ namespace parser {
     \
     KW(__alignof__), KW(__const__), KW(__volatile__), \
     \
+    KW(true), KW(false), \
+    \
     KW(bool), KW(char), KW(char16_t), KW(char32_t), KW(short), KW(int), \
     KW(long), KW(wchar_t), KW(float), KW(double), \
     \
@@ -775,6 +777,14 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
             ast::c_expr ret;
             ret.type(ls.t.numtag);
             memcpy(&ret.val, &ls.t.value, sizeof(ls.t.value));
+            ls.get();
+            return ret;
+        }
+        case TOK_true:
+        case TOK_false: {
+            ast::c_expr ret;
+            ret.type(ast::c_expr_type::BOOL);
+            ret.val.b = (ls.t.token == TOK_true);
             ls.get();
             return ret;
         }
