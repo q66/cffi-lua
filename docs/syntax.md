@@ -32,6 +32,9 @@ declarations.
 **Note:** Declaring a function with an empty argument list follows C++
 semantics! Therefore, `T foo();` is equivalent to `T foo(void);`.
 
+**Extension:** Unnamed arguments are supported, therefore `void foo(int x)` and
+simple `void foo(int)` are identical.
+
 You can also write:
 
 ```
@@ -261,6 +264,11 @@ a VLA and instantiate it later through its alias.
 During instantiation of VLAs, you will be required to provide a size, and
 the resulting `cdata` will have a runtime size, which you can retrieve via
 `cffi.sizeof` like with a normal static array.
+
+### Struct/union types
+
+Just like in C, you can use anonymous or named `struct`s or `union`s as types,
+not just type declarations.
 
 ### C++ references
 
