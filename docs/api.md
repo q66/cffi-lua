@@ -412,3 +412,9 @@ precision loss, particularly on pre-5.3 Lua without integer support. Returns
 
 If given a non-`cdata`, performs a conversion according to the standard Lua
 semantics of `tonumber`.
+
+### tp = cffi.type(v)
+
+Like Lua `type()`, but returns `cdata` for `cvalue`s (regular Lua `type()`
+will return `userdata`). Returns the same thing as the standard function
+for anything else.
