@@ -8,7 +8,7 @@ compatible with all current Lua versions and work on every OS/architecture
 combo that `libffi` supports.
 
 Since it's written from scratch, having 1:1 bug-for-bug C parser compatibility
-is a non-goal. The parser is meant to comply with C99, plus a number of
+is a non-goal. The parser is meant to comply with C11, plus a number of
 extensions from GCC, MSVC and C++ (where it doesn't conflict with C).
 
 The project was started because there isn't any FFI for standard Lua that's
