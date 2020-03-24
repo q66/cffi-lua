@@ -12,6 +12,15 @@ ffi.cdef [[
         double z;
     };
 
+    struct sstr {
+        int x;
+    };
+
+    struct dsinit {
+        struct sstr a;
+        struct sstr b;
+    };
+
     union uinit {
         char const *s;
         size_t a;
@@ -19,6 +28,18 @@ ffi.cdef [[
 ]]
 
 local x
+
+x = ffi.new("int[3]", 5)
+assert(x[0] == 5)
+assert(x[1] == 5)
+assert(x[2] == 5)
+assert(ffi.sizeof(x) == 3 * ffi.sizeof("int"))
+
+x = ffi.new("int[?]", 3, 5)
+assert(x[0] == 5)
+assert(x[1] == 0)
+assert(x[2] == 0)
+assert(ffi.sizeof(x) == 3 * ffi.sizeof("int"))
 
 x = ffi.new("int[3]", { 5, 10, 15 })
 assert(x[0] == 5)
@@ -32,7 +53,24 @@ assert(x[1] == 10)
 assert(x[2] == 15)
 assert(ffi.sizeof(x) == 3 * ffi.sizeof("int"))
 
+x = ffi.new("int[3]", 5, 10, 15)
+assert(x[0] == 5)
+assert(x[1] == 10)
+assert(x[2] == 15)
+assert(ffi.sizeof(x) == 3 * ffi.sizeof("int"))
+
+x = ffi.new("int[?]", 3, 5, 10, 15)
+assert(x[0] == 5)
+assert(x[1] == 10)
+assert(x[2] == 15)
+assert(ffi.sizeof(x) == 3 * ffi.sizeof("int"))
+
 x = ffi.new("struct sinit", { 5, 3.14, 6.28 })
+assert(x.x == 5)
+assert(x.y == ffi.tonumber(ffi.new("float", 3.14)))
+assert(x.z == 6.28)
+
+x = ffi.new("struct sinit", 5, 3.14, 6.28)
 assert(x.x == 5)
 assert(x.y == ffi.tonumber(ffi.new("float", 3.14)))
 assert(x.z == 6.28)
@@ -41,6 +79,14 @@ x = ffi.new("struct sinit", { x = 5, y = 3.14, z = 6.28 })
 assert(x.x == 5)
 assert(x.y == ffi.tonumber(ffi.new("float", 3.14)))
 assert(x.z == 6.28)
+
+x = ffi.new("struct dsinit", {5}, {10})
+assert(x.a.x == 5)
+assert(x.b.x == 10)
+
+x = ffi.new("struct dsinit", {{5}, {10}})
+assert(x.a.x == 5)
+assert(x.b.x == 10)
 
 x = ffi.new("struct flex", 2, { 5, 10, 15 })
 assert(x.x == 5)

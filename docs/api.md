@@ -57,6 +57,9 @@ Any errors in the declaration (e.g. syntax errors) will be propagated as Lua
 errors and any declarations staged during the call will be discarded. You do
 not have to worry about partial declarations leaking through.
 
+**Note:** The `cdef` function supports parameterized types. Read up on those
+in the `semantics.md` document.
+
 ### cffi.C
 
 The default C library namespace, bound to the default set of symbols available
@@ -116,6 +119,9 @@ from `cffi.typeof` or other means.
 Creates a `ctype` object for the given `ct`. This is largely useful to parse
 the `ct` argument once and return a permanent handle to it, which you can use
 with a constructor like above.
+
+**Note:** The `typeof` function supports parameterized types. Read up on those
+in the `semantics.md` document.
 
 ### cdata = cffi.cast(ct, init)
 

@@ -1026,14 +1026,39 @@ void *from_lua(
     return nullptr;
 }
 
+static inline void push_init(lua_State *L, int tidx, int iidx) {
+    if (!tidx) {
+        lua_pushvalue(L, iidx);
+    } else {
+        lua_rawgeti(L, tidx, iidx);
+    }
+}
+
+static inline int get_init_sidx(lua_State *L, int tidx, int &ninit) {
+    auto rl = lua_rawlen(L, tidx);
+    lua_rawgeti(L, tidx, 0);
+    int sidx = 1;
+    if (!lua_isnil(L, -1)) {
+        ++rl;
+        sidx = 0;
+    }
+    lua_pop(L, 1);
+    if (rl > 0) {
+        ninit = int(rl);
+        return sidx;
+    }
+    ninit = -1;
+    return -1;
+}
+
 static void from_lua_table(
-    lua_State *L, ast::c_type const &decl, void *stor, size_t rsz, int idx,
-    int sidx = -1
+    lua_State *L, ast::c_type const &decl, void *stor, size_t rsz,
+    int tidx, int sidx, int ninit
 );
 
 static void from_lua_table_record(
-    lua_State *L, ast::c_type const &decl, void *stor, size_t rsz, int idx,
-    bool init_names, int sidx
+    lua_State *L, ast::c_type const &decl, void *stor, size_t rsz,
+    int tidx, int sidx, int ninit
 ) {
     auto &sb = decl.record();
     if (sb.fields().empty()) {
@@ -1042,46 +1067,54 @@ static void from_lua_table_record(
     bool uni = sb.is_union();
     auto *val = static_cast<unsigned char *>(stor);
     bool filled = false;
-    sb.iter_fields([L, rsz, val, &decl, &sidx, &filled, idx, init_names, uni](
+    sb.iter_fields([L, rsz, val, &decl, &sidx, &filled, &ninit, tidx, uni](
         char const *fname, ast::c_type const &fld, size_t off
     ) {
-        if (init_names) {
-            lua_getfield(L, idx, fname);
+        if (tidx && (ninit < 0)) {
+            lua_getfield(L, tidx, fname);
             if (lua_isnil(L, -1)) {
                 lua_pop(L, 1);
                 return uni || fld.unbounded();
             }
-            /* flex array members */
-            if (!uni && fld.unbounded()) {
-                /* the size of the struct minus the flex member plus padding */
-                size_t ssz = decl.alloc_size();
-                /* initialize the last part as in array */
-                size_t asz = rsz - ssz;
-                from_lua_table(L, fld, &val[ssz], asz, lua_gettop(L), -1);
-                lua_pop(L, 1);
-                return true;
-            }
+        } else if (ninit) {
+            push_init(L, tidx, sidx++);
+            --ninit;
         } else {
-            /* flex array members */
-            if (!uni && fld.unbounded()) {
-                /* the size of the struct minus the flex member plus padding */
-                size_t ssz = decl.alloc_size();
-                /* initialize the last part as in array */
-                size_t asz = rsz - ssz;
-                from_lua_table(L, fld, &val[ssz], asz, idx, sidx);
-                return true;
-            }
-            lua_rawgeti(L, idx, sidx++);
-            if (lua_isnil(L, -1)) {
+            /* no more items to initialize */
+            return true;
+        }
+        /* flex array members */
+        if (!uni && fld.unbounded()) {
+            /* the size of the struct minus the flex member plus padding */
+            size_t ssz = decl.alloc_size();
+            /* initialize the last part as in array */
+            size_t asz = rsz - ssz;
+            if (lua_istable(L, -1)) {
+                int ntidx = lua_gettop(L);
+                int nninit;
+                int nsidx = get_init_sidx(L, ntidx, nninit);
+                from_lua_table(L, fld, &val[ssz], asz, ntidx, nsidx, nninit);
                 lua_pop(L, 1);
-                /* last item to initialize */
-                return true;
+            } else if (!ninit) {
+                from_lua_table(L, fld, &val[ssz], asz, 0, lua_gettop(L), 1);
+                lua_pop(L, 1);
+            } else {
+                lua_pop(L, 1);
+                from_lua_table(
+                    L, fld, &val[ssz], asz, tidx, sidx - 1, ninit + 1
+                );
             }
+            return true;
         }
         bool elem_struct = (fld.type() == ast::C_BUILTIN_RECORD);
         bool elem_arr = (fld.type() == ast::C_BUILTIN_ARRAY);
         if ((elem_arr || elem_struct) && lua_istable(L, -1)) {
-            from_lua_table(L, fld, &val[off], fld.alloc_size(), lua_gettop(L));
+            int ntidx = lua_gettop(L);
+            int nninit;
+            int nsidx = get_init_sidx(L, ntidx, nninit);
+            from_lua_table(
+                L, fld, &val[off], fld.alloc_size(), ntidx, nsidx, nninit
+            );
         } else {
             size_t esz;
             arg_stor_t sv{};
@@ -1101,90 +1134,66 @@ static void from_lua_table_record(
  * memory is not allocated yet... so do it here, as a special case
  */
 static void from_lua_table(
-    lua_State *L, ast::c_type const &decl, void *stor, size_t rsz, int idx,
-    int sidx
+    lua_State *L, ast::c_type const &decl, void *stor, size_t rsz,
+    int tidx, int sidx, int ninit
 ) {
-    if (sidx < 0) {
-        sidx = 0;
-        /* try first initializer at index 0 */
-        lua_rawgeti(L, idx, sidx);
-        if (lua_isnil(L, -1)) {
-            /* if that fails, try index 1 */
-            lua_pop(L, 1);
-            lua_rawgeti(L, idx, ++sidx);
-        }
-    } else {
-        lua_rawgeti(L, idx, sidx);
-    }
-
-    /* there is no initializer... or is there? structs may use names */
-    if (lua_isnil(L, -1)) {
-        lua_pop(L, 1);
-        if (decl.type() == ast::C_BUILTIN_RECORD) {
-            from_lua_table_record(L, decl, stor, rsz, idx, true, sidx);
-        } else {
-            memset(stor, 0, rsz);
-        }
-        return;
-    }
-
     if (decl.type() == ast::C_BUILTIN_RECORD) {
-        lua_pop(L, 1);
-        from_lua_table_record(L, decl, stor, rsz, idx, false, sidx);
+        from_lua_table_record(L, decl, stor, rsz, tidx, sidx, ninit);
         return;
     }
 
-    ++sidx;
-
-    bool initall = false;
-    if (!decl.vla() && !decl.unbounded()) {
-        lua_rawgeti(L, idx, sidx);
-        if (lua_isnil(L, -1)) {
-            initall = true;
-        }
-        lua_pop(L, 1);
+    if (ninit <= 0) {
+        memset(stor, 0, rsz);
+        return;
     }
 
     auto *val = static_cast<unsigned char *>(stor);
     auto &pb = decl.ptr_base();
     size_t bsize = pb.alloc_size();
     size_t nelems = rsz / bsize;
-    size_t nset = 0;
 
     bool base_array = (pb.type() == ast::C_BUILTIN_ARRAY);
     bool base_struct = (pb.type() == ast::C_BUILTIN_RECORD);
-    for (;;) {
-        if (nset >= nelems) {
-            if (decl.vla() || decl.unbounded()) {
-                lua_pop(L, 1);
-                break;
-            }
+
+    if (!decl.vla() && !decl.unbounded()) {
+        if (ninit > int(nelems)) {
             luaL_error(L, "too many initializers");
+            return;
+        } else if (ninit == 1) {
+            /* special case: initialize aggregate with a single value */
+            push_init(L, tidx, sidx);
+            size_t esz;
+            arg_stor_t sv{};
+            void *ep = from_lua(L, pb, &sv, -1, esz, RULE_CONV);
+            while (nelems) {
+                memcpy(val, ep, esz);
+                val += bsize;
+                --nelems;
+            }
+            lua_pop(L, 1);
+            return;
         }
+    }
+
+    for (int rinit = ninit; rinit; --rinit) {
         if ((base_array || base_struct) && lua_istable(L, -1)) {
-            from_lua_table(L, pb, val, bsize, lua_gettop(L));
+            int ntidx = lua_gettop(L);
+            int nninit;
+            int nsidx = get_init_sidx(L, ntidx, nninit);
+            from_lua_table(L, pb, val, bsize, ntidx, nsidx, nninit);
         } else {
             size_t esz;
             arg_stor_t sv{};
+            push_init(L, tidx, sidx++);
             void *ep = from_lua(L, pb, &sv, -1, esz, RULE_CONV);
             memcpy(val, ep, esz);
         }
         val += bsize;
-        ++nset;
         lua_pop(L, 1);
-        if (!initall) {
-            lua_rawgeti(L, idx, sidx++);
-            if (lua_isnil(L, -1)) {
-                lua_pop(L, 1);
-                break;
-            }
-        } else if (nset >= nelems) {
-            break;
-        }
     }
-    if (nset < nelems) {
+    if (ninit < int(nelems)) {
         /* fill possible remaining space with zeroes */
-        memset(val, 0, bsize * (nelems - nset));
+        memset(val, 0, bsize * (nelems - ninit));
     }
 }
 
@@ -1265,7 +1274,7 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
     arg_stor_t stor{};
     void *cdp = nullptr;
     size_t rsz = 0, narr = 0;
-    int itype = LUA_TNONE, iidx = idx;
+    int iidx = idx, ninits;
     if (rule == RULE_CAST) {
         goto definit;
     }
@@ -1278,21 +1287,13 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
                 luaL_error(L, "size of C type is unknown");
             }
             ++iidx;
-            itype = lua_type(L, idx + 1);
-            if ((itype != LUA_TNONE) && (itype != LUA_TTABLE)) {
-                cdp = from_lua(L, decl.ptr_base(), &stor, idx + 1, rsz, rule);
-            }
+            ninits = lua_gettop(L) - iidx + 1;
             narr = size_t(arrs);
             /* see below */
             rsz = decl.ptr_base().alloc_size() * narr + sizeof(arg_stor_t);
             goto newdata;
         }
-        itype = lua_type(L, idx);
-        if ((itype != LUA_TNONE) && (itype != LUA_TTABLE)) {
-            cdp = from_lua(L, decl.ptr_base(), &stor, idx, rsz, rule);
-        } else {
-            rsz = decl.alloc_size();
-        }
+        ninits = lua_gettop(L) - iidx + 1;
         narr = decl.array_size();
         /* owned arrays consist of an arg_stor_t part, which is an arg_stor_t
          * because that has the greatest alignment of all scalars and thus is
@@ -1313,27 +1314,22 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
                     luaL_error(L, "size of C type is unknown");
                 }
                 ++iidx;
-                itype = lua_type(L, idx + 1);
-                if ((itype != LUA_TNONE) && (itype != LUA_TTABLE)) {
-                    cdp = from_lua(L, decl, &stor, idx + 1, rsz, rule);
-                }
+                ninits = lua_gettop(L) - iidx + 1;
                 rsz = decl.alloc_size() + (
                     size_t(arrs) * lf.ptr_base().alloc_size()
                 );
                 goto newdata;
             }
         }
-        itype = lua_type(L, idx);
-        if ((itype != LUA_TNONE) && (itype != LUA_TTABLE)) {
-            cdp = from_lua(L, decl, &stor, idx, rsz, rule);
-        } else {
-            rsz = decl.alloc_size();
-        }
+        ninits = lua_gettop(L) - iidx + 1;
+        rsz = decl.alloc_size();
         goto newdata;
     }
 definit:
-    itype = lua_type(L, idx);
-    if (itype != LUA_TNONE) {
+    ninits = lua_gettop(L) - iidx + 1;
+    if (ninits > 1) {
+        luaL_error(L, "too many initializers");
+    } else if (ninits == 1) {
         cdp = from_lua(L, decl, &stor, idx, rsz, rule);
     } else {
         rsz = decl.alloc_size();
@@ -1389,9 +1385,26 @@ newdata:
             dptr = &cd.val;
             memcpy(dptr, cdp, rsz);
         }
-        if (itype == LUA_TTABLE) {
-            /* table initializers need to be done *after* memory alloc */
-            from_lua_table(L, decl, dptr, msz, iidx);
+        if (ninits && (
+            (decl.type() == ast::C_BUILTIN_RECORD) ||
+            (decl.type() == ast::C_BUILTIN_ARRAY)
+        )) {
+            /* initializers for aggregates are done *after* memory alloc
+             *
+             * we have several cases: either multiple initializers, in which
+             * case we treat it as a flat initializer list, or not-a-table,
+             * in which case we treat it the same
+             *
+             * or we have a single table initializer, in which case its
+             * contents are used for initialization instead
+             */
+            if ((ninits > 1) || !lua_istable(L, iidx)) {
+                from_lua_table(L, decl, dptr, msz, 0, iidx, ninits);
+            } else {
+                int nninit;
+                int nsidx = get_init_sidx(L, iidx, nninit);
+                from_lua_table(L, decl, dptr, msz, iidx, nsidx, nninit);
+            }
         }
         /* set a gc finalizer if provided in metatype */
         if (decl.type() == ast::C_BUILTIN_RECORD) {
