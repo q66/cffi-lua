@@ -27,7 +27,7 @@ Differences from LuaJIT API will be clearly marked as such.
 There are two steps to accessing external symbols. First they must be declared
 with `cffi.cdef`, then accessed through the appropriate namespace.
 
-### cffi.cdef(def)
+### cffi.cdef(def [, params...])
 
 This function takes one or more C declarations as a string and declares them
 within the FFI. The string is actually a chunk of C code. Common C syntax
@@ -58,7 +58,7 @@ errors and any declarations staged during the call will be discarded. You do
 not have to worry about partial declarations leaking through.
 
 **Note:** The `cdef` function supports parameterized types. Read up on those
-in the `semantics.md` document.
+in the `semantics.md` document. The extra parameters are used with those.
 
 ### cffi.C
 
@@ -114,14 +114,14 @@ Use `cffi.typeof` to cache the declaration, then use that.
 This is fully equivalent to `cffi.new`, but using an object previously returned
 from `cffi.typeof` or other means.
 
-### ctype = cffi.typeof(ct)
+### ctype = cffi.typeof(ct [, params...])
 
 Creates a `ctype` object for the given `ct`. This is largely useful to parse
 the `ct` argument once and return a permanent handle to it, which you can use
 with a constructor like above.
 
 **Note:** The `typeof` function supports parameterized types. Read up on those
-in the `semantics.md` document.
+in the `semantics.md` document. The extra parameters are used with those.
 
 ### cdata = cffi.cast(ct, init)
 

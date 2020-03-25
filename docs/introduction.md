@@ -346,16 +346,16 @@ printf("%d", ffi.new("int", 1))
 **The caching advice from LuaJIT does not apply here.** LuaJIT suggests to
 cache only namespaces, without caching C functions themselves, as it has a JIT
 engine that can optimize these out into direct calls. We have no such thing,
-and each namespace index call has its own overhead. Calls don't concern us;
-they are always indirect, or well, they have to go through Lua before
-getting to `libffi`.
+and each namespace index call has its own overhead (it has to retrieve the
+symbol). Calls don't concern us; they are always indirect, or well, they have
+to go through Lua before getting to `libffi`.
 
 Therefore, it is advisable to cache function handles when you can.
 
 ```
 -- definitely do this
-local foo = ffi.C.foo
-local bar = ffi.C.bar
+local foo = cffi.C.foo
+local bar = cffi.C.bar
 local baz = function(a, b)
     return foo(a) + bar(b)
 end
