@@ -8,6 +8,7 @@ ffi.cdef [[
     typedef char *mbuf;
     typedef char const *cptr;
 
+    int puts(char const *str);
     double strtod(const char *str, char **endptr);
     mbuf strdup(char const *x);
     void *memcpy(void *dest, cptr src, size_t num);
@@ -120,25 +121,6 @@ print()
 print("# Scalar creation")
 local v = ffi.eval("0x1234ABCD5678FFFF")
 print("0x1234ABCD5678FFFF == " .. tostring(v))
-print()
-
-print("# C++ references")
-print("making cdata of character 'c'...")
-local cd = ffi.new("char", string.byte("c"))
-print("making reference to the cdata...")
-local ref = ffi.ref(cd)
-print("setting character to 'd' via cdata...")
-ref[0] = string.byte("d")
-print("new value: " .. string.char(ffi.tonumber(cd)))
-print("making mutable string 'foo'...")
-local foo = ffi.C.strdup("foo")
-print("making reference to the string...")
-ref = ffi.new("char &", foo)
-print("setting first character to 'b' via ref...")
-ref[0] = string.byte("b")
-print("new string: " .. ffi.string(foo))
-print("type of string: " .. ffi.type(foo))
-ffi.C.free(foo)
 print()
 
 print("# Parameterized types")

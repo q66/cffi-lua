@@ -141,31 +141,6 @@ x = p[0]
 p[0] = y
 ```
 
-### C++ references
-
-**Different from LuaJIT.** References are mutable in `cffi`, if the type is.
-Never use a different index than `0` with references!
-
-For:
-
-```
-int &p = ...;
-```
-
-With:
-
-```
-int x = p;
-p = y;
-```
-
-Use:
-
-```
-x = p[0]
-p[0] = y
-```
-
 ### Array and pointer indexing
 
 For:

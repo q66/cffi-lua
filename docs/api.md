@@ -180,14 +180,6 @@ a pointer cdata `T *` with the same address.
 
 For any other `cdata` (`T`), this takes an address to that and returns a `T *`.
 
-### cdata = cffi.ref(cdata)
-
-**Extension, does not exist in LuaJIT.**
-
-For reference types (`T &`), this returns `cdata`. For other types, this is
-like `cffi.addressof` except it returns a reference instead of a pointer, e.g.
-e.g. `T *` becomes `T &` and `T` becomes `T &`.
-
 ## C type information
 
 ### size = cffi.sizeof(ct, nelem)

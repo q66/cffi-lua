@@ -170,46 +170,47 @@ struct cdata_meta {
         if (ffi::isctype(cd)) {
             luaL_error(L, "'ctype' is not indexable");
         }
+        void **valp = &cd.val;
+        auto const *decl = &cd.decl;
+        if (decl->type() == ast::C_BUILTIN_REF) {
+            decl = &decl->ptr_base();
+            valp = reinterpret_cast<void **>(cd.val);
+        }
         size_t elsize;
         unsigned char *ptr;
-        switch (cd.decl.type()) {
+        switch (decl->type()) {
             case ast::C_BUILTIN_PTR:
             case ast::C_BUILTIN_ARRAY:
-                ptr = static_cast<unsigned char *>(cd.val);
-                elsize = cd.decl.ptr_base().alloc_size();
+                ptr = static_cast<unsigned char *>(*valp);
+                elsize = decl->ptr_base().alloc_size();
                 if (!elsize) {
                     luaL_error(
                         L, "attempt to index an incomplete type '%s'",
-                        cd.decl.serialize().c_str()
+                        decl->serialize().c_str()
                     );
                 }
                 break;
-            case ast::C_BUILTIN_REF: {
-                /* no need to deal with the type size nonsense */
-                func(cd.decl.ptr_base(), cd.val);
-                return;
-            }
             case ast::C_BUILTIN_RECORD: {
                 char const *fname = luaL_checkstring(L, 2);
                 ast::c_type const *outf;
-                auto foff = cd.decl.record().field_offset(fname, outf);
+                auto foff = decl->record().field_offset(fname, outf);
                 if (foff < 0) {
                     luaL_error(
                         L, "'%s' has no member named '%s'",
-                        cd.decl.serialize().c_str(), fname
+                        decl->serialize().c_str(), fname
                     );
                 }
-                func(*outf, &reinterpret_cast<unsigned char *>(&cd.val)[foff]);
+                func(*outf, &reinterpret_cast<unsigned char *>(valp)[foff]);
                 return;
             }
             default: {
-                auto s = cd.decl.serialize();
+                auto s = decl->serialize();
                 luaL_error(L, "'%s' is not indexable", s.c_str());
                 break;
             }
         }
         size_t sidx = ffi::check_arith<size_t>(L, 2);
-        func(cd.decl.ptr_base(), static_cast<void *>(&ptr[sidx * elsize]));
+        func(decl->ptr_base(), static_cast<void *>(&ptr[sidx * elsize]));
     }
 
     static int cb_free(lua_State *L) {
@@ -994,19 +995,6 @@ struct ffi_module {
         return 1;
     }
 
-    static int ref_f(lua_State *L) {
-        auto &cd = ffi::checkcdata<ffi::noval>(L, 1);
-        if (cd.decl.type() == ast::C_BUILTIN_REF) {
-            /* just return itself */
-            lua_pushvalue(L, 1);
-        } else {
-            ffi::newcdata<void *>(L, ast::c_type{
-                cd.decl, 0, ast::C_BUILTIN_REF
-            }).val = cd.get_addr();
-        }
-        return 1;
-    }
-
     static int gc_f(lua_State *L) {
         auto &cd = ffi::checkcdata<ffi::noval>(L, 1);
         if (lua_isnil(L, 2)) {
@@ -1343,7 +1331,6 @@ struct ffi_module {
             {"metatype", metatype_f},
             {"typeof", typeof_f},
             {"addressof", addressof_f},
-            {"ref", ref_f},
             {"gc", gc_f},
 
             /* type info */
