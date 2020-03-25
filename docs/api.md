@@ -83,9 +83,9 @@ the path, otherwise it is treated in a system-specific way and searched for
 in default path(s). Generally that means the following:
 
 On POSIX systems, if the name does not contain a dot, the `.so` extension is
-appended. The `lib` prefix is also prepended, if necessary. Therefore, calling
-something like `cffi.load("foo")` will look for `libfoo.so` in the default
-search path.
+appended (`.dylib` on macOS). The `lib` prefix is also prepended, if necessary.
+Therefore, calling something like `cffi.load("foo")` will look for `libfoo.so`
+(or `libfoo.dylib`) in the default search path.
 
 On Windows systems, if there is no dot in the name, the `.dll` extension is
 appended. Therefore, calling `cffi.load("foo")` will look for `foo.dll` in the
