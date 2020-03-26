@@ -182,12 +182,21 @@ struct cdata_meta {
             (decl->type() == ast::C_BUILTIN_PTR) &&
             (lua_type(L, 2) == LUA_TSTRING)
         )) {
-            /* when a reference, dereference first; when a pointer,
-             * we can only index those by numbers, but struct pointers
-             * are indexable by name, so assume a struct pointer there
+            /* when a reference, dereference first */
+            decl = &decl->ptr_base();
+            valp = reinterpret_cast<void **>(*valp);
+        }
+        if (
+            (decl->type() == ast::C_BUILTIN_PTR) &&
+            (lua_type(L, 2) == LUA_TSTRING)
+        ) {
+            /* pointers are indexable like arrays using numbers, but
+             * not by names; however, there's a special case for record
+             * types, where pointers to them can be indexed like the
+             * underlying record, so assume that for the time being
              */
             decl = &decl->ptr_base();
-            valp = reinterpret_cast<void **>(cd.val);
+            valp = reinterpret_cast<void **>(*valp);
         }
         size_t elsize;
         unsigned char *ptr;
