@@ -154,13 +154,13 @@ struct cdata_meta {
             }
             return 1;
         }
-        int nargs = lua_gettop(L);
-        if (metatype_check<ffi::METATYPE_FLAG_CALL>(L, 1)) {
-            lua_insert(L, 1);
-            lua_call(L, nargs, LUA_MULTRET);
-            return lua_gettop(L);
-        }
         if (!fd.decl.callable()) {
+            int nargs = lua_gettop(L);
+            if (metatype_check<ffi::METATYPE_FLAG_CALL>(L, 1)) {
+                lua_insert(L, 1);
+                lua_call(L, nargs, LUA_MULTRET);
+                return lua_gettop(L);
+            }
             auto s = fd.decl.serialize();
             luaL_error(L, "'%s' is not callable", s.c_str());
         }
