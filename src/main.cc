@@ -171,7 +171,7 @@ struct cdata_meta {
     }
 
     template<typename F>
-    static void index_common(lua_State *L, F &&func) {
+    static bool index_common(lua_State *L, F &&func) {
         auto &cd = ffi::tocdata<void *>(L, 1);
         if (ffi::isctype(cd)) {
             luaL_error(L, "'ctype' is not indexable");
@@ -201,13 +201,10 @@ struct cdata_meta {
                 ast::c_type const *outf;
                 auto foff = decl->record().field_offset(fname, outf);
                 if (foff < 0) {
-                    luaL_error(
-                        L, "'%s' has no member named '%s'",
-                        decl->serialize().c_str(), fname
-                    );
+                    return false;
                 }
                 func(*outf, &reinterpret_cast<unsigned char *>(valp)[foff]);
-                return;
+                return true;
             }
             default: {
                 auto s = decl->serialize();
@@ -217,6 +214,7 @@ struct cdata_meta {
         }
         size_t sidx = ffi::check_arith<size_t>(L, 2);
         func(decl->ptr_base(), static_cast<void *>(&ptr[sidx * elsize]));
+        return true;
     }
 
     static int cb_free(lua_State *L) {
@@ -245,19 +243,6 @@ struct cdata_meta {
     }
 
     static int index(lua_State *L) {
-        if (metatype_check<ffi::METATYPE_FLAG_INDEX>(L, 1)) {
-            /* if __index is a function, call it */
-            if (lua_isfunction(L, -1)) {
-                /* __index takes 2 args, put it to the beginning and call */
-                lua_insert(L, 1);
-                lua_call(L, 2, 1);
-                return 1;
-            }
-            /* otherwise, index it with key that's on top of the stack */
-            lua_insert(L, -2);
-            lua_gettable(L, -2);
-            return 1;
-        }
         auto &cd = ffi::tocdata<ffi::noval>(L, 1);
         if (cd.decl.closure()) {
             /* callbacks have some methods */
@@ -283,7 +268,7 @@ struct cdata_meta {
             }
             return 0;
         }
-        index_common(L, [L](auto &decl, void *val) {
+        if (index_common(L, [L](auto &decl, void *val) {
             void *pp = val;
             if (decl.type() == ast::C_BUILTIN_ARRAY) {
                 pp = &val;
@@ -291,20 +276,48 @@ struct cdata_meta {
             if (!ffi::to_lua(L, decl, pp, ffi::RULE_CONV)) {
                 luaL_error(L, "invalid C type");
             }
-        });
+        })) {
+            return 1;
+        };
+        if (metatype_check<ffi::METATYPE_FLAG_INDEX>(L, 1)) {
+            /* if __index is a function, call it */
+            if (lua_isfunction(L, -1)) {
+                /* __index takes 2 args, put it to the beginning and call */
+                lua_insert(L, 1);
+                lua_call(L, 2, 1);
+                return 1;
+            }
+            /* otherwise, index it with key that's on top of the stack */
+            lua_insert(L, -2);
+            lua_gettable(L, -2);
+            if (!lua_isnil(L, -1)) {
+                return 1;
+            }
+        }
+        luaL_error(
+            L, "'%s' has no member named '%s'",
+            cd.decl.serialize().c_str(), lua_tostring(L, 2)
+        );
         return 1;
     }
 
     static int newindex(lua_State *L) {
+        if (index_common(L, [L](auto &decl, void *val) {
+            size_t rsz;
+            ffi::from_lua(L, decl, val, 3, rsz, ffi::RULE_CONV);
+        })) {
+            return 0;
+        };
         if (metatype_check<ffi::METATYPE_FLAG_NEWINDEX>(L, 1)) {
             lua_insert(L, 1);
             lua_call(L, 3, 0);
             return 0;
         }
-        index_common(L, [L](auto &decl, void *val) {
-            size_t rsz;
-            ffi::from_lua(L, decl, val, 3, rsz, ffi::RULE_CONV);
-        });
+        luaL_error(
+            L, "'%s' has no member named '%s'",
+            ffi::tocdata<ffi::noval>(L, 1).decl.serialize().c_str(),
+            lua_tostring(L, 2)
+        );
         return 0;
     }
 
