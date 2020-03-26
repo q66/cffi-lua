@@ -19,9 +19,167 @@ invalid declarations, and likely is stricter than LuaJIT's.
 
 ## Initializers
 
+Just like in LuaJIT, creating a `cdata` object with `cffi.new` (or the `ctype`
+constructor syntax, which is functionally identical) always initializes its
+contents. Depending on the given initializers, different rules apply.
+
+- Without any initializers, the memory is zeroed (`memset(p, 0, nbytes)`)
+- Scalar types such as numbers and pointers accept a single initializer. The
+  given initializer is converted to the scalar C type.
+- (*not yet implemented*) Complex numbers (and vectors) are treated like
+  scalars with a single initializer, otherwise like arrays.
+- Aggregate types (structs and arrays) accept either a single `cdata`
+  initializer of the same type (copy constructor), a single table initializer,
+  or a list of initializers (each element is initialized with one argument)
+- The elements of an array are initialized (starting at index zero). If a
+  single initializer is given, it is repeated for all remaining elements.
+  If two or more initializers are given, only the given fields are initialized,
+  with the remaining ones getting filled with zero bytes. If too many are given,
+  an error is raised.
+- Byte arrays may also be initialized with a Lua string. The string is copied
+  including its terminating zero, and no errors are raised on size mismatch.
+- Only the first field of a `union` can be initialized with a flat initializer.
+- Elements or fields which are aggregates are initialized with a single
+  initializer, which follows the standard rules.
+- Excess initializers raise an error.
+
 ## Table initializers
 
+This is also identical to LuaJIT. Only arrays, `struct`s and `union`s can be
+initialized with a table.
+
+- If the table index `[0]` is not `nil`, then the table is assumed to be zero
+  based, otherwise it's one based.
+- Array elements, starting at index zero, are initialized one-by-one with
+  the consecutive table elements. The moment a `nil` element is reached, the
+  initialization stops.
+- If exactly one array element was initialized, it's repeated for all remaining
+  elements. Otherwise, all remaining elements are filled with zero bytes.
+- The above logic does not apply for VLAs, which are only initialized with
+  the elements given in the table.
+- A `struct` or `union` type can be initialized in the order of the declaration
+  of its fields. Each field is initialized like it was an array and the process
+  stops at the first `nil`.
+- Otherwise, if neither `[0]` or `[1]` are present, a `struct`/`union` is
+  initialized by looking up each field in the table by name. Each non-`nil`
+  field is initialized.
+- Uninitialized fields of a `struct` are filled with zero bytes, except for
+  flexible array members.
+- Initialization of a `union` stops after one field has been initialized. If
+  none has been initialized, the `union` is filled with zero bytes.
+- Elements that are aggregates are each initialized with a single initializer,
+  which may be a table.
+- Excess initializers raise an error for arrays, but not for `struct`s or
+  `union`s. Unrelated table entries are ignored.
+
 ## Operations on cdata
+
+Generally identical to LuaJIT, with some caveats. Standard Lua operators can
+generally be applied to `cdata` objects or a mix of `cdata` and Lua object.
+
+Reference types are dereferenced before performing their operations. The
+operation is applied to the C type pointed to by the reference.
+
+The pre-defined operations are always tried first, following standard Lua
+semantics. If that is not possible, a metamethod is used (or an `__index`
+table). An error is raised if the metamethod lookup or index table lookup
+fails.
+
+### Indexing a cdata
+
+- **Pointers/arrays**: a `cdata` pointer/array can be indexed by a `cdata`
+  number or a Lua number. The element address is computed like in C. Read
+  access will convert the element value to a Lua object. Write access will
+  convert the Lua object to the element type and store it in the array. An
+  error is raised if the element size is undefined or write access to a
+  constant element is attempted.
+- **Accessing struct/union fields**: a `cdata` `struct`/`union` or a pointer
+  to it can have its fields accessed by name. The field address is computed
+  like in C. Read access will convert the element value to a Lua object,
+  write access will convert the Lua object to the element type and store it.
+  An error is raised if either the aggregate or the field is constant.
+- **Indexing a complex number**: (*not yet implemented*) a complex number
+  can be indexed by a `cdata` number or a Lua number with the values 0 or 1,
+  or by the strings `re` or `im`. Read access loads the real part or the
+  imaginary part and converts it to a Lua number. The sub-parts of a complex
+  number are immutable. Accessing out-of-bounds elements is undefined but
+  will not trigger a segfault.
+- **Indexing a vector**: (*not yet implemented*) a vector is treated like an
+  array for indexing, except the elements are immutable.
+
+A `ctype` object can be indexed with a key as well. The only defined operation
+is accessing constant fields. All other accesses will trigger metamethods.
+
+**Difference from LuaJIT**: Since we have an address-of function, you can
+modify contents of value types after they are created, by taking their address
+and indexing them.
+
+### Calling a cdata
+
+- **Constructor**: a `ctype` object can be called and used as a constructor.
+  This is equivalent to `cffi.new(ct, ...)` unless a `__new` metamethod is
+  defined, in which case it's called instead. Note that inside you have to
+  use `cffi.new` directly in order not to cause infinite recursion.
+- **C function call**: a `cdata` function or a function pointer can
+  be called. The passed arguments are converted to C types as required
+  by the declaration. Arguments passed to the vararg part undergo special
+  conversion rules. The C function is called and the return value is converted
+  to a Lua object, losslessly.
+
+**Difference from LuaJIT**: Windows `__stdcall` functions must be explicitly
+declared as so.
+
+### Arithmetic on cdata
+
+- **Pointer arithmetic**: a `cdata` pointer/array and a `cdata` number or a
+  Lua number can be added or subtracted. The number must be on the right hand
+  side. The result is a pointer of the same type with the address changed the
+  same way as in C. An error is raised if the element size is not defined.
+- **Pointer difference**: two compatible pointers/arrays can be subtracted.
+  The result is a difference in their addresses, divided by their element size
+  in bytes, thus effectively the number of elements. An error is raised if
+  the element size is unknown or zero.
+- **64-bit integer arithmetic**: the standard arithmetic operators can all
+  be applied to two `cdata` numbers or a mix of `cdata` number and Lua number.
+  If one of them is an unsigned 64-bit integer, the other is ocnverted to
+  the same type and the operation is unsigned. Otherwise, both sides are
+  converted to a signed 64-bit `cdata` and a signed operation is performed.
+  The result is a boxed 64-bit `cdata` object.
+
+Not yet implemented: if one side in arithmetic is an `enum` and the other side
+is a string, the string is converted to the value of a matching `enum` before
+the conversion, the result is still a 64-bit `cdata` integer though.
+
+You will explicitly have to convert `cdata` numbers with `cffi.tonumber`. This
+may incur a precision loss, at least depending on your Lua version and/or
+configuration (5.3+ integers are respected).
+
+### Comparisons of cdata
+
+- **Pointer comparison**: two compatible `cdata` pointers/arrays can be compared.
+  The result is the same as unsigned comparison of their addresses. The `nil`
+  value is treated like a `NULL` pointer, compatible with any other pointer type.
+- **64-bit integer comparison**: two `cdata` number or a `cdata` number and a
+  Lua number can be compared. The same conversions as in arithmetic are
+  performed first, same with `enum`s.
+- **Equality comparisons** never raise an error, but a notable **difference
+  from LuaJIT** is that metamethods are only ever triggered on compatible
+  Lua types, which means comparisons against `nil` will always be `false`
+  no matter what. Incompatible `cdata` pointers can always be tested for
+  address equality.
+
+### Table keys and cdata
+
+Do not use `cdata` as table keys. Since they are `userdata` objects to Lua,
+they will always be handled by address of the Lua object, which means not
+even any two scalar `cdata` objects will ever hash to the same value.
+
+For numbers, if you can deal with the precision of numbers in your Lua version,
+that may be an option. Especially with Lua 5.3 and its integer support, you
+should not get any precision loss by default.
+
+You can also always create your own hash table with the FFI, which will allow
+indexing by `cdata`.
 
 ## Parameterized types
 
