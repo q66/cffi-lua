@@ -34,24 +34,27 @@ enum metatype_flag {
     METATYPE_FLAG_GC       = 1 << 15,
     METATYPE_FLAG_TOSTRING = 1 << 16,
 
+    /* only for ctypes */
+    METATYPE_FLAG_NEW      = 1 << 17,
+
 #if LUA_VERSION_NUM > 501
     /* lua 5.2+ */
-    METATYPE_FLAG_PAIRS    = 1 << 17,
+    METATYPE_FLAG_PAIRS    = 1 << 18,
 
 #if LUA_VERSION_NUM == 502
     /* lua 5.2 only */
-    METATYPE_FLAG_IPAIRS   = 1 << 18,
+    METATYPE_FLAG_IPAIRS   = 1 << 19,
 #endif
 
 #if LUA_VERSION_NUM > 502
     /* lua 5.3+ */
-    METATYPE_FLAG_IDIV     = 1 << 19,
-    METATYPE_FLAG_BAND     = 1 << 20,
-    METATYPE_FLAG_BOR      = 1 << 21,
-    METATYPE_FLAG_BXOR     = 1 << 22,
-    METATYPE_FLAG_BNOT     = 1 << 23,
-    METATYPE_FLAG_SHL      = 1 << 24,
-    METATYPE_FLAG_SHR      = 1 << 25,
+    METATYPE_FLAG_IDIV     = 1 << 20,
+    METATYPE_FLAG_BAND     = 1 << 21,
+    METATYPE_FLAG_BOR      = 1 << 22,
+    METATYPE_FLAG_BXOR     = 1 << 23,
+    METATYPE_FLAG_BNOT     = 1 << 24,
+    METATYPE_FLAG_SHL      = 1 << 25,
+    METATYPE_FLAG_SHR      = 1 << 26,
 #endif /* LUA_VERSION_NUM > 502 */
 #endif /* LUA_VERSION_NUM > 501 */
 };
@@ -75,6 +78,7 @@ static inline constexpr auto metafield_name(metatype_flag flag) {
         case METATYPE_FLAG_CALL:     return "__call";
         case METATYPE_FLAG_GC:       return "__gc";
         case METATYPE_FLAG_TOSTRING: return "__tostring";
+        case METATYPE_FLAG_NEW:      return "__new";
 #if LUA_VERSION_NUM > 501
         case METATYPE_FLAG_PAIRS:    return "__pairs";
 #if LUA_VERSION_NUM == 502

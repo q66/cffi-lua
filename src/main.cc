@@ -145,7 +145,13 @@ struct cdata_meta {
     static int call(lua_State *L) {
         auto &fd = ffi::tocdata<ffi::fdata>(L, 1);
         if (ffi::isctype(fd)) {
-            ffi::make_cdata(L, fd.decl, ffi::RULE_CONV, 2);
+            if (metatype_check<ffi::METATYPE_FLAG_NEW>(L, 1)) {
+                int nargs = lua_gettop(L) - 1;
+                lua_insert(L, 1);
+                lua_call(L, nargs, 1);
+            } else {
+                ffi::make_cdata(L, fd.decl, ffi::RULE_CONV, 2);
+            }
             return 1;
         }
         int nargs = lua_gettop(L);
