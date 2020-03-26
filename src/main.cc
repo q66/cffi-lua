@@ -178,7 +178,14 @@ struct cdata_meta {
         }
         void **valp = &cd.val;
         auto const *decl = &cd.decl;
-        if (decl->type() == ast::C_BUILTIN_REF) {
+        if ((decl->type() == ast::C_BUILTIN_REF) || (
+            (decl->type() == ast::C_BUILTIN_PTR) &&
+            (lua_type(L, 2) == LUA_TSTRING)
+        )) {
+            /* when a reference, dereference first; when a pointer,
+             * we can only index those by numbers, but struct pointers
+             * are indexable by name, so assume a struct pointer there
+             */
             decl = &decl->ptr_base();
             valp = reinterpret_cast<void **>(cd.val);
         }
