@@ -178,10 +178,7 @@ struct cdata_meta {
         }
         void **valp = &cd.val;
         auto const *decl = &cd.decl;
-        if ((decl->type() == ast::C_BUILTIN_REF) || (
-            (decl->type() == ast::C_BUILTIN_PTR) &&
-            (lua_type(L, 2) == LUA_TSTRING)
-        )) {
+        if (decl->type() == ast::C_BUILTIN_REF) {
             /* when a reference, dereference first */
             decl = &decl->ptr_base();
             valp = reinterpret_cast<void **>(*valp);
