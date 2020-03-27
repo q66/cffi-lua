@@ -20,6 +20,6 @@ foreach tcase: test_cases
             meson.build_root(),
             join_paths(meson.current_source_dir(), tcase[1] + '.lua')
         ],
-        should_fail: tcase[2], depends: cffi_lib
+        should_fail: tcase[2], depends: cffi_mod
     )
 endforeach

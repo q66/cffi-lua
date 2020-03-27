@@ -83,3 +83,9 @@ included, plus linkage in `LDFLAGS`.
 Simply run `ninja test`. You can see the available test cases in `tests`,
 they also serve as examples. For actual usage, simply install the built
 module in a path specified in your Lua's `package.cpath`.
+
+The build system also creates a library version of this module. In this case,
+you can link your program against it, and use `luaopen_cffi` from inside your
+program, which will get you the module table on the stack. You can then save
+it and use it without worrying about the module being installed. This is
+useful for things which want to bundle the FFI with themselves.

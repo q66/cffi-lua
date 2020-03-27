@@ -70,6 +70,10 @@ else
     ffi_dep = dependency('libffi')
 endif
 
+# Needed on Linux
+
+dl_lib = cxx.find_library('dl', required : false)
+
 # Header checks
 
 if cxx.has_header('ffi.h', dependencies: ffi_dep)
@@ -90,6 +94,11 @@ configure_file(output: 'config.h', configuration: config_h)
 
 # Module build definition
 
+luaver_maj = '5'
+luaver_min = cxx.compute_int(
+    'LUA_VERSION_NUM - 500', prefix: '#include <lua.hpp>'
+)
+
 cffi_src = [
     'src/main.cc',
     'src/parser.cc',
@@ -105,10 +114,14 @@ if host_machine.system() == 'windows'
     plugin_suffix = 'dll'
 endif
 
-cffi_lib = shared_module('cffi',
-    cffi_src, dependencies: [ffi_dep, lua_dep],
-    cpp_args: extra_cxxflags, name_prefix: '',
-    name_suffix: plugin_suffix
+cffi_lib = both_libraries('cffi-lua-@0@.@1@'.format(luaver_maj, luaver_min),
+    cffi_src, dependencies: [dl_lib, ffi_dep, lua_dep], cpp_args: extra_cxxflags
+)
+
+cffi_mod = shared_module('cffi',
+    link_whole: [cffi_lib.get_static_lib()],
+    dependencies: [dl_lib, ffi_dep, lua_dep],
+    name_prefix: '', name_suffix: plugin_suffix
 )
 
 # Tests
