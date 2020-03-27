@@ -350,7 +350,8 @@ struct cdata_meta {
 
     template<ffi::metatype_flag mtype>
     static inline bool binop_try_mt(
-        lua_State *L, ffi::cdata<void *> *cd1, ffi::cdata<void *> *cd2
+        lua_State *L, ffi::cdata<void *> const *cd1,
+        ffi::cdata<void *> const *cd2
     ) {
         /* custom metatypes, either operand */
         if (
@@ -664,17 +665,26 @@ struct cdata_meta {
     static int eq(lua_State *L) {
         auto *cd1 = ffi::testcdata<void *>(L, 1);
         auto *cd2 = ffi::testcdata<void *>(L, 2);
-        if (binop_try_mt<ffi::METATYPE_FLAG_EQ>(L, cd1, cd2)) {
-            return 1;
-        }
         if (!cd1 || !cd2) {
             /* equality against non-cdata object is always false */
             lua_pushboolean(L, false);
             return 1;
         }
         if (!cd1->decl.deref().arith() || !cd2->decl.deref().arith()) {
+            if (cd1->decl.deref().ptr_like() && cd2->decl.deref().ptr_like()) {
+                lua_pushboolean(
+                    L, cd1->get_deref_addr() == cd2->get_deref_addr()
+                );
+                return 1;
+            }
+            if (binop_try_mt<ffi::METATYPE_FLAG_EQ>(L, cd1, cd2)) {
+                return 1;
+            }
             /* if any operand is non-arithmetic, compare by address */
             lua_pushboolean(L, cd1->get_deref_addr() == cd2->get_deref_addr());
+            return 1;
+        }
+        if (binop_try_mt<ffi::METATYPE_FLAG_EQ>(L, cd1, cd2)) {
             return 1;
         }
         /* otherwise compare values */
@@ -682,6 +692,7 @@ struct cdata_meta {
         return 1;
     }
 
+    template<ffi::metatype_flag mf1, ffi::metatype_flag mf2>
     static bool cmp_base(
         lua_State *L, ast::c_expr_binop op,
         ffi::cdata<void *> const *cd1, ffi::cdata<void *> const *cd2
@@ -689,6 +700,12 @@ struct cdata_meta {
         if (!cd1 || !cd2) {
             auto *ccd = (cd1 ? cd1 : cd2);
             if (!ccd->decl.arith() || !lua_isnumber(L, 2 - !cd1)) {
+                if (binop_try_mt<mf1>(L, cd1, cd2)) {
+                    return true;
+                } else if ((mf2 != mf1) && binop_try_mt<mf2>(L, cd2, cd1)) {
+                    lua_pushboolean(L, !lua_toboolean(L, -1));
+                    return true;
+                }
                 luaL_error(
                     L, "attempt to compare '%s' with '%s'",
                     ffi::lua_serialize(L, 1).c_str(),
@@ -710,11 +727,23 @@ struct cdata_meta {
         ) || (!cd1->decl.deref().ptr_base().is_same(
             cd2->decl.deref().ptr_base(), true
         ))) {
+            if (binop_try_mt<mf1>(L, cd1, cd2)) {
+                return true;
+            } else if ((mf2 != mf1) && binop_try_mt<mf2>(L, cd2, cd1)) {
+                lua_pushboolean(L, !lua_toboolean(L, -1));
+                return true;
+            }
             luaL_error(
                 L, "attempt to compare '%s' with '%s'",
                 ffi::lua_serialize(L, 1).c_str(),
                 ffi::lua_serialize(L, 2).c_str()
             );
+        }
+        if (binop_try_mt<mf1>(L, cd1, cd2)) {
+            return true;
+        } else if ((mf2 != mf1) && binop_try_mt<mf2>(L, cd2, cd1)) {
+            lua_pushboolean(L, !lua_toboolean(L, -1));
+            return true;
         }
         return false;
     }
@@ -722,10 +751,9 @@ struct cdata_meta {
     static int lt(lua_State *L) {
         auto *cd1 = ffi::testcdata<void *>(L, 1);
         auto *cd2 = ffi::testcdata<void *>(L, 2);
-        if (binop_try_mt<ffi::METATYPE_FLAG_LT>(L, cd1, cd2)) {
-            return 1;
-        }
-        if (cmp_base(L, ast::c_expr_binop::LT, cd1, cd2)) {
+        if (cmp_base<ffi::METATYPE_FLAG_LT, ffi::METATYPE_FLAG_LT>(
+            L, ast::c_expr_binop::LT, cd1, cd2
+        )) {
             return 1;
         }
         lua_pushboolean(L, cd1->get_deref_addr() < cd2->get_deref_addr());
@@ -736,13 +764,9 @@ struct cdata_meta {
         auto *cd1 = ffi::testcdata<void *>(L, 1);
         auto *cd2 = ffi::testcdata<void *>(L, 2);
         /* tries both (a <= b) and not (b < a), like lua */
-        if (binop_try_mt<ffi::METATYPE_FLAG_LE>(L, cd1, cd2)) {
-            return 1;
-        } else if (binop_try_mt<ffi::METATYPE_FLAG_LT>(L, cd2, cd1)) {
-            lua_pushboolean(L, !lua_toboolean(L, -1));
-            return 1;
-        }
-        if (cmp_base(L, ast::c_expr_binop::LE, cd1, cd2)) {
+        if (cmp_base<ffi::METATYPE_FLAG_LE, ffi::METATYPE_FLAG_LT>(
+            L, ast::c_expr_binop::LE, cd1, cd2
+        )) {
             return 1;
         }
         lua_pushboolean(L, cd1->get_deref_addr() <= cd2->get_deref_addr());

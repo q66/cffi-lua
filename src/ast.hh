@@ -552,6 +552,11 @@ struct c_type: c_object {
         return arith() && (type() < C_BUILTIN_FLOAT);
     }
 
+    bool ptr_like() const {
+        auto tp = type();
+        return ((tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_ARRAY));
+    }
+
     bool is_unsigned() const {
         auto *p = libffi_type();
         return (
