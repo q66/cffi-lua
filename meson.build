@@ -96,7 +96,8 @@ configure_file(output: 'config.h', configuration: config_h)
 
 luaver_maj = '5'
 luaver_min = cxx.compute_int(
-    'LUA_VERSION_NUM - 500', prefix: '#include <lua.hpp>'
+    'LUA_VERSION_NUM - 500', prefix: '#include <lua.hpp>',
+    dependencies: lua_dep
 )
 
 cffi_src = [
