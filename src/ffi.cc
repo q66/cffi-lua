@@ -429,10 +429,15 @@ int to_lua(
             return push_int<unsigned long long>(L, tp, value, lossy);
 
         case ast::C_BUILTIN_REF:
-            if ((rule == RULE_CONV) && (
-                tp.ptr_base().type() != ast::C_BUILTIN_FUNC
-            )) {
+            if (rule == RULE_CONV) {
                 /* for this rule, dereference and pass that */
+                if (tp.ptr_base().type() == ast::C_BUILTIN_FUNC) {
+                    make_cdata_func(
+                        L, *reinterpret_cast<void (* const *)()>(value),
+                        tp.function(), false, nullptr
+                    );
+                    return 1;
+                }
                 return to_lua(
                     L, tp.ptr_base(), *reinterpret_cast<void * const *>(value),
                     RULE_CONV, lossy
@@ -441,7 +446,6 @@ int to_lua(
             goto ptr_ref;
 
         ptr_ref:
-        case ast::C_BUILTIN_VA_LIST:
         case ast::C_BUILTIN_PTR:
             if (tp.ptr_base().type() == ast::C_BUILTIN_FUNC) {
                 return to_lua(L, tp.ptr_base(), value, rule, lossy);
@@ -449,6 +453,11 @@ int to_lua(
             /* pointers should be handled like large cdata, as they need
              * to be represented as userdata objects on lua side either way
              */
+            newcdata<void *>(L, tp).val =
+                *reinterpret_cast<void * const *>(value);
+            return 1;
+
+        case ast::C_BUILTIN_VA_LIST:
             newcdata<void *>(L, tp).val =
                 *reinterpret_cast<void * const *>(value);
             return 1;
@@ -465,12 +474,27 @@ int to_lua(
             return push_int<int>(L, tp, value, lossy);
 
         case ast::C_BUILTIN_ARRAY: {
+            if (rule == RULE_CONV) {
+                /* here, value may be a pointer to temporary, hack around it */
+                auto &cd = newcdata<void *[2]>(L, ast::c_type{
+                    tp, 0, ast::C_BUILTIN_REF
+                });
+                cd.val[1] = *reinterpret_cast<void * const *>(value);
+                cd.val[0] = &cd.val[1];
+                return 1;
+            }
             newcdata<void *>(L, tp).val =
                 *reinterpret_cast<void * const *>(value);
             return 1;
         }
 
         case ast::C_BUILTIN_RECORD: {
+            if (rule == RULE_CONV) {
+                newcdata<void const *>(
+                    L, ast::c_type{tp, 0, ast::C_BUILTIN_REF}
+                ).val = value;
+                return 1;
+            }
             auto sz = tp.alloc_size();
             auto &cd = newcdata(L, tp, sz);
             memcpy(&cd.val, value, sz);
@@ -1227,7 +1251,7 @@ void get_global(lua_State *L, lib::handle dl, const char *sname) {
         }
         case ast::c_object_type::CONSTANT: {
             auto &cd = decl->as<ast::c_constant>();
-            to_lua(L, cd.type(), &cd.value(), RULE_CONV);
+            to_lua(L, cd.type(), &cd.value(), RULE_RET);
             return;
         }
         default:
