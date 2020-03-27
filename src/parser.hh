@@ -44,6 +44,6 @@ static inline ast::c_expr_type parse_number(
     return parse_number(L, v, input.c_str(), input.c_str() + input.size());
 }
 
-}; /* namespace parser */
+} /* namespace parser */
 
 #endif /* PARSER_HH */

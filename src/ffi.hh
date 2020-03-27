@@ -133,8 +133,11 @@ struct cdata {
             case ast::C_BUILTIN_PTR:
             case ast::C_BUILTIN_REF:
             case ast::C_BUILTIN_FUNC:
-            case ast::C_BUILTIN_ARRAY:
-                return *reinterpret_cast<void **>(&val);
+            case ast::C_BUILTIN_ARRAY: {
+                union { T *op; void **np; } u;
+                u.op = &val;
+                return *u.np;
+            }
             default:
                 break;
         }
@@ -146,10 +149,16 @@ struct cdata {
             switch (decl.ptr_base().type()) {
                 case ast::C_BUILTIN_PTR:
                 case ast::C_BUILTIN_FUNC:
-                case ast::C_BUILTIN_ARRAY:
-                    return **reinterpret_cast<void ***>(&val);
-                default:
-                    return *reinterpret_cast<void **>(&val);
+                case ast::C_BUILTIN_ARRAY: {
+                    union { T *op; void ***np; } u;
+                    u.op = &val;
+                    return **u.np;
+                }
+                default: {
+                    union { T *op; void **np; } u;
+                    u.op = &val;
+                    return *u.np;
+                }
             }
         }
         return get_addr();
@@ -175,12 +184,18 @@ struct ctype {
 };
 
 struct closure_data {
-    ffi_cif cif; /* closure data needs its own cif */
-    ffi_closure *closure = nullptr;
-    lua_State *L = nullptr;
-    int fref = LUA_REFNIL;
     std::list<closure_data **> refs{};
-    ffi_type *targs[];
+    ffi_cif cif; /* closure data needs its own cif */
+    int fref = LUA_REFNIL;
+    lua_State *L = nullptr;
+    ffi_closure *closure = nullptr;
+
+    /* arguments data follow this struct; it's pointer aligned so it's fine */
+    ffi_type **targs() {
+        union { ffi_type **tp; closure_data *cd; } u;
+        u.cd = this + 1;
+        return u.tp;
+    }
 
     ~closure_data() {
         if (!closure) {
@@ -202,7 +217,12 @@ struct fdata {
     closure_data *cd; /* only for callbacks, otherwise nullptr */
     ffi_cif cif;
     arg_stor_t rarg;
-    arg_stor_t args[];
+
+    arg_stor_t *args() {
+        union { arg_stor_t *av; fdata *fd; } u;
+        u.fd = this + 1;
+        return u.av;
+    }
 };
 
 template<typename T>

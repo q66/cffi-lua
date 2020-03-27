@@ -44,7 +44,9 @@ static inline void *fdata_retval(fdata &fd) {
 }
 
 static inline arg_stor_t *&fdata_get_aux(fdata &fd) {
-    return *reinterpret_cast<arg_stor_t **>(fd.args);
+    union { arg_stor_t **np; arg_stor_t *op; } u;
+    u.op = fd.args();
+    return *u.np;
 }
 
 static inline void fdata_free_aux(fdata &fd) {
@@ -187,7 +189,7 @@ static void make_cdata_func(
     auto &fud = newcdata<fdata>(
         L, fptr ? ast::c_type{std::move(funct), 0} : std::move(funct),
         func.variadic() ? sizeof(void *) : (
-            sizeof(arg_stor_t[nargs]) + sizeof(void *[2 * nargs])
+            sizeof(arg_stor_t) * nargs + sizeof(void *) * nargs * 2
         )
     );
     fud.val.sym = funp;
@@ -201,7 +203,7 @@ static void make_cdata_func(
     }
 
     if (!prepare_cif(
-        func, fud.val.cif, fargs_types(fud.val.args, nargs), nargs
+        func, fud.val.cif, fargs_types(fud.val.args(), nargs), nargs
     )) {
         luaL_error(L, "unexpected failure setting up '%s'", func.name());
     }
@@ -229,7 +231,7 @@ static void make_cdata_func(
                 func.serialize().c_str()
             );
         }
-        if (!prepare_cif(fud.decl.function(), cd->cif, cd->targs, nargs)) {
+        if (!prepare_cif(fud.decl.function(), cd->cif, cd->targs(), nargs)) {
             destroy_closure(cd);
             luaL_error(L, "unexpected failure setting up '%s'", func.name());
         }
@@ -287,7 +289,7 @@ int call_cif(cdata<fdata> &fud, lua_State *L, size_t largs) {
     size_t nargs = pdecls.size();
     size_t targs = nargs;
 
-    arg_stor_t *pvals = fud.val.args;
+    arg_stor_t *pvals = fud.val.args();
     void *rval = fdata_retval(fud.val);
 
     if (func.variadic()) {

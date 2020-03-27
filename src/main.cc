@@ -196,8 +196,8 @@ struct cdata_meta {
             decl = &decl->ptr_base();
             valp = reinterpret_cast<void **>(*valp);
         }
-        size_t elsize;
-        unsigned char *ptr;
+        size_t elsize = 0;
+        unsigned char *ptr = nullptr;
         switch (decl->type()) {
             case ast::C_BUILTIN_PTR:
             case ast::C_BUILTIN_ARRAY:

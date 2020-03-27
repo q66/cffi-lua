@@ -2,19 +2,23 @@
 
 project('cffi-lua', ['cpp'],
     version: '0.0.3',
-    default_options: ['buildtype=plain', 'cpp_std=c++14'],
+    default_options: [
+        'buildtype=debugoptimized', 'cpp_std=c++14', 'warning_level=3'
+    ],
     meson_version: '>=0.46'
 )
 
-# Default compiler warnings at least for gcc/clang
+# Extra compiler warnings for gcc/clang
 
 cxx = meson.get_compiler('cpp')
 
-tgt_compiler_id = cxx.get_id()
-if tgt_compiler_id == 'gcc' or tgt_compiler_id == 'clang'
-    extra_cxxflags = ['-Wall', '-Wextra', '-Wshadow', '-Wold-style-cast']
-else
-    extra_cxxflags = []
+if get_option('buildtype') != 'plain'
+    tgt_compiler_id = cxx.get_id()
+    if tgt_compiler_id == 'gcc' or tgt_compiler_id == 'clang'
+        extra_cxxflags = ['-Wshadow', '-Wold-style-cast']
+    else
+        extra_cxxflags = []
+    endif
 endif
 
 # Configuration data; optional but helps

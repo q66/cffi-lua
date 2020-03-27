@@ -844,7 +844,7 @@ static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec) {
     auto lhs = parse_cexpr_simple(ls);
     for (;;) {
         bool istern = (ls.t.token == '?');
-        ast::c_expr_binop op;
+        ast::c_expr_binop op{};
         int prec;
         if (istern) {
             prec = ifprec;
@@ -1051,10 +1051,10 @@ struct plevel {
     std::stack<arrdim> arrd{};
     int cv: 16;
     int flags: 8;
-    int is_term: 1;
-    int is_func: 1;
-    int is_ref: 1;
-    int is_arr: 1;
+    unsigned int is_term: 1;
+    unsigned int is_func: 1;
+    unsigned int is_ref: 1;
+    unsigned int is_arr: 1;
 };
 
 /* FIXME: optimize, right now this uses more memory than necessary
