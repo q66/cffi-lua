@@ -81,7 +81,8 @@ struct cdata_meta {
 
     static int metatype_getmt(lua_State *L, int idx, int &mflags) {
         auto &cd = ffi::tocdata<ffi::noval>(L, idx);
-        auto tp = cd.decl.type();
+        auto *decl = &cd.decl;
+        auto tp = decl->type();
         if (tp == ast::C_BUILTIN_RECORD) {
             return cd.decl.record().metatype(mflags);
         } else if ((tp == ast::C_BUILTIN_PTR) || (tp == ast::C_BUILTIN_REF)) {
@@ -490,21 +491,47 @@ struct cdata_meta {
     static int add(lua_State *L) {
         auto *cd1 = ffi::testcdata<void *>(L, 1);
         auto *cd2 = ffi::testcdata<void *>(L, 2);
-        if (binop_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
-            return 1;
-        }
         /* pointer arithmetic */
         if (cd1 && (cd1->decl.type() == ast::C_BUILTIN_PTR)) {
-            auto d = ffi::check_arith<ptrdiff_t>(L, 2);
+            size_t asize = cd1->decl.ptr_base().alloc_size();
+            if (!asize) {
+                if (binop_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
+                    return 1;
+                }
+                luaL_error(L, "unknown C type size");
+            }
+            ptrdiff_t d;
+            if (!ffi::test_arith<ptrdiff_t>(L, 2, d)) {
+                if (binop_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
+                    return 1;
+                }
+                ffi::check_arith<ptrdiff_t>(L, 2);
+            }
             auto *p = static_cast<unsigned char *>(cd1->val);
             auto &ret = ffi::newcdata<void *>(L, cd1->decl);
             ret.val = p + d;
             return 1;
         } else if (cd2 && (cd2->decl.type() == ast::C_BUILTIN_PTR)) {
-            auto d = ffi::check_arith<ptrdiff_t>(L, 1);
+            size_t asize = cd2->decl.ptr_base().alloc_size();
+            if (!asize) {
+                if (binop_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
+                    return 1;
+                }
+                luaL_error(L, "unknown C type size");
+            }
+            ptrdiff_t d;
+            if (!ffi::test_arith<ptrdiff_t>(L, 1, d)) {
+                if (binop_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
+                    return 1;
+                }
+                ffi::check_arith<ptrdiff_t>(L, 1);
+            }
             auto *p = static_cast<unsigned char *>(cd2->val);
             auto &ret = ffi::newcdata<void *>(L, cd2->decl);
             ret.val = d + p;
+            return 1;
+        }
+        if (binop_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
             return 1;
         }
         arith_64bit_bin(L, ast::c_expr_binop::ADD);
@@ -514,32 +541,44 @@ struct cdata_meta {
     static int sub(lua_State *L) {
         auto *cd1 = ffi::testcdata<void *>(L, 1);
         auto *cd2 = ffi::testcdata<void *>(L, 2);
-        if (binop_try_mt<ffi::METATYPE_FLAG_SUB>(L, cd1, cd2)) {
-            return 1;
-        }
         /* pointer difference */
         if (cd1 && (cd1->decl.type() == ast::C_BUILTIN_PTR)) {
             size_t asize = cd1->decl.ptr_base().alloc_size();
             if (!asize) {
+                if (binop_try_mt<ffi::METATYPE_FLAG_SUB>(L, cd1, cd2)) {
+                    return 1;
+                }
                 luaL_error(L, "unknown C type size");
             }
-            auto *base = reinterpret_cast<unsigned char *>(cd1->val);
-            ptrdiff_t ret;
             if (cd2 && (cd2->decl.type() == ast::C_BUILTIN_PTR)) {
                 if (!cd1->decl.ptr_base().is_same(cd2->decl.ptr_base(), true)) {
+                    if (binop_try_mt<ffi::METATYPE_FLAG_SUB>(L, cd1, cd2)) {
+                        return 1;
+                    }
                     luaL_error(
                         L, "cannot convert '%s' to '%s'",
                         cd2->decl.serialize().c_str(),
                         cd1->decl.serialize().c_str()
                     );
                 }
-                ret = base - reinterpret_cast<unsigned char *>(cd2->val);
-            } else {
-                ret = base - reinterpret_cast<unsigned char *>(
-                    ffi::check_arith<ptrdiff_t>(L, 2)
-                );
+                auto ret = reinterpret_cast<unsigned char *>(cd1->val)
+                         - reinterpret_cast<unsigned char *>(cd2->val);
+                lua_pushinteger(L, lua_Integer(ret / asize));
+                return 1;
             }
-            lua_pushinteger(L, lua_Integer(ret / asize));
+            ptrdiff_t d;
+            if (!ffi::test_arith<ptrdiff_t>(L, 2, d)) {
+                if (binop_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
+                    return 1;
+                }
+                ffi::check_arith<ptrdiff_t>(L, 2);
+            }
+            auto *p = static_cast<unsigned char *>(cd1->val);
+            auto &ret = ffi::newcdata<void *>(L, cd1->decl);
+            ret.val = p + d;
+            return 1;
+        }
+        if (binop_try_mt<ffi::METATYPE_FLAG_SUB>(L, cd1, cd2)) {
             return 1;
         }
         arith_64bit_bin(L, ast::c_expr_binop::SUB);

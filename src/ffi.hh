@@ -366,13 +366,22 @@ static inline bool metatype_getfield(lua_State *L, int mt, char const *fname) {
 }
 
 template<typename T>
-static inline T check_arith(lua_State *L, int idx) {
+static inline bool test_arith(lua_State *L, int idx, T &out) {
     auto *cd = testcdata<arg_stor_t>(L, idx);
     if (!cd) {
         if (std::is_integral<T>::value) {
-            return T(luaL_checkinteger(L, idx));
+            if (lua_type(L, idx) == LUA_TNUMBER) {
+                out = T(lua_tointeger(L, idx));
+                return true;
+            } else {
+                return false;
+            }
         }
-        return T(luaL_checknumber(L, idx));
+        if (lua_type(L, idx) == LUA_TNUMBER) {
+            out = T(lua_tointeger(L, idx));
+            return true;
+        }
+        return false;
     }
     auto gf = [](int itp, arg_stor_t const &av, T &rv) {
         switch (itp) {
@@ -416,20 +425,24 @@ static inline T check_arith(lua_State *L, int idx) {
     };
     int tp = cd->decl.type();
     if (tp == ast::C_BUILTIN_REF) {
-        T ret;
-        if (gf(cd->decl.ptr_base().type(), *cd->val.as<arg_stor_t *>(), ret)) {
-            return ret;
+        if (gf(cd->decl.ptr_base().type(), *cd->val.as<arg_stor_t *>(), out)) {
+            return true;
         }
-    } else {
-        T ret;
-        if (gf(tp, cd->val, ret)) {
-            return ret;
-        }
+    } else if (gf(tp, cd->val, out)) {
+        return true;
     }
-    if (std::is_integral<T>::value) {
-        return T(luaL_checkinteger(L, idx));
+    return false;
+}
+
+template<typename T>
+static inline T check_arith(lua_State *L, int idx) {
+    T outv{};
+    if (!test_arith<T>(L, idx, outv)) {
+        lua::type_error(
+            L, idx, std::is_integral<T>::value ? "integer" : "number"
+        );
     }
-    return T(luaL_checknumber(L, idx));
+    return outv;
 }
 
 static inline ast::c_expr_type check_arith_expr(
@@ -451,7 +464,7 @@ static inline ast::c_expr_type check_arith_expr(
                 } else if (sizeof(lua_Integer) <= sizeof(long)) {
                     iv.l = lua_tointeger(L, idx);
                     return ast::c_expr_type::LONG;
-                } else {
+                } else {ffi.
                     iv.ll = lua_tointeger(L, idx);
                     return ast::c_expr_type::LLONG;
                 }
