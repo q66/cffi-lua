@@ -256,6 +256,27 @@ static_assert(
 #define FFI_DIAGNOSTIC_PRAGMA_CLANG 1
 #endif
 
+/* symbol visibility
+ *
+ * when supported, everything is hidden by default in the FFI, except for
+ * the one symbol that is the lua module's entry point and library's sole API
+ */
+
+#ifdef FFI_WINDOWS_ABI
+#  ifdef FFI_BUILD_DLL
+#    define FFI_EXPORT __declspec(dllexport)
+#  endif
+#else
+#  if defined(FFI_BUILD_DLL)
+/* -Wunused-macros */
+#  endif
+#  if __GNUC__ >= 4
+#    define FFI_EXPORT __attribute__((visibility("default")))
+#  else
+#    define FFI_EXPORT
+#  endif
+#endif
+
 /* some plumbing */
 
 #include <cstring>

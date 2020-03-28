@@ -8,17 +8,21 @@ project('cffi-lua', ['cpp'],
     meson_version: '>=0.46'
 )
 
-# Extra compiler warnings for gcc/clang
+# Extra compiler warnings for gcc/clang + symbol visibility
 
 cxx = meson.get_compiler('cpp')
 
 if get_option('buildtype') != 'plain'
-    tgt_compiler_id = cxx.get_id()
-    if tgt_compiler_id == 'gcc' or tgt_compiler_id == 'clang'
-        extra_cxxflags = ['-Wshadow', '-Wold-style-cast']
-    else
-        extra_cxxflags = []
+    if cxx.has_argument('-Wshadow')
+        add_global_arguments('-Wshadow', language: 'cpp')
     endif
+    if cxx.has_argument('-Wold-style-cast')
+        add_global_arguments('-Wold-style-cast', language: 'cpp')
+    endif
+endif
+
+if cxx.has_argument('-fvisibility=hidden')
+    add_global_arguments('-fvisibility=hidden', language: 'cpp')
 endif
 
 # Configuration data; optional but helps
@@ -126,8 +130,7 @@ cffi_lib = both_libraries('cffi-lua-@0@'.format(luaver_str),
     cffi_src,
     version: '1.0.0',
     install: true,
-    dependencies: [dl_lib, ffi_dep, lua_dep],
-    cpp_args: extra_cxxflags
+    dependencies: [dl_lib, ffi_dep, lua_dep]
 )
 
 cffi_mod = shared_module('cffi',

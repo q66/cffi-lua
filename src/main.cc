@@ -1506,7 +1506,7 @@ struct ffi_module {
     }
 };
 
-extern "C" int luaopen_cffi(lua_State *L) {
+extern "C" FFI_EXPORT int luaopen_cffi(lua_State *L) {
     ffi_module::open(L);
     return 1;
 }
