@@ -103,6 +103,7 @@ luaver_min = cxx.compute_int(
     'LUA_VERSION_NUM - 500', prefix: '#include <lua.hpp>',
     dependencies: lua_dep
 )
+luaver_str = '@0@.@1@'.format(luaver_maj, luaver_min)
 
 cffi_src = [
     'src/main.cc',
@@ -121,9 +122,10 @@ endif
 
 # the soname can remain the same forever, the API/ABI will not change
 # (it's a single function and its interface is defined for the Lua version)
-cffi_lib = both_libraries('cffi-lua-@0@.@1@'.format(luaver_maj, luaver_min),
+cffi_lib = both_libraries('cffi-lua-@0@'.format(luaver_str),
     cffi_src,
     version: '1.0.0',
+    install: true,
     dependencies: [dl_lib, ffi_dep, lua_dep],
     cpp_args: extra_cxxflags
 )
@@ -131,8 +133,15 @@ cffi_lib = both_libraries('cffi-lua-@0@.@1@'.format(luaver_maj, luaver_min),
 cffi_mod = shared_module('cffi',
     link_whole: [cffi_lib.get_static_lib()],
     dependencies: [dl_lib, ffi_dep, lua_dep],
-    name_prefix: '', name_suffix: plugin_suffix
+    name_prefix: '', name_suffix: plugin_suffix,
+    install: true,
+    install_dir: join_paths(get_option('libdir'), 'lua', luaver_str)
 )
+
+# Pkg-config file for the library
+
+pkgc = import('pkgconfig')
+pkgc.generate(cffi_lib)
 
 # Tests
 

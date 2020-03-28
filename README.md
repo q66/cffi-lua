@@ -82,10 +82,15 @@ included, plus linkage in `LDFLAGS`.
 
 Simply run `ninja test`. You can see the available test cases in `tests`,
 they also serve as examples. For actual usage, simply install the built
-module in a path specified in your Lua's `package.cpath`.
+module in a path specified in your Lua's `package.cpath`; the `ninja install`
+command should work fine for most Lua installations.
 
 The build system also creates a library version of this module. In this case,
-you can link your program against it, and use `luaopen_cffi` from inside your
-program, which will get you the module table on the stack. You can then save
-it and use it without worrying about the module being installed. This is
-useful for things which want to bundle the FFI with themselves.
+you can link your program against it (`-lcffi-lua-LUAVER`, where `LUAVER` is
+the Lua version it was built for, e.g. `5.2`), and use `luaopen_cffi` from
+inside your program, which will get you the module table on the stack. You
+can then save it and use it without worrying about the module being installed.
+This is useful for things which want to bundle the FFI with themselves.
+
+The library has an associated `pkg-config` file, so you can use that on systems
+where that is useful. The file is named `cffi-lua-LUAVER.pc`.
