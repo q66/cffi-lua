@@ -119,8 +119,13 @@ if host_machine.system() == 'windows'
     plugin_suffix = 'dll'
 endif
 
+# the soname can remain the same forever, the API/ABI will not change
+# (it's a single function and its interface is defined for the Lua version)
 cffi_lib = both_libraries('cffi-lua-@0@.@1@'.format(luaver_maj, luaver_min),
-    cffi_src, dependencies: [dl_lib, ffi_dep, lua_dep], cpp_args: extra_cxxflags
+    cffi_src,
+    version: '1.0.0',
+    dependencies: [dl_lib, ffi_dep, lua_dep],
+    cpp_args: extra_cxxflags
 )
 
 cffi_mod = shared_module('cffi',
