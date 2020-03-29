@@ -1223,7 +1223,7 @@ static void from_lua_table(
     }
 }
 
-void get_global(lua_State *L, lib::handle dl, const char *sname) {
+void get_global(lua_State *L, lib::c_lib const *dl, const char *sname) {
     auto &ds = ast::decl_store::get_main(L);
     auto const *decl = ds.lookup(sname);
 
@@ -1264,7 +1264,7 @@ void get_global(lua_State *L, lib::handle dl, const char *sname) {
     }
 }
 
-void set_global(lua_State *L, lib::handle dl, char const *sname, int idx) {
+void set_global(lua_State *L, lib::c_lib const *dl, char const *sname, int idx) {
     auto &ds = ast::decl_store::get_main(L);
     auto const *decl = ds.lookup(sname);
     if (!decl) {

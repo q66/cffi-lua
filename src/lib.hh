@@ -10,11 +10,18 @@ namespace lib {
 using handle = void *;
 using func = void (*)();
 
-handle load(char const *path, lua_State *L, bool global = false);
+struct c_lib {
+    handle h;
+    int cache;
+};
 
-void close(handle h);
+void load(c_lib *cl, char const *path, lua_State *L, bool global = false);
 
-void *get_sym(handle h, char const *name);
+void close(c_lib *cl);
+
+void *get_sym(c_lib const *cl, char const *name);
+
+bool is_c(c_lib const *cl);
 
 } /* namespace lib */
 

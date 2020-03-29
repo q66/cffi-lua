@@ -362,8 +362,8 @@ void *from_lua(
     size_t &dsz, int rule
 );
 
-void get_global(lua_State *L, lib::handle dl, const char *sname);
-void set_global(lua_State *L, lib::handle dl, char const *sname, int idx);
+void get_global(lua_State *L, lib::c_lib const *dl, const char *sname);
+void set_global(lua_State *L, lib::c_lib const *dl, char const *sname, int idx);
 
 void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx);
 

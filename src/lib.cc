@@ -46,15 +46,16 @@ static handle open(char const *path, bool global) {
     return dlopen(path, RTLD_LAZY | (global ? RTLD_GLOBAL : RTLD_LOCAL));
 }
 
-void close(handle h) {
-    if (h == FFI_DL_DEFAULT) {
+void close(c_lib *cl) {
+    if (cl->h == FFI_DL_DEFAULT) {
         return;
     }
-    dlclose(h);
+    dlclose(cl->h);
+    cl->h = nullptr;
 }
 
-void *get_sym(handle h, char const *name) {
-    return dlsym(h, name);
+void *get_sym(c_lib const *cl, char const *name) {
+    return dlsym(cl->h, name);
 }
 
 /* library resolution */
@@ -132,16 +133,19 @@ static std::string resolve_ldscript(std::string name) {
     return p;
 }
 
-handle load(char const *path, lua_State *L, bool global) {
+void load(c_lib *cl, char const *path, lua_State *L, bool global) {
     if (!path) {
         /* primary namespace */
-        return FFI_DL_DEFAULT;
+        cl->h = FFI_DL_DEFAULT;
+        lua::mark_lib(L);
+        return;
     }
     handle h = open(resolve_name(L, path), global);
     lua_pop(L, 1);
     if (h) {
         lua::mark_lib(L);
-        return h;
+        cl->h = h;
+        return;
     }
     char const *err = dlerror(), *e;
     std::string lds;
@@ -151,12 +155,16 @@ handle load(char const *path, lua_State *L, bool global) {
         h = open(lds.c_str(), global);
         if (h) {
             lua::mark_lib(L);
-            return h;
+            cl->h = h;
+            return;
         }
         err = dlerror();
     }
     luaL_error(L, err ? err : "dlopen() failed");
-    return nullptr;
+}
+
+bool is_c(c_lib const *cl) {
+    return (cl->h == FFI_DL_DEFAULT);
 }
 
 #elif FFI_OS == FFI_OS_WINDOWS /* FFI_USE_DLFCN */
@@ -224,7 +232,13 @@ static std::string dl_ext_name(char const *name) {
     return ret;
 }
 
-handle load(char const *path, lua_State *L, bool) {
+void load(c_lib *cl, char const *path, lua_State *L, bool) {
+    if (!path) {
+        /* primary namespace */
+        cl->h = FFI_DL_DEFAULT;
+        lua::mark_lib(L);
+        return;
+    }
     auto olderr = GetLastError();
     handle h = static_cast<handle>(
         LoadLibraryExA(dl_ext_name(name).c_str(), nullptr, 0)
@@ -233,11 +247,12 @@ handle load(char const *path, lua_State *L, bool) {
         dl_error(L, "cannot load module '%s': %s", path);
     }
     SetLastError(olderr);
-    return h;
+    cl->h = h;
+    lua::mark_lib(L);
 }
 
-void close(handle h) {
-    if (h == FFI_DL_DEFAULT) {
+void close(c_lib *cl) {
+    if (cl->h == FFI_DL_DEFAULT) {
         for (auto i = FFI_DL_HANDLE_KERNEL32; i < FFI_DL_HANDLE_MAX; ++i) {
             void *p = ffi_dl_handle[i];
             if (p) {
@@ -245,15 +260,15 @@ void close(handle h) {
                 FreeLibrary(static_cast<HINSTANCE>(h));
             }
         }
-    } else if (h) {
+    } else if (cl->h) {
         FreeLibrary(static_cast<HINSTANCE>(h));
     }
 }
 
-void *get_sym(handle h, char const *name) {
-    if (h != FFI_DL_DEFAULT) {
+void *get_sym(c_lib const *cl, char const *name) {
+    if (cl->h != FFI_DL_DEFAULT) {
         return static_cast<void *>(
-            GetProcAddress(static_cast<HINSTANCE>(h), name)
+            GetProcAddress(static_cast<HINSTANCE>(cl->h), name)
         );
     }
     for (size_t i = 0; i < FFI_DL_HANDLE_MAX; ++i) {
@@ -305,18 +320,26 @@ void *get_sym(handle h, char const *name) {
     return nullptr;
 }
 
+bool is_c(c_lib const *cl) {
+    return (cl->h == FFI_DL_DEFAULT);
+}
+
 #else
 
-handle load(char const *, lua_State *L, bool) {
+void load(c_lib *, char const *, lua_State *L, bool) {
     luaL_error(L, "no support for dynamic library loading on this OS");
     return nullptr;
 }
 
-void close(handle) {
+void close(c_lib *) {
 }
 
-void *get_sym(handle, char const *) {
+void *get_sym(c_lib const *, char const *) {
     return nullptr;
+}
+
+bool is_c(c_lib const *) {
+    return true;
 }
 
 #endif /* FFI_USE_DLFCN, FFI_OS == FFI_OS_WINDOWS */

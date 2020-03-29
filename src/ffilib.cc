@@ -14,29 +14,28 @@
  */
 struct lib_meta {
     static int gc(lua_State *L) {
-        auto *c_ud = lua::touserdata<lib::handle>(L, 1);
-        lib::close(*c_ud);
+        lib::close(lua::touserdata<lib::c_lib>(L, 1));
         return 0;
     }
 
     static int tostring(lua_State *L) {
-        auto dl = lua::touserdata<lib::handle>(L, 1);
-        if (*dl == lib::load(nullptr, L)) {
+        auto *cl = lua::touserdata<lib::c_lib>(L, 1);
+        if (lib::is_c(cl)) {
             lua_pushfstring(L, "library: default");
         } else {
-            lua_pushfstring(L, "library: %p", static_cast<void *>(*dl));
+            lua_pushfstring(L, "library: %p", cl->h);
         }
         return 1;
     }
 
     static int index(lua_State *L) {
-        auto dl = *lua::touserdata<lib::handle>(L, 1);
+        auto dl = lua::touserdata<lib::c_lib>(L, 1);
         ffi::get_global(L, dl, luaL_checkstring(L, 2));
         return 1;
     }
 
     static int newindex(lua_State *L) {
-        auto dl = *lua::touserdata<lib::handle>(L, 1);
+        auto dl = lua::touserdata<lib::c_lib>(L, 1);
         ffi::set_global(L, dl, luaL_checkstring(L, 2), 3);
         return 0;
     }
@@ -1063,8 +1062,8 @@ struct ffi_module {
     static int load_f(lua_State *L) {
         char const *path = luaL_checkstring(L, 1);
         bool glob = (lua_gettop(L) >= 2) && lua_toboolean(L, 2);
-        auto *c_ud = lua::newuserdata<lib::handle>(L);
-        *c_ud = lib::load(path, L, glob);
+        auto *c_ud = lua::newuserdata<lib::c_lib>(L);
+        lib::load(c_ud, path, L, glob);
         return 1;
     }
 
@@ -1500,8 +1499,8 @@ struct ffi_module {
         setup(L); /* push table to stack */
 
         /* lib handles, needs the module table on the stack */
-        auto *c_ud = lua::newuserdata<lib::handle>(L);
-        *c_ud = lib::load(nullptr, L, false);
+        auto *c_ud = lua::newuserdata<lib::c_lib>(L);
+        lib::load(c_ud, nullptr, L, false);
         lib_meta::setup(L);
     }
 };
