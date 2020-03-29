@@ -7,6 +7,24 @@
 
 namespace ffi {
 
+static inline void fail_convert_cd(
+    lua_State *L, ast::c_type const &from, ast::c_type const &to
+) {
+    luaL_error(
+        L, "cannot convert '%s' to '%s'",
+        from.serialize().c_str(), to.serialize().c_str()
+    );
+}
+
+static inline void fail_convert_tp(
+    lua_State *L, char const *from, ast::c_type const &to
+) {
+    luaL_error(
+        L, "cannot convert '%s' to '%s'",
+        from, to.serialize().c_str()
+    );
+}
+
 static ffi_type *lua_to_vararg(lua_State *L, int index) {
     switch (lua_type(L, index)) {
         case LUA_TBOOLEAN:
@@ -586,11 +604,7 @@ static void *from_lua_num(
         case ast::C_BUILTIN_RECORD:
         case ast::C_BUILTIN_ARRAY:
         case ast::C_BUILTIN_VA_LIST:
-            luaL_error(
-                L, "cannot convert '%s' to '%s'",
-                lua_typename(L, lua_type(L, index)),
-                tp.serialize().c_str()
-            );
+            fail_convert_tp(L, lua_typename(L, lua_type(L, index)), tp);
             break;
 
         case ast::C_BUILTIN_FUNC:
@@ -649,15 +663,6 @@ static inline bool ptr_convertible(
         return ptr_convertible(fpb, tpb);
     }
     return fpb.is_same(tpb, true);
-}
-
-static inline void fail_convert_cd(
-    lua_State *L, ast::c_type const &from, ast::c_type const &to
-) {
-    luaL_error(
-        L, "cannot convert '%s' to '%s'",
-        from.serialize().c_str(), to.serialize().c_str()
-    );
 }
 
 /* converting from cdata: pointer */
@@ -761,11 +766,7 @@ static void *from_lua_cnumber(
 
 #undef CONV_CASE
 
-    luaL_error(
-        L, "cannot convert '%s' to '%s'",
-        cd.serialize().c_str(),
-        tp.serialize().c_str()
-    );
+    fail_convert_cd(L, cd, tp);
     return nullptr;
 }
 
@@ -884,11 +885,7 @@ static void *from_lua_cdata(
 
 #undef CONV_CASE
 
-    luaL_error(
-        L, "cannot convert '%s' to '%s'",
-        cd.serialize().c_str(),
-        tp.serialize().c_str()
-    );
+    fail_convert_cd(L, cd, tp);
     return nullptr;
 }
 
@@ -933,10 +930,7 @@ void *from_lua(
                 default:
                     break;
             }
-            luaL_error(
-                L, "cannot convert 'nil' to '%s'",
-                tp.serialize().c_str()
-            );
+            fail_convert_tp(L, "nil", tp);
             break;
         case LUA_TNUMBER:
         case LUA_TBOOLEAN:
@@ -953,9 +947,7 @@ void *from_lua(
                     *static_cast<char const **>(stor) = lua_tostring(L, index)
                 );
             }
-            luaL_error(
-                L, "cannot convert 'string' to '%s'", tp.serialize().c_str()
-            );
+            fail_convert_tp(L, "string", tp);
             break;
         case LUA_TUSERDATA: {
             if (iscdata(L, index)) {
@@ -993,15 +985,9 @@ void *from_lua(
             }
             /* error in other cases */
             if (isctype(L, index)) {
-                luaL_error(
-                    L, "cannot convert 'ctype' to '%s'",
-                    tp.serialize().c_str()
-                );
+                fail_convert_tp(L, "ctype", tp);
             } else {
-                luaL_error(
-                    L, "cannot convert 'userdata' to '%s'",
-                    tp.serialize().c_str()
-                );
+                fail_convert_tp(L, "userdata", tp);
             }
             break;
         }
@@ -1012,10 +998,7 @@ void *from_lua(
                     *static_cast<void **>(stor) = lua_touserdata(L, index)
                 );
             } else {
-                luaL_error(
-                    L, "cannot convert 'lightuserdata' to '%s'",
-                    tp.serialize().c_str()
-                );
+                fail_convert_tp(L, "lightuserdata", tp);
             }
             break;
         case LUA_TTABLE:
@@ -1025,27 +1008,18 @@ void *from_lua(
              * but that is only supported for ffi.new, and everything else
              * should error anyway, so do so here
              */
-            luaL_error(
-                L, "cannot convert 'table' to '%s'",
-                tp.serialize().c_str()
-            );
+            fail_convert_tp(L, "table", tp);
             break;
         case LUA_TFUNCTION:
             if (!tp.callable()) {
-                luaL_error(
-                    L, "cannot convert 'function' to '%s'",
-                    tp.serialize().c_str()
-                );
+                fail_convert_tp(L, "function", tp);
             }
             lua_pushvalue(L, index);
             *static_cast<int *>(stor) = luaL_ref(L, LUA_REGISTRYINDEX);
             /* we don't have a value to store */
             return nullptr;
         default:
-            luaL_error(
-                L, "cannot convert '%s' to '%s'",
-                lua_typename(L, lua_type(L, index)), tp.serialize().c_str()
-            );
+            fail_convert_tp(L, lua_typename(L, lua_type(L, index)), tp);
             break;
     }
     assert(false);
