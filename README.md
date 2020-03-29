@@ -63,6 +63,20 @@ will need to explicitly set the version with e.g. `-Dlua_version=5.2`
 passed to `meson`. You will also need to do this if you with to compile
 for a different Lua version than your default `lua.pc` provides.
 
+Three components will be built: a module, a shared library and a static
+library. The module does not depend on the libraries, it can be used
+alone. The libraries exist for the purpose of linking your program or
+library directly against them, so you can embed Lua with an FFI inside
+without worrying about Lua having to load the library. You can choose
+either dynamic or static version for that.
+
+If you wish to use the library version, it is called `libcffi-lua-VER.so`
+on Unix-like systems (`dylib` on macOS) and `cffi-lua-VER.so` on Windows,
+where `VER` is the Lua version (e.g. `5.2`). It has a stable API and ABI
+with just one exported symbol, `luaopen_cffi`, which matches the standard
+Lua module ABI. You can call it from your code and it will leave the
+module table on the Lua stack.
+
 You can also pass `luajit` to `-Dlua_version` to build against LuaJIT (it
 will use `luajit.pc` then). Additionally, if you have a different Lua
 implementation than that but it still provides the same compliant API,
@@ -78,19 +92,41 @@ a `.pc` file for `libffi`. In that case you will need to provide the right
 include path in `CXXFLAGS` so that either `<ffi.h>` or `<ffi/ffi.h>` can be
 included, plus linkage in `LDFLAGS`.
 
+It is also possible to pass `-Dlua_install_path=...` to override where the
+Lua module will be installed. See below for that.
+
+## Installing
+
+```
+$ ninja install
+```
+
+This will install the following components:
+
+- The Lua module
+- The shared library
+- The static library
+- A `pkg-config` `.pc` file for the library
+
+See the section above for what these libraries mean.
+
+By default, the Lua module will install in `$(libdir)/lua/$(luaver)`, e.g.
+`/usr/lib/lua/5.2`. This is the default for most Lua installations. You can
+override that with `-Dlua_install_path=...`. The path is the entire
+installation path. You can insert `@0@` in it, which will be replaced with
+the Lua version you're building for (e.g. `5.2`). No other substitutions are
+performed.
+
+The goal of this is to make sure the module will be installed in a location
+contained in your Lua's `package.cpath`.
+
+The `pkg-config` file is called `cffi-lua-VER.pc`, with `VER` being the Lua
+version (e.g. `5.2`).
+
 ## Testing
 
-Simply run `ninja test`. You can see the available test cases in `tests`,
-they also serve as examples. For actual usage, simply install the built
-module in a path specified in your Lua's `package.cpath`; the `ninja install`
-command should work fine for most Lua installations.
+```
+$ ninja test
+```
 
-The build system also creates a library version of this module. In this case,
-you can link your program against it (`-lcffi-lua-LUAVER`, where `LUAVER` is
-the Lua version it was built for, e.g. `5.2`), and use `luaopen_cffi` from
-inside your program, which will get you the module table on the stack. You
-can then save it and use it without worrying about the module being installed.
-This is useful for things which want to bundle the FFI with themselves.
-
-The library has an associated `pkg-config` file, so you can use that on systems
-where that is useful. The file is named `cffi-lua-LUAVER.pc`.
+You can see the available test cases in `tests`, they also serve as examples.

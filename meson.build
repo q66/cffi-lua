@@ -147,10 +147,15 @@ cffi_lib_d = shared_library('cffi-lua-@0@'.format(luaver_str),
     cpp_args: ['-DFFI_BUILD_DLL']
 )
 
+lua_modpath = get_option('lua_install_path')
+if lua_modpath == 'auto'
+    lua_modpath = join_paths(get_option('libdir'), 'lua', '@0@')
+endif
+
 cffi_mod = shared_module('cffi',
     ['src/main.cc'],
     install: true,
-    install_dir: join_paths(get_option('libdir'), 'lua', luaver_str),
+    install_dir: lua_modpath.format(luaver_str),
     name_prefix: '',
     name_suffix: plugin_suffix,
     dependencies: cffi_deps,

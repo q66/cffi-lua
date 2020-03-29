@@ -7,5 +7,11 @@ option('lua_version',
 option('libffi',
     type: 'combo',
     choices: ['auto', 'custom'],
-    description: 'When using auto, pkg-config will be used to find libffi.'
+    description: 'When using auto, pkg-config will be used to find libffi'
+)
+
+option('lua_install_path',
+    type: 'string',
+    value: 'auto',
+    description: 'The install path for the Lua module'
 )
