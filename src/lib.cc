@@ -16,6 +16,11 @@
 
 namespace lib {
 
+static int make_cache(lua_State *L) {
+    lua_newtable(L);
+    return luaL_ref(L, LUA_REGISTRYINDEX);
+}
+
 #ifdef FFI_USE_DLFCN
 
 #ifdef FFI_OS_CYGWIN
@@ -46,15 +51,16 @@ static handle open(char const *path, bool global) {
     return dlopen(path, RTLD_LAZY | (global ? RTLD_GLOBAL : RTLD_LOCAL));
 }
 
-void close(c_lib *cl) {
-    if (cl->h == FFI_DL_DEFAULT) {
-        return;
+void close(c_lib *cl, lua_State *L) {
+    luaL_unref(L, LUA_REGISTRYINDEX, cl->cache);
+    cl->cache = LUA_REFNIL;
+    if (cl->h != FFI_DL_DEFAULT) {
+        dlclose(cl->h);
     }
-    dlclose(cl->h);
     cl->h = nullptr;
 }
 
-void *get_sym(c_lib const *cl, char const *name) {
+static void *get_sym(c_lib const *cl, char const *name) {
     return dlsym(cl->h, name);
 }
 
@@ -137,6 +143,7 @@ void load(c_lib *cl, char const *path, lua_State *L, bool global) {
     if (!path) {
         /* primary namespace */
         cl->h = FFI_DL_DEFAULT;
+        cl->cache = make_cache(L);
         lua::mark_lib(L);
         return;
     }
@@ -145,6 +152,7 @@ void load(c_lib *cl, char const *path, lua_State *L, bool global) {
     if (h) {
         lua::mark_lib(L);
         cl->h = h;
+        cl->cache = make_cache(L);
         return;
     }
     char const *err = dlerror(), *e;
@@ -156,6 +164,7 @@ void load(c_lib *cl, char const *path, lua_State *L, bool global) {
         if (h) {
             lua::mark_lib(L);
             cl->h = h;
+            cl->cache = make_cache(L);
             return;
         }
         err = dlerror();
@@ -236,6 +245,7 @@ void load(c_lib *cl, char const *path, lua_State *L, bool) {
     if (!path) {
         /* primary namespace */
         cl->h = FFI_DL_DEFAULT;
+        cl->cache = make_cache(L);
         lua::mark_lib(L);
         return;
     }
@@ -248,10 +258,13 @@ void load(c_lib *cl, char const *path, lua_State *L, bool) {
     }
     SetLastError(olderr);
     cl->h = h;
+    cl->cache = make_cache(L);
     lua::mark_lib(L);
 }
 
-void close(c_lib *cl) {
+void close(c_lib *cl, lua_State *L) {
+    luaL_unref(L, LUA_REGISTRYINDEX, cl->cache);
+    cl->cache = LUA_REFNIL;
     if (cl->h == FFI_DL_DEFAULT) {
         for (auto i = FFI_DL_HANDLE_KERNEL32; i < FFI_DL_HANDLE_MAX; ++i) {
             void *p = ffi_dl_handle[i];
@@ -265,7 +278,7 @@ void close(c_lib *cl) {
     }
 }
 
-void *get_sym(c_lib const *cl, char const *name) {
+static void *get_sym(c_lib const *cl, char const *name) {
     if (cl->h != FFI_DL_DEFAULT) {
         return static_cast<void *>(
             GetProcAddress(static_cast<HINSTANCE>(cl->h), name)
@@ -331,10 +344,10 @@ void load(c_lib *, char const *, lua_State *L, bool) {
     return nullptr;
 }
 
-void close(c_lib *) {
+void close(c_lib *, lua_State *) {
 }
 
-void *get_sym(c_lib const *, char const *) {
+static void *get_sym(c_lib const *, char const *) {
     return nullptr;
 }
 
@@ -343,5 +356,25 @@ bool is_c(c_lib const *) {
 }
 
 #endif /* FFI_USE_DLFCN, FFI_OS == FFI_OS_WINDOWS */
+
+void *get_sym(c_lib const *cl, lua_State *L, char const *name) {
+    lua_rawgeti(L, LUA_REGISTRYINDEX, cl->cache);
+    lua_getfield(L, -1, name);
+    if (lua_isnil(L, -1)) {
+        lua_pop(L, 1);
+        void *p = get_sym(cl, name);
+        if (!p) {
+            lua_pop(L, 1);
+            return nullptr;
+        }
+        lua_pushlightuserdata(L, p);
+        lua_setfield(L, -2, name);
+        lua_pop(L, 1);
+        return p;
+    }
+    void *p = lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    return p;
+}
 
 } /* namespace lib */

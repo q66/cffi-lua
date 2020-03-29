@@ -1234,7 +1234,7 @@ void get_global(lua_State *L, lib::c_lib const *dl, const char *sname) {
 
     switch (tp) {
         case ast::c_object_type::VARIABLE: {
-            void *symp = lib::get_sym(dl, sname);
+            void *symp = lib::get_sym(dl, L, sname);
             if (!symp) {
                 luaL_error(L, "undefined symbol: %s", sname);
             }
@@ -1279,7 +1279,7 @@ void set_global(lua_State *L, lib::c_lib const *dl, char const *sname, int idx) 
         luaL_error(L, "symbol '%s' is not mutable", decl->name());
     }
 
-    void *symp = lib::get_sym(dl, sname);
+    void *symp = lib::get_sym(dl, L, sname);
     if (!symp) {
         luaL_error(L, "undefined symbol: %s", sname);
         return;

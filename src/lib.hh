@@ -17,9 +17,9 @@ struct c_lib {
 
 void load(c_lib *cl, char const *path, lua_State *L, bool global = false);
 
-void close(c_lib *cl);
+void close(c_lib *cl, lua_State *L);
 
-void *get_sym(c_lib const *cl, char const *name);
+void *get_sym(c_lib const *cl, lua_State *L, char const *name);
 
 bool is_c(c_lib const *cl);
 

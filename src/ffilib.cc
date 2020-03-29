@@ -14,7 +14,7 @@
  */
 struct lib_meta {
     static int gc(lua_State *L) {
-        lib::close(lua::touserdata<lib::c_lib>(L, 1));
+        lib::close(lua::touserdata<lib::c_lib>(L, 1), L);
         return 0;
     }
 
