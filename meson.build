@@ -109,14 +109,6 @@ luaver_min = cxx.compute_int(
 )
 luaver_str = '@0@.@1@'.format(luaver_maj, luaver_min)
 
-cffi_src = [
-    'src/main.cc',
-    'src/parser.cc',
-    'src/ast.cc',
-    'src/lib.cc',
-    'src/ffi.cc'
-]
-
 # follow what lua does, i.e. .so everywhere except windows
 plugin_suffix = 'so'
 
@@ -124,27 +116,52 @@ if host_machine.system() == 'windows'
     plugin_suffix = 'dll'
 endif
 
+cffi_src = [
+    'src/ffilib.cc',
+    'src/parser.cc',
+    'src/ast.cc',
+    'src/lib.cc',
+    'src/ffi.cc'
+]
+
+cffi_deps = [dl_lib, ffi_dep, lua_dep]
+
+cffi_core = static_library('cffi-core', cffi_src, pic: true)
+
+cffi_lib_s = static_library('cffi-lua-@0@'.format(luaver_str),
+    ['src/main.cc'],
+    install: true,
+    pic: true,
+    dependencies: cffi_deps,
+    link_whole: [cffi_core]
+)
+
 # the soname can remain the same forever, the API/ABI will not change
 # (it's a single function and its interface is defined for the Lua version)
-cffi_lib = both_libraries('cffi-lua-@0@'.format(luaver_str),
-    cffi_src,
+cffi_lib_d = shared_library('cffi-lua-@0@'.format(luaver_str),
+    ['src/main.cc'],
     version: '1.0.0',
     install: true,
-    dependencies: [dl_lib, ffi_dep, lua_dep]
+    dependencies: cffi_deps,
+    link_whole: [cffi_core],
+    cpp_args: ['-DFFI_BUILD_DLL']
 )
 
 cffi_mod = shared_module('cffi',
-    link_whole: [cffi_lib.get_static_lib()],
-    dependencies: [dl_lib, ffi_dep, lua_dep],
-    name_prefix: '', name_suffix: plugin_suffix,
+    ['src/main.cc'],
     install: true,
-    install_dir: join_paths(get_option('libdir'), 'lua', luaver_str)
+    install_dir: join_paths(get_option('libdir'), 'lua', luaver_str),
+    name_prefix: '',
+    name_suffix: plugin_suffix,
+    dependencies: cffi_deps,
+    link_whole: [cffi_core],
+    cpp_args: ['-DFFI_BUILD_DLL']
 )
 
 # Pkg-config file for the library
 
 pkgc = import('pkgconfig')
-pkgc.generate(cffi_lib)
+pkgc.generate(cffi_lib_d)
 
 # Tests
 
