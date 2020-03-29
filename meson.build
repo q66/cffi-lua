@@ -80,7 +80,7 @@ endif
 
 # Needed on Linux
 
-dl_lib = cxx.find_library('dl', required : false)
+dl_lib = cxx.find_library('dl', required: false)
 
 # Header checks
 

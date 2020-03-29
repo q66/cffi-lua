@@ -238,6 +238,7 @@ static_assert(
 
 #ifdef _UWP
 #  define FFI_WINDOWS_UWP 1
+#  error "UWP support not yet implemented"
 #endif
 
 #if FFI_OS != FFI_OS_WINDOWS

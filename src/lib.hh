@@ -11,7 +11,6 @@ using handle = void *;
 using func = void (*)();
 
 handle load(char const *path, lua_State *L, bool global = false);
-handle get_c();
 
 void close(handle h);
 
