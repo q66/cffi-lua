@@ -1235,9 +1235,6 @@ void get_global(lua_State *L, lib::c_lib const *dl, const char *sname) {
     switch (tp) {
         case ast::c_object_type::VARIABLE: {
             void *symp = lib::get_sym(dl, L, sname);
-            if (!symp) {
-                luaL_error(L, "undefined symbol: %s", sname);
-            }
             auto &var = decl->as<ast::c_variable>().type();
             if (var.type() == ast::C_BUILTIN_FUNC) {
                 make_cdata_func(
@@ -1280,11 +1277,6 @@ void set_global(lua_State *L, lib::c_lib const *dl, char const *sname, int idx) 
     }
 
     void *symp = lib::get_sym(dl, L, sname);
-    if (!symp) {
-        luaL_error(L, "undefined symbol: %s", sname);
-        return;
-    }
-
     size_t rsz;
     from_lua(L, cv, symp, idx, rsz, RULE_CONV);
 }

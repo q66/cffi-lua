@@ -365,6 +365,7 @@ void *get_sym(c_lib const *cl, lua_State *L, char const *name) {
         void *p = get_sym(cl, name);
         if (!p) {
             lua_pop(L, 1);
+            luaL_error(L, "undefined symbol: %s", name);
             return nullptr;
         }
         lua_pushlightuserdata(L, p);
