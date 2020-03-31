@@ -286,7 +286,7 @@ static void *get_sym(c_lib const *cl, char const *name) {
     }
     for (size_t i = 0; i < FFI_DL_HANDLE_MAX; ++i) {
         if (!ffi_dl_handle[i]) {
-            HINSTANCE h;
+            HINSTANCE h = nullptr;
             switch (i) {
                 case FFI_DL_HANDLE_EXE:
                     GetModuleHandleExA(

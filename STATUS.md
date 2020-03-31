@@ -230,14 +230,12 @@ Variadic callbacks are not (and likely will not be) supported.
 
 ## Portability
 
-Windows support is currently missing in the code, but otherwise the other
-platforms below have been tested. Architectures currently tested include
-`ppc64le`, `ppc64` and `x86_64`. Others should also work, as long as
-supported by `libffi`.
+Architectures currently tested include `ppc64le`, `ppc64` and `x86_64`. Others
+should also work, as long as supported by `libffi`.
 
 - [x] Linux
 - [x] FreeBSD (other BSDs may also work; patches welcome if not)
-- [ ] Windows
+- [x] Windows
 - [x] macOS (dependencies from homebrew; `libffi` needs `PKG_CONFIG_PATH`)
 - [x] Little endian
 - [x] Big endian

@@ -138,7 +138,7 @@ static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
     }
 
     if (fun.result().type() != ast::C_BUILTIN_VOID) {
-        lua_call(cd.L, fargs, 1);
+        lua_call(cd.L, int(fargs), 1);
         arg_stor_t stor;
         size_t rsz;
         void *rp = from_lua(
@@ -147,7 +147,7 @@ static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
         memcpy(ret, rp, rsz);
         lua_pop(cd.L, 1);
     } else {
-        lua_call(cd.L, fargs, 0);
+        lua_call(cd.L, int(fargs), 0);
     }
 }
 
@@ -161,8 +161,9 @@ static bool prepare_cif(
     for (size_t i = 0; i < nargs; ++i) {
         targs[i] = func.params()[i].libffi_type();
     }
+    using U = unsigned int;
     return (ffi_prep_cif(
-        &cif, FFI_DEFAULT_ABI, nargs,
+        &cif, FFI_DEFAULT_ABI, U(nargs),
         func.result().libffi_type(), targs
     ) == FFI_OK);
 }
@@ -291,11 +292,12 @@ static bool prepare_cif_var(
         targs[i] = func.params()[i].libffi_type();
     }
     for (size_t i = fargs; i < nargs; ++i) {
-        targs[i] = lua_to_vararg(L, i + 2);
+        targs[i] = lua_to_vararg(L, int(i + 2));
     }
 
+    using U = unsigned int;
     return (ffi_prep_cif_var(
-        &fud.val.cif, FFI_DEFAULT_ABI, fargs, nargs,
+        &fud.val.cif, FFI_DEFAULT_ABI, U(fargs), U(nargs),
         func.result().libffi_type(), targs
     ) == FFI_OK);
 }
@@ -320,14 +322,14 @@ int call_cif(cdata<fdata> &fud, lua_State *L, size_t largs) {
 
     void **vals = fargs_values(pvals, targs);
     /* fixed args */
-    for (size_t i = 0; i < nargs; ++i) {
+    for (int i = 0; i < int(nargs); ++i) {
         size_t rsz;
         vals[i] = from_lua(
             L, pdecls[i].type(), &pvals[i], i + 2, rsz, RULE_PASS
         );
     }
     /* variable args */
-    for (size_t i = nargs; i < targs; ++i) {
+    for (int i = int(nargs); i < int(targs); ++i) {
         size_t rsz;
         auto tp = ast::from_lua_type(L, i + 2);
         if (tp.type() == ast::C_BUILTIN_RECORD) {
@@ -725,9 +727,11 @@ static void *from_lua_cnumber(
     void *sval, void *stor, size_t &dsz, int rule
 ) {
 #define CONV_CASE(name, U) \
-    case ast::C_BUILTIN_##name: \
-        dsz = sizeof(U); \
-        return &(*static_cast<U *>(stor) = *static_cast<T *>(sval));
+    case ast::C_BUILTIN_##name: { \
+        using UT = U; \
+        dsz = sizeof(UT); \
+        return &(*static_cast<U *>(stor) = UT(*static_cast<T *>(sval))); \
+    }
 
     switch (tp.type()) {
         case ast::C_BUILTIN_PTR:

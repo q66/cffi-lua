@@ -1,6 +1,7 @@
 #include <cassert>
 #include <cstdint>
 #include <limits>
+#include <climits>
 #include <ctime>
 #include <type_traits>
 
@@ -77,18 +78,20 @@ static void convert_bin(
         return convert_bin(rval, ret, lval, let);
     }
 
-#define CONVERT_RVAL(lv) \
+#define CONVERT_RVAL(lv) { \
+    using LT = decltype(rval.lv); \
     switch (ret) { \
-        case c_expr_type::DOUBLE: rval.lv = rval.d; break; \
-        case c_expr_type::FLOAT: rval.lv = rval.f; break; \
-        case c_expr_type::INT: rval.lv = rval.i; break; \
-        case c_expr_type::UINT: rval.lv = rval.u; break; \
-        case c_expr_type::LONG: rval.lv = rval.l; break; \
-        case c_expr_type::ULONG: rval.lv = rval.ul; break; \
-        case c_expr_type::LLONG: rval.lv = rval.ll; break; \
-        case c_expr_type::ULLONG: rval.lv = rval.ull; break; \
+        case c_expr_type::DOUBLE: rval.lv = LT(rval.d); break; \
+        case c_expr_type::FLOAT: rval.lv = LT(rval.f); break; \
+        case c_expr_type::INT: rval.lv = LT(rval.i); break; \
+        case c_expr_type::UINT: rval.lv = LT(rval.u); break; \
+        case c_expr_type::LONG: rval.lv = LT(rval.l); break; \
+        case c_expr_type::ULONG: rval.lv = LT(rval.ul); break; \
+        case c_expr_type::LLONG: rval.lv = LT(rval.ll); break; \
+        case c_expr_type::ULLONG: rval.lv = LT(rval.ull); break; \
         default: break;  \
-    }
+    } \
+}
 
     /* at this point it's guaranteed that left rank is higer or equal */
 
@@ -222,11 +225,23 @@ static c_value eval_unary(c_expr const &e, c_expr_type &et) {
             promote_int(baseval, et);
             switch (et) {
                 case c_expr_type::INT: baseval.i = -baseval.i; break;
-                case c_expr_type::UINT: baseval.u = -baseval.u; break;
+                case c_expr_type::UINT:
+                    if (baseval.u) {
+                        baseval.u = UINT_MAX - baseval.u + 1;
+                    }
+                    break;
                 case c_expr_type::LONG: baseval.l = -baseval.l; break;
-                case c_expr_type::ULONG: baseval.ul = -baseval.ul; break;
+                case c_expr_type::ULONG:
+                    if (baseval.ul) {
+                        baseval.ul = ULONG_MAX - baseval.ul + 1;
+                    }
+                    break;
                 case c_expr_type::LLONG: baseval.ll = -baseval.ll; break;
-                case c_expr_type::ULLONG: baseval.ull = -baseval.ull; break;
+                case c_expr_type::ULLONG:
+                    if (baseval.ull) {
+                        baseval.ull = ULLONG_MAX - baseval.ull + 1;
+                    }
+                    break;
                 default: break;
             }
             break;
@@ -236,10 +251,10 @@ static c_value eval_unary(c_expr const &e, c_expr_type &et) {
                 case c_expr_type::CHAR: baseval.c = !baseval.c; break;
                 case c_expr_type::INT: baseval.i = !baseval.i; break;
                 case c_expr_type::UINT: baseval.u = !baseval.u; break;
-                case c_expr_type::LONG: baseval.l = -baseval.l; break;
-                case c_expr_type::ULONG: baseval.ul = -baseval.ul; break;
-                case c_expr_type::LLONG: baseval.ll = -baseval.ll; break;
-                case c_expr_type::ULLONG: baseval.ull = -baseval.ull; break;
+                case c_expr_type::LONG: baseval.l = !baseval.l; break;
+                case c_expr_type::ULONG: baseval.ul = !baseval.ul; break;
+                case c_expr_type::LLONG: baseval.ll = !baseval.ll; break;
+                case c_expr_type::ULLONG: baseval.ull = !baseval.ull; break;
                 default: break;
             }
             break;
@@ -266,7 +281,7 @@ static c_value eval_binary(c_expr const &e, c_expr_type &et) {
     c_expr_type let, ret;
     c_value lval = e.bin.lhs->eval(let);
     c_value rval = e.bin.rhs->eval(ret);
-    c_value retv;
+    c_value retv{};
 
 #define BINOP_CASE(opn, op) \
     case c_expr_binop::opn: \
@@ -930,7 +945,8 @@ void c_record::set_fields(std::vector<field> fields) {
 
     /* for unions, we have a different logic */
     if (is_union()) {
-        size_t usize = 0, ualign = 0;
+        size_t usize = 0;
+        unsigned short ualign = 0;
         /* assign the elements as usual, this is for the purpose of
          * iterating the fields (need quick access to each, and also
          * in case libffi adds unions in the future so we can adapt

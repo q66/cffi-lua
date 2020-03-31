@@ -479,24 +479,28 @@ static inline ast::c_expr_type check_arith_expr(
         if (lua_isinteger(L, idx)) {
             if (std::is_signed<lua_Integer>::value) {
                 if (sizeof(lua_Integer) <= sizeof(int)) {
-                    iv.i = lua_tointeger(L, idx);
+                    iv.i = int(lua_tointeger(L, idx));
                     return ast::c_expr_type::INT;
                 } else if (sizeof(lua_Integer) <= sizeof(long)) {
-                    iv.l = lua_tointeger(L, idx);
+                    iv.l = long(lua_tointeger(L, idx));
                     return ast::c_expr_type::LONG;
                 } else {
-                    iv.ll = lua_tointeger(L, idx);
+                    using LL = long long;
+                    iv.ll = LL(lua_tointeger(L, idx));
                     return ast::c_expr_type::LLONG;
                 }
             } else {
                 if (sizeof(lua_Integer) <= sizeof(unsigned int)) {
-                    iv.u = lua_tointeger(L, idx);
+                    using U = unsigned int;
+                    iv.u = U(lua_tointeger(L, idx));
                     return ast::c_expr_type::UINT;
                 } else if (sizeof(lua_Integer) <= sizeof(unsigned long)) {
-                    iv.ul = lua_tointeger(L, idx);
+                    using UL = unsigned long;
+                    iv.ul = UL(lua_tointeger(L, idx));
                     return ast::c_expr_type::ULONG;
                 } else {
-                    iv.ull = lua_tointeger(L, idx);
+                    using ULL = unsigned long long;
+                    iv.ull = ULL(lua_tointeger(L, idx));
                     return ast::c_expr_type::ULLONG;
                 }
             }
@@ -512,35 +516,40 @@ static inline ast::c_expr_type check_arith_expr(
         if (std::is_integral<lua_Number>::value) {
             if (std::is_signed<lua_Number>::value) {
                 if (sizeof(lua_Number) <= sizeof(int)) {
-                    iv.i = n;
+                    iv.i = int(n);
                     return ast::c_expr_type::INT;
                 } else if (sizeof(lua_Number) <= sizeof(long)) {
-                    iv.l = n;
+                    iv.l = long(n);
                     return ast::c_expr_type::LONG;
                 } else {
-                    iv.ll = n;
+                    using LL = long long;
+                    iv.ll = LL(n);
                     return ast::c_expr_type::LLONG;
                 }
             } else {
                 if (sizeof(lua_Number) <= sizeof(unsigned int)) {
-                    iv.u = n;
+                    using U = unsigned int;
+                    iv.u = U(n);
                     return ast::c_expr_type::UINT;
                 } else if (sizeof(lua_Number) <= sizeof(unsigned long)) {
-                    iv.ul = n;
+                    using UL = unsigned long;
+                    iv.ul = UL(n);
                     return ast::c_expr_type::ULONG;
                 } else {
-                    iv.ull = n;
+                    using ULL = unsigned long long;
+                    iv.ull = ULL(n);
                     return ast::c_expr_type::ULLONG;
                 }
             }
         } else if (sizeof(lua_Number) <= sizeof(float)) {
-            iv.f = n;
+            iv.f = float(n);
             return ast::c_expr_type::FLOAT;
         } else if (sizeof(lua_Number) <= sizeof(double)) {
-            iv.d = n;
+            iv.d = double(n);
             return ast::c_expr_type::DOUBLE;
         }
-        iv.ld = n;
+        using LD = long double;
+        iv.ld = LD(n);
         return ast::c_expr_type::LDOUBLE;
     }
     auto gf = [](int itp, arg_stor_t const &av, ast::c_value &v) {

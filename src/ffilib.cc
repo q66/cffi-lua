@@ -372,7 +372,7 @@ struct cdata_meta {
         }
         luaL_error(
             L, "attempt to concatenate '%s' and '%s'",
-            ffi::lua_serialize(L, 1), ffi::lua_serialize(L, 2)
+            ffi::lua_serialize(L, 1).c_str(), ffi::lua_serialize(L, 2).c_str()
         );
         return 0;
     }
@@ -382,7 +382,10 @@ struct cdata_meta {
         if (unop_try_mt<ffi::METATYPE_FLAG_LEN>(L, cd)) {
             return 1;
         }
-        luaL_error(L, "attempt to get length of '%s'", ffi::lua_serialize(L, 1));
+        luaL_error(
+            L, "attempt to get length of '%s'",
+            ffi::lua_serialize(L, 1).c_str()
+        );
         return 0;
     }
 
@@ -778,7 +781,9 @@ struct cdata_meta {
         if (unop_try_mt<ffi::METATYPE_FLAG_PAIRS>(L, cd, 3)) {
             return 3;
         }
-        luaL_error(L, "attempt to iterate '%s'", ffi::lua_serialize(L, 1));
+        luaL_error(
+            L, "attempt to iterate '%s'", ffi::lua_serialize(L, 1).c_str()
+        );
         return 0;
     }
 
@@ -788,7 +793,9 @@ struct cdata_meta {
         if (unop_try_mt<ffi::METATYPE_FLAG_IPAIRS>(L, cd, 3)) {
             return 3;
         }
-        luaL_error(L, "attempt to iterate '%s'", ffi::lua_serialize(L, 1));
+        luaL_error(
+            L, "attempt to iterate '%s'", ffi::lua_serialize(L, 1).c_str()
+        );
         return 0;
     }
 #endif
@@ -1321,14 +1328,11 @@ struct ffi_module {
                     lua_pushnil(L);
                     return 1;
             }
-        } else {
-            lua_pushvalue(L, lua_upvalueindex(1));
-            lua_insert(L, 1);
-            lua_call(L, lua_gettop(L) - 1, LUA_MULTRET);
-            return lua_gettop(L);
         }
-        assert(false);
-        return 0;
+        lua_pushvalue(L, lua_upvalueindex(1));
+        lua_insert(L, 1);
+        lua_call(L, lua_gettop(L) - 1, LUA_MULTRET);
+        return lua_gettop(L);
     }
 
     static int toretval_f(lua_State *L) {

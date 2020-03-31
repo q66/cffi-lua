@@ -259,6 +259,15 @@ static_assert(
 #define FFI_DIAGNOSTIC_PRAGMA_CLANG 1
 #endif
 
+/* MSVC warnings we don't care about/are irrelevant to us */
+
+#ifdef _MSC_VER
+/* conditional expression is constant */
+#pragma warning(disable: 4127)
+/* unsafe CRT, used only once */
+#pragma warning(disable: 4996)
+#endif
+
 /* some plumbing */
 
 #include <cstring>

@@ -270,7 +270,7 @@ private:
     }
 
     char next_char() {
-        char ret = current;
+        char ret = char(current);
         if (stream == send) {
             current = '\0';
             return ret;
@@ -398,7 +398,7 @@ private:
         unsigned long long val = 0, mul = 1;
         do {
             /* standardize case */
-            unsigned char dig = convf(*--numend);
+            int dig = convf(*--numend);
             val += dig * mul;
             mul *= base;
         } while (numend != numbeg);
@@ -1764,10 +1764,10 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
             switch (et) {
                 case ast::c_expr_type::INT: break;
                 case ast::c_expr_type::UINT: val.i = val.u; break;
-                case ast::c_expr_type::LONG: val.i = val.l; break;
-                case ast::c_expr_type::ULONG: val.i = val.ul; break;
-                case ast::c_expr_type::LLONG: val.i = val.ll; break;
-                case ast::c_expr_type::ULLONG: val.i = val.ull; break;
+                case ast::c_expr_type::LONG: val.i = int(val.l); break;
+                case ast::c_expr_type::ULONG: val.i = int(val.ul); break;
+                case ast::c_expr_type::LLONG: val.i = int(val.ll); break;
+                case ast::c_expr_type::ULLONG: val.i = int(val.ull); break;
                 default:
                     ls.syntax_error("unsupported type");
                     break;
