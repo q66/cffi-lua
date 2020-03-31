@@ -15,6 +15,7 @@
 #include <vector>
 #include <unordered_map>
 #include <memory>
+#include <stdexcept>
 
 namespace ast {
 

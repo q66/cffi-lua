@@ -28,17 +28,17 @@ See `STATUS.md` for a detailed/exhaustive listing.
 
 The dependencies are kept intentionally minimal.
 
-- A Unix-like system (Linux/macOS/some BSD/...); Windows support is TODO
 - A C++ compiler supporting the right subset of C++14
 - Lua 5.1 or newer (tested up to 5.4) or equivalent (e.g. LuaJIT)
 - `libffi`
 - `meson`, `pkg-config` (optional)
 
 Any reasonably modern version of GCC or Clang should work fine (GCC 5, maybe
-even 4.8, or Clang 3.4 or newer). Other compilers will also work if they
-provide the necessary C++ standard compilance; there aren't any compiler
-specific extensions used in the code (other than some diagnostic pragmas
-to handle warnings under GCC/Clang; these are not enabled elsewhere).
+even 4.8, or Clang 3.4 or newer). Visual Studio 2019 has also been tested
+and is known to work. Other compilers will also work if they provide the
+necessary C++ standard compilance; there aren't any compiler specific
+extensions used in the code (other than some diagnostic pragmas to
+handle warnings under GCC/Clang; these are not enabled elsewhere).
 
 The module should work on any CPU architecture supported by `libffi`. It has
 been tested at least on 64-bit PowerPC (little and big endian) and x86.
@@ -46,9 +46,12 @@ If you find that the module does not work on yours, report a bug (and maybe
 provide a patch).
 
 The `pkg-config` tool is optional when using `-Dlua_version=custom` and
-`-Dlibffi=custom`.
+`-Dlibffi=custom`. However, you will need to manually specify what to include
+and link using compiler flags.
 
 ## Building
+
+On Unix-like systems:
 
 ```
 $ mkdir build
@@ -94,6 +97,28 @@ included, plus linkage in `LDFLAGS`.
 
 It is also possible to pass `-Dlua_install_path=...` to override where the
 Lua module will be installed. See below for that.
+
+### Windows
+
+It is possible to compile and use the module on Windows, but it's a little
+complicated. You will need a distribution of `libffi` as well as Lua, and
+manually tell `meson` to link against them. Also, some of the tests are
+failing right now, which needs to be investigated (certain symbol lookups
+do not work).
+
+Build has been tested on VS 2019. When compiling in a MinGW/MSYS environment,
+it may be easier, since you will get the same `pkg-config` and other tools
+as on Unix-likes.
+
+For VS, you may attempt something like this for now:
+
+```
+meson .. -Dlua_version=custom -Dlibffi=custom
+  -Dcpp_args="/Ipath\to\include"
+  -Dcpp_link_args="path\to\lua.lib path\to\libffi.lib"
+```
+
+To run tests, you will need the `.dll` files in the right places, too.
 
 ## Installing
 

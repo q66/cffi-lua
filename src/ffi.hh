@@ -484,7 +484,7 @@ static inline ast::c_expr_type check_arith_expr(
                 } else if (sizeof(lua_Integer) <= sizeof(long)) {
                     iv.l = lua_tointeger(L, idx);
                     return ast::c_expr_type::LONG;
-                } else {ffi.
+                } else {
                     iv.ll = lua_tointeger(L, idx);
                     return ast::c_expr_type::LLONG;
                 }

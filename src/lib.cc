@@ -214,7 +214,7 @@ static void dl_error(lua_State *L, char const *fmt, char const *name) {
     char buf[256];
     if (!FormatMessageW(
         FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_FROM_SYSTEM,
-        nullptr, 0, wbuf, sizeof(wbuf) / sizeof(wchar_t), nullptr
+        nullptr, err, 0, wbuf, sizeof(wbuf) / sizeof(wchar_t), nullptr
     ) || !WideCharToMultiByte(
         CP_ACP, 0, wbuf, 128, buf, 256, nullptr, nullptr
     )) {
@@ -251,7 +251,7 @@ void load(c_lib *cl, char const *path, lua_State *L, bool) {
     }
     auto olderr = GetLastError();
     handle h = static_cast<handle>(
-        LoadLibraryExA(dl_ext_name(name).c_str(), nullptr, 0)
+        LoadLibraryExA(dl_ext_name(path).c_str(), nullptr, 0)
     );
     if (!h) {
         dl_error(L, "cannot load module '%s': %s", path);
@@ -266,15 +266,15 @@ void close(c_lib *cl, lua_State *L) {
     luaL_unref(L, LUA_REGISTRYINDEX, cl->cache);
     cl->cache = LUA_REFNIL;
     if (cl->h == FFI_DL_DEFAULT) {
-        for (auto i = FFI_DL_HANDLE_KERNEL32; i < FFI_DL_HANDLE_MAX; ++i) {
+        for (int i = FFI_DL_HANDLE_KERNEL32; i < FFI_DL_HANDLE_MAX; ++i) {
             void *p = ffi_dl_handle[i];
             if (p) {
                 ffi_dl_handle[i] = nullptr;
-                FreeLibrary(static_cast<HINSTANCE>(h));
+                FreeLibrary(static_cast<HINSTANCE>(cl->h));
             }
         }
     } else if (cl->h) {
-        FreeLibrary(static_cast<HINSTANCE>(h));
+        FreeLibrary(static_cast<HINSTANCE>(cl->h));
     }
 }
 
