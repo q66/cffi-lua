@@ -10,6 +10,15 @@
 #include <cassert>
 #include <limits>
 
+#include "platform.hh"
+
+/* Force static linkage against libffi on Windows for now
+ * This may be made overridable later, but not sure if that's useful at all
+ */
+#ifdef FFI_WINDOWS_ABI
+#  define FFI_BUILDING 1
+#endif
+
 #ifdef HAVE_FFI_FFI_H
 #include <ffi/ffi.h>
 #else
