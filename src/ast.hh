@@ -130,45 +130,105 @@ template<> struct builtin_traits<C_BUILTIN_BOOL>:
 template<c_builtin t> using builtin_t = typename builtin_traits<t>::type;
 
 namespace detail {
-    template<bool S> struct base_type {
+    template<typename T> struct builtin_v_base {
+        static constexpr c_builtin value = C_BUILTIN_INVALID;
+    };
+    template<> struct builtin_v_base<void> {
+        static constexpr c_builtin value = C_BUILTIN_VOID;
+    };
+    template<> struct builtin_v_base<bool> {
+        static constexpr c_builtin value = C_BUILTIN_BOOL;
+    };
+    template<> struct builtin_v_base<char> {
+        static constexpr c_builtin value = C_BUILTIN_CHAR;
+    };
+    template<> struct builtin_v_base<signed char> {
+        static constexpr c_builtin value = C_BUILTIN_SCHAR;
+    };
+    template<> struct builtin_v_base<unsigned char> {
+        static constexpr c_builtin value = C_BUILTIN_UCHAR;
+    };
+    template<> struct builtin_v_base<short> {
+        static constexpr c_builtin value = C_BUILTIN_SHORT;
+    };
+    template<> struct builtin_v_base<unsigned short> {
+        static constexpr c_builtin value = C_BUILTIN_USHORT;
+    };
+    template<> struct builtin_v_base<int> {
+        static constexpr c_builtin value = C_BUILTIN_INT;
+    };
+    template<> struct builtin_v_base<unsigned int> {
+        static constexpr c_builtin value = C_BUILTIN_UINT;
+    };
+    template<> struct builtin_v_base<long> {
+        static constexpr c_builtin value = C_BUILTIN_LONG;
+    };
+    template<> struct builtin_v_base<unsigned long> {
+        static constexpr c_builtin value = C_BUILTIN_ULONG;
+    };
+    template<> struct builtin_v_base<long long> {
+        static constexpr c_builtin value = C_BUILTIN_LLONG;
+    };
+    template<> struct builtin_v_base<unsigned long long> {
+        static constexpr c_builtin value = C_BUILTIN_ULLONG;
+    };
+    template<> struct builtin_v_base<float> {
+        static constexpr c_builtin value = C_BUILTIN_FLOAT;
+    };
+    template<> struct builtin_v_base<double> {
+        static constexpr c_builtin value = C_BUILTIN_DOUBLE;
+    };
+    template<> struct builtin_v_base<long double> {
+        static constexpr c_builtin value = C_BUILTIN_LDOUBLE;
+    };
+    template<typename T> struct builtin_v_base<T *> {
+        static constexpr c_builtin value = C_BUILTIN_PTR;
+    };
+    template<typename T> struct builtin_v_base<T &> {
+        static constexpr c_builtin value = C_BUILTIN_REF;
+    };
+
+    /* need this hack because some toolchains are garbage */
+    template<typename T> using eq_type = std::conditional_t<
+        sizeof(T) == sizeof(char),
+        signed char,
+        std::conditional_t<
+            sizeof(T) == sizeof(short),
+            short,
+            std::conditional_t<
+                sizeof(T) == sizeof(int),
+                int,
+                std::conditional_t<
+                    sizeof(T) == sizeof(long),
+                    long,
+                    long long
+                >
+            >
+        >
+    >;
+
+    template<> struct builtin_v_base<wchar_t> {
+        static constexpr c_builtin value =
+            std::numeric_limits<wchar_t>::is_signed
+                ? builtin_v_base<eq_type<wchar_t>>::value
+                : builtin_v_base<std::make_unsigned_t<eq_type<wchar_t>>>::value;
+    };
+    template<> struct builtin_v_base<char16_t> {
+        static constexpr c_builtin value =
+            std::numeric_limits<char16_t>::is_signed
+                ? builtin_v_base<eq_type<char16_t>>::value
+                : builtin_v_base<std::make_unsigned_t<eq_type<char16_t>>>::value;
+    };
+    template<> struct builtin_v_base<char32_t> {
+        static constexpr c_builtin value =
+            std::numeric_limits<char32_t>::is_signed
+                ? builtin_v_base<eq_type<char16_t>>::value
+                : builtin_v_base<std::make_unsigned_t<eq_type<char32_t>>>::value;
     };
 } /* namespace detail */
 
-template<typename> constexpr c_builtin builtin_v = C_BUILTIN_INVALID;
-template<> constexpr c_builtin builtin_v<void> = C_BUILTIN_VOID;
-template<> constexpr c_builtin builtin_v<bool> = C_BUILTIN_BOOL;
-template<> constexpr c_builtin builtin_v<char> = C_BUILTIN_CHAR;
-template<> constexpr c_builtin builtin_v<signed char> = C_BUILTIN_SCHAR;
-template<> constexpr c_builtin builtin_v<unsigned char> = C_BUILTIN_UCHAR;
-template<> constexpr c_builtin builtin_v<short> = C_BUILTIN_SHORT;
-template<> constexpr c_builtin builtin_v<unsigned short> = C_BUILTIN_USHORT;
-template<> constexpr c_builtin builtin_v<int> = C_BUILTIN_INT;
-template<> constexpr c_builtin builtin_v<unsigned int> = C_BUILTIN_UINT;
-template<> constexpr c_builtin builtin_v<long> = C_BUILTIN_LONG;
-template<> constexpr c_builtin builtin_v<unsigned long> = C_BUILTIN_ULONG;
-template<> constexpr c_builtin builtin_v<long long> = C_BUILTIN_LLONG;
-template<> constexpr c_builtin builtin_v<unsigned long long> = C_BUILTIN_ULLONG;
-template<> constexpr c_builtin builtin_v<float> = C_BUILTIN_FLOAT;
-template<> constexpr c_builtin builtin_v<double> = C_BUILTIN_DOUBLE;
-template<> constexpr c_builtin builtin_v<long double> = C_BUILTIN_LDOUBLE;
-template<typename T> constexpr c_builtin builtin_v<T *> = C_BUILTIN_PTR;
-template<typename T> constexpr c_builtin builtin_v<T &> = C_BUILTIN_REF;
-
-template<> constexpr c_builtin builtin_v<wchar_t> = (
-    std::numeric_limits<wchar_t>::is_signed
-        ? builtin_v<std::make_signed_t<wchar_t>>
-        : builtin_v<std::make_unsigned_t<wchar_t>>
-);
-template<> constexpr c_builtin builtin_v<char16_t> = (
-    std::numeric_limits<char16_t>::is_signed
-        ? builtin_v<std::make_signed_t<char16_t>>
-        : builtin_v<std::make_unsigned_t<char16_t>>
-);
-template<> constexpr c_builtin builtin_v<char32_t> = (
-    std::numeric_limits<char32_t>::is_signed
-        ? builtin_v<std::make_signed_t<char32_t>>
-        : builtin_v<std::make_unsigned_t<char32_t>>
-);
+template<typename T>
+static constexpr c_builtin builtin_v = detail::builtin_v_base<T>::value;
 
 template<c_builtin t>
 inline ffi_type *builtin_ffi_type() {

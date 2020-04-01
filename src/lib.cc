@@ -270,23 +270,23 @@ void close(c_lib *cl, lua_State *L) {
             void *p = ffi_dl_handle[i];
             if (p) {
                 ffi_dl_handle[i] = nullptr;
-                FreeLibrary(static_cast<HINSTANCE>(cl->h));
+                FreeLibrary(static_cast<HMODULE>(cl->h));
             }
         }
     } else if (cl->h) {
-        FreeLibrary(static_cast<HINSTANCE>(cl->h));
+        FreeLibrary(static_cast<HMODULE>(cl->h));
     }
 }
 
 static void *get_sym(c_lib const *cl, char const *name) {
     if (cl->h != FFI_DL_DEFAULT) {
-        return static_cast<void *>(
-            GetProcAddress(static_cast<HINSTANCE>(cl->h), name)
+        return reinterpret_cast<void *>(
+            GetProcAddress(static_cast<HMODULE>(cl->h), name)
         );
     }
     for (size_t i = 0; i < FFI_DL_HANDLE_MAX; ++i) {
         if (!ffi_dl_handle[i]) {
-            HINSTANCE h = nullptr;
+            HMODULE h = nullptr;
             switch (i) {
                 case FFI_DL_HANDLE_EXE:
                     GetModuleHandleExA(
@@ -324,8 +324,8 @@ static void *get_sym(c_lib const *cl, char const *name) {
             }
             ffi_dl_handle[i] = static_cast<void *>(h);
         }
-        HINSTANCE h = static_cast<HINSTANCE>(ffi_dl_handle[i]);
-        auto *p = static_cast<void *>(GetProcAddress(h, name));
+        HMODULE h = static_cast<HMODULE>(ffi_dl_handle[i]);
+        auto *p = reinterpret_cast<void *>(GetProcAddress(h, name));
         if (p) {
             return p;
         }

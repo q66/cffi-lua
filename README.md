@@ -127,9 +127,10 @@ ninja all
 ninja test
 ```
 
-Build has been tested on VS 2019. In a MinGW/MSYS/Cygwin environment where
-`pkg-config` is available and you have installed the dependencies the usual
-way, you should be able to build in the same manner as on Unix-like systems.
+Build has been tested on VS 2019, Clang 10 and GCC (mingw-w64) 8.1.0. In a
+MinGW/MSYS/Cygwin environment where `pkg-config` is available and you have
+installed the dependencies the usual way, you should be able to build in the
+same manner as on Unix-like systems.
 
 The `shared_lua` and `shared_libffi` options will make Lua and libffi provide
 `dllimport`-decorated APIs. This is not strictly necessary, but it will make

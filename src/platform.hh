@@ -277,6 +277,10 @@ static_assert(
 #  define _CRT_STDIO_INLINE __declspec(dllexport) __inline
 #endif
 
+/* MSVC and clang */
+
+#define _CRT_SECURE_NO_WARNINGS 1
+
 /* some plumbing */
 
 #include <cstring>
