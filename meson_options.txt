@@ -1,12 +1,12 @@
 option('lua_version',
     type: 'combo',
-    choices: ['auto', 'luajit', 'custom', '5.1', '5.2', '5.3', '5.4'],
+    choices: ['auto', 'luajit', 'custom', 'vendor', '5.1', '5.2', '5.3', '5.4'],
     description: 'The Lua version to use (custom == pass via CXXFLAGS/LDFLAGS)'
 )
 
 option('libffi',
     type: 'combo',
-    choices: ['auto', 'custom'],
+    choices: ['auto', 'custom', 'vendor'],
     description: 'When using auto, pkg-config will be used to find libffi'
 )
 

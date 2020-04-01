@@ -100,25 +100,36 @@ Lua module will be installed. See below for that.
 
 ### Windows
 
-It is possible to compile and use the module on Windows, but it's a little
-complicated. You will need a distribution of `libffi` as well as Lua, and
-manually tell `meson` to link against them. Also, some of the tests are
-failing right now, which needs to be investigated (certain symbol lookups
-do not work).
+To build on Windows, first get yourself a binary distribution of `libffi`
+and the right version of Lua.
 
-Build has been tested on VS 2019. When compiling in a MinGW/MSYS environment,
-it may be easier, since you will get the same `pkg-config` and other tools
-as on Unix-likes.
+Drop the `.lib` files (import libs or static libs) of `libffi` and `lua`
+in the `deps` directory, naming them `libffi.lib` and `liblua.lib`. Drop
+the include files for `libffi` (`ffi.h` and `ffitarget.h`) into `deps/include`,
+same with the Lua include files.
 
-For VS, you may attempt something like this for now:
+It is recommended that you use a static library for `libffi`.
+
+Drop any `.dll` files in the `deps` directory also. This would be the Lua
+dll file typically (e.g. `lua53.dll`). This is necessary in order to run
+tests.
+
+Afterwards, run `meson` from the `build` directory (create it), like this:
 
 ```
-meson .. -Dlua_version=custom -Dlibffi=custom
-  -Dcpp_args="/Ipath\to\include"
-  -Dcpp_link_args="path\to\lua.lib path\to\libffi.lib"
+meson .. -Dlua_version=vendor -Dlibffi=vendor
 ```
 
-To run tests, you will need the `.dll` files in the right places, too.
+Then proceed with the usual:
+
+```
+ninja all
+ninja test
+```
+
+Build has been tested on VS 2019. In a MinGW/MSYS/Cygwin environment where
+`pkg-config` is available and you have installed the dependencies the usual
+way, you should be able to build in the same manner as on Unix-like systems.
 
 ## Installing
 

@@ -41,13 +41,18 @@ endif
 
 add_global_arguments('-DHAVE_CONFIG_H=1', language: 'cpp')
 
+# Vendor library path; used to find libs and also added to PATH for Windows
+
+deps_path = join_paths(meson.source_root(), 'deps')
+extra_inc = []
+
 # Lua dependency checks
 
 luaver = get_option('lua_version')
 
 if luaver == 'luajit'
     lua_dep = dependency('luajit')
-elif luaver != 'auto' and luaver != 'custom'
+elif luaver != 'auto' and luaver != 'custom' and luaver != 'vendor'
     lua_dep = dependency('lua' + luaver, required: false)
     if not lua_dep.found()
         lua_dep = dependency('lua-' + luaver, required: false)
@@ -64,6 +69,9 @@ elif luaver != 'auto' and luaver != 'custom'
     endif
 elif luaver == 'custom'
     lua_dep = dependency('', required: false)
+elif luaver == 'vendor'
+    lua_dep = cxx.find_library('lua', dirs: [deps_path])
+    extra_inc += include_directories(join_paths(deps_path, 'include'))
 else
     lua_dep = dependency('lua')
 endif
@@ -74,6 +82,10 @@ ffiver = get_option('libffi')
 
 if ffiver == 'custom'
     ffi_dep = dependency('', required: false)
+elif ffiver == 'vendor'
+    ffi_dep = cxx.find_library('ffi', dirs: [deps_path])
+    extra_inc += include_directories(join_paths(deps_path, 'include'))
+    config_h.set10('HAVE_FFI_H', true)
 else
     ffi_dep = dependency('libffi')
 endif
@@ -84,16 +96,20 @@ dl_lib = cxx.find_library('dl', required: false)
 
 # Header checks
 
-if cxx.has_header('ffi.h', dependencies: ffi_dep)
-    config_h.set10('HAVE_FFI_H', true)
-elif cxx.has_header('ffi/ffi.h', dependencies: ffi_dep)
-    config_h.set10('HAVE_FFI_FFI_H', true)
-else
-    error('libffi header file not found')
+if ffiver != 'vendor'
+    if cxx.has_header('ffi.h', dependencies: ffi_dep)
+        config_h.set10('HAVE_FFI_H', true)
+    elif cxx.has_header('ffi/ffi.h', dependencies: ffi_dep)
+        config_h.set10('HAVE_FFI_FFI_H', true)
+    else
+        error('libffi header file not found')
+    endif
 endif
 
-if not cxx.has_header('lua.hpp', dependencies: lua_dep)
-    error('lua header file not found')
+if luaver != 'vendor'
+    if not cxx.has_header('lua.hpp', dependencies: lua_dep)
+        error('lua header file not found')
+    endif
 endif
 
 # Write configuration data
@@ -105,7 +121,7 @@ configure_file(output: 'config.h', configuration: config_h)
 luaver_maj = '5'
 luaver_min = cxx.compute_int(
     'LUA_VERSION_NUM - 500', prefix: '#include <lua.hpp>',
-    dependencies: lua_dep
+    dependencies: lua_dep, include_directories: extra_inc
 )
 luaver_str = '@0@.@1@'.format(luaver_maj, luaver_min)
 
@@ -126,14 +142,17 @@ cffi_src = [
 
 cffi_deps = [dl_lib, ffi_dep, lua_dep]
 
-cffi_core = static_library('cffi-core', cffi_src, pic: true)
+cffi_core = static_library(
+    'cffi-core', cffi_src, pic: true, include_directories: extra_inc
+   )
 
 cffi_lib_s = static_library('cffi-lua-@0@'.format(luaver_str),
     ['src/main.cc'],
     install: true,
     pic: true,
     dependencies: cffi_deps,
-    link_whole: [cffi_core]
+    link_whole: [cffi_core],
+    include_directories: extra_inc
 )
 
 # the soname can remain the same forever, the API/ABI will not change
@@ -144,7 +163,8 @@ cffi_lib_d = shared_library('cffi-lua-@0@'.format(luaver_str),
     install: true,
     dependencies: cffi_deps,
     link_whole: [cffi_core],
-    cpp_args: ['-DFFI_BUILD_DLL']
+    cpp_args: ['-DFFI_BUILD_DLL'],
+    include_directories: extra_inc
 )
 
 lua_modpath = get_option('lua_install_path')
@@ -160,7 +180,8 @@ cffi_mod = shared_module('cffi',
     name_suffix: plugin_suffix,
     dependencies: cffi_deps,
     link_whole: [cffi_core],
-    cpp_args: ['-DFFI_BUILD_DLL']
+    cpp_args: ['-DFFI_BUILD_DLL'],
+    include_directories: extra_inc
 )
 
 # Pkg-config file for the library
