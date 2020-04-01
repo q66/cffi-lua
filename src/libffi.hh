@@ -12,10 +12,8 @@
 
 #include "platform.hh"
 
-/* Force static linkage against libffi on Windows for now
- * This may be made overridable later, but not sure if that's useful at all
- */
-#ifdef FFI_WINDOWS_ABI
+/* Force static linkage against libffi on Windows unless overridden */
+#if defined(FFI_WINDOWS_ABI) && !defined(HAVE_LIBFFI_DLLIMPORT)
 #  define FFI_BUILDING 1
 #endif
 

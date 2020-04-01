@@ -11,6 +11,10 @@
 #pragma GCC diagnostic ignored "-Wold-style-cast"
 #endif
 
+#if defined(FFI_WINDOWS_ABI) && defined(HAVE_LUA_DLLIMPORT)
+#define LUA_BUILD_AS_DLL
+#endif
+
 #include <lua.hpp>
 
 #if defined(FFI_DIAGNOSTIC_PRAGMA_CLANG)

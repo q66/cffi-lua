@@ -117,7 +117,7 @@ tests.
 Afterwards, run `meson` from the `build` directory (create it), like this:
 
 ```
-meson .. -Dlua_version=vendor -Dlibffi=vendor
+meson .. -Dlua_version=vendor -Dlibffi=vendor -Dshared_lua=true
 ```
 
 Then proceed with the usual:
@@ -130,6 +130,12 @@ ninja test
 Build has been tested on VS 2019. In a MinGW/MSYS/Cygwin environment where
 `pkg-config` is available and you have installed the dependencies the usual
 way, you should be able to build in the same manner as on Unix-like systems.
+
+The `shared_lua` and `shared_libffi` options will make Lua and libffi provide
+`dllimport`-decorated APIs. This is not strictly necessary, but it will make
+things faster when you're really using dynamic versions of those, and it's
+not possible to autodetect. Usually, you should be using dynamic Lua but
+static libffi.
 
 ## Installing
 
