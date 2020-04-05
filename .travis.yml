@@ -10,8 +10,6 @@ addons:
       - libffi
       - lua
       - ninja
-      - python3
-    update: true
 
 # TODO: release branches
 branches:
@@ -40,14 +38,6 @@ matrix:
     - os: linux
       arch: ppc64le
       compiler: gcc
-      env: LUA_VERSION=5.1 CXX=g++
-    - os: linux
-      arch: ppc64le
-      compiler: gcc
-      env: LUA_VERSION=5.2 CXX=g++
-    - os: linux
-      arch: ppc64le
-      compiler: gcc
       env: LUA_VERSION=5.3 CXX=g++
     - os: linux
       arch: ppc64le
@@ -55,36 +45,20 @@ matrix:
       env: LUA_VERSION=5.3 CXX=clang++
 
     - os: linux
-      arch: arm64
-      compiler: gcc
-      env: LUA_VERSION=5.1 CXX=g++
-    - os: linux
-      arch: arm64
-      compiler: gcc
-      env: LUA_VERSION=5.2 CXX=g++
-    - os: linux
-      arch: arm64
+      arch: s390x
       compiler: gcc
       env: LUA_VERSION=5.3 CXX=g++
     - os: linux
-      arch: arm64
+      arch: s390x
       compiler: clang
       env: LUA_VERSION=5.3 CXX=clang++
 
     - os: linux
-      arch: s390x
-      compiler: gcc
-      env: LUA_VERSION=5.1 CXX=g++
-    - os: linux
-      arch: s390x
-      compiler: gcc
-      env: LUA_VERSION=5.2 CXX=g++
-    - os: linux
-      arch: s390x
+      arch: arm64
       compiler: gcc
       env: LUA_VERSION=5.3 CXX=g++
     - os: linux
-      arch: s390x
+      arch: arm64
       compiler: clang
       env: LUA_VERSION=5.3 CXX=clang++
 
