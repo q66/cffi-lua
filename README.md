@@ -1,5 +1,7 @@
 # cffi-lua
 
+[![Build Status](https://travis-ci.com/q66/cffi-lua.svg?branch=master)](https://travis-ci.com/q66/cffi-lua)
+
 This is a portable C FFI for Lua, based on `libffi` and aiming to be mostly
 compatible with LuaJIT FFI, but written from scratch. Compatibility is
 preserved where reasonable, but not where not easily implementable (e.g.

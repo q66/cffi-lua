@@ -230,8 +230,9 @@ Variadic callbacks are not (and likely will not be) supported.
 
 ## Portability
 
-Architectures currently tested include `ppc64le`, `ppc64` and `x86_64`. Others
-should also work, as long as supported by `libffi`.
+There is CI set up for `x86_64`, `ppc64le`, `aarch64` and `s390x`. Other
+architectures supported by `libffi` should also work fine. Development
+happens on `ppc64le` and `ppc64`.
 
 - [x] Linux
 - [x] FreeBSD (other BSDs may also work; patches welcome if not)

@@ -1,0 +1,91 @@
+language: cpp
+sudo: required
+dist: bionic
+
+# TODO: release branches
+branches:
+  only:
+    - master
+
+# TODO: add osx jobs
+matrix:
+  include:
+    - os: linux
+      arch: amd64
+      compiler: gcc
+      env: LUA_VERSION=5.1 CXX=g++
+    - os: linux
+      arch: amd64
+      compiler: gcc
+      env: LUA_VERSION=5.2 CXX=g++
+    - os: linux
+      arch: amd64
+      compiler: gcc
+      env: LUA_VERSION=5.3 CXX=g++
+    - os: linux
+      arch: amd64
+      compiler: clang
+      env: LUA_VERSION=5.3 CXX=clang++
+
+    - os: linux
+      arch: ppc64le
+      compiler: gcc
+      env: LUA_VERSION=5.1 CXX=g++
+    - os: linux
+      arch: ppc64le
+      compiler: gcc
+      env: LUA_VERSION=5.2 CXX=g++
+    - os: linux
+      arch: ppc64le
+      compiler: gcc
+      env: LUA_VERSION=5.3 CXX=g++
+    - os: linux
+      arch: ppc64le
+      compiler: clang
+      env: LUA_VERSION=5.3 CXX=clang++
+
+    - os: linux
+      arch: arm64
+      compiler: gcc
+      env: LUA_VERSION=5.1 CXX=g++
+    - os: linux
+      arch: arm64
+      compiler: gcc
+      env: LUA_VERSION=5.2 CXX=g++
+    - os: linux
+      arch: arm64
+      compiler: gcc
+      env: LUA_VERSION=5.3 CXX=g++
+    - os: linux
+      arch: arm64
+      compiler: clang
+      env: LUA_VERSION=5.3 CXX=clang++
+
+    - os: linux
+      arch: s390x
+      compiler: gcc
+      env: LUA_VERSION=5.1 CXX=g++
+    - os: linux
+      arch: s390x
+      compiler: gcc
+      env: LUA_VERSION=5.2 CXX=g++
+    - os: linux
+      arch: s390x
+      compiler: gcc
+      env: LUA_VERSION=5.3 CXX=g++
+    - os: linux
+      arch: s390x
+      compiler: clang
+      env: LUA_VERSION=5.3 CXX=clang++
+
+# bionic has old meson so install that via pip
+before_install:
+  - sudo apt-get update
+  - sudo apt-get -y install pkg-config ninja-build python3-pip python3-setuptools libffi-dev liblua${LUA_VERSION}-dev
+  - sudo pip3 install meson
+
+script:
+   - mkdir build && cd build
+   - meson .. -Dlua_version="$LUA_VERSION"
+   - ninja all
+   - ninja test
