@@ -26,6 +26,17 @@ for now.
 
 See `STATUS.md` for a detailed/exhaustive listing.
 
+## Notable differences from LuaJIT
+
+- Equality comparisons against `nil` always result in `false`
+- Passing `union`s (or `struct`s containing `union`s) by value is not supported
+- Bitfields are not supported
+- Several new API extensions
+
+Equality comparions work this way due to limitations of the Lua metamethod
+semantics. Use `cffi.nullptr` instead. The other limitations are caused by
+`libffi` not supporting these features portably.
+
 ## Dependencies
 
 The dependencies are kept intentionally minimal.
