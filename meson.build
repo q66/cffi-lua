@@ -58,7 +58,7 @@ elif luaver != 'auto' and luaver != 'custom' and luaver != 'vendor'
         lua_dep = dependency('lua-' + luaver, required: false)
     endif
     if not lua_dep.found()
-        lua_dep = dependency(''.join(luaver.split('.')), required: false)
+        lua_dep = dependency('lua' + ''.join(luaver.split('.')), required: false)
     endif
     if not lua_dep.found()
         lua_dep = dependency('lua')
@@ -153,8 +153,11 @@ cffi_src = [
 cffi_deps = [dl_lib, ffi_dep, lua_dep]
 
 cffi_core = static_library(
-    'cffi-core', cffi_src, pic: true, include_directories: extra_inc
-   )
+    'cffi-core', cffi_src,
+    pic: true,
+    dependencies: cffi_deps,
+    include_directories: extra_inc
+)
 
 cffi_lib_s = static_library('cffi-lua-@0@'.format(luaver_str),
     ['src/main.cc'],
