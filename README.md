@@ -111,10 +111,17 @@ included, plus linkage in `LDFLAGS`.
 It is also possible to pass `-Dlua_install_path=...` to override where the
 Lua module will be installed. See below for that.
 
-### Windows
+The `shared_lua` and `shared_libffi` options will make Lua and libffi provide
+`dllimport`-decorated APIs on Windows. On other systems, they do nothing. This
+is not strictly necessary, but it will make things faster when you're really
+using dynamic versions of those, and it's not possible to autodetect. Usually,
+you should be using dynamic Lua but static libffi on Windows.
 
-To build on Windows, first get yourself a binary distribution of `libffi`
-and the right version of Lua.
+### Windows and MSVC style environment
+
+To build on Windows with an MSVC-style toolchain, first get yourself a binary
+distribution of `libffi` and the right version of Lua. They must be compatible
+with the runtime you're targeting.
 
 Drop the `.lib` files (import libs or static libs) of `libffi` and `lua`
 in the `deps` directory, naming them `libffi.lib` and `liblua.lib`. Drop
@@ -140,16 +147,46 @@ ninja all
 ninja test
 ```
 
-Build has been tested on VS 2019, Clang 10 and GCC (mingw-w64) 8.1.0. In a
-MinGW/MSYS/Cygwin environment where `pkg-config` is available and you have
-installed the dependencies the usual way, you should be able to build in the
-same manner as on Unix-like systems.
+Examples of such environment are the Visual Studio environment itself and
+also Clang for Windows by default.
 
-The `shared_lua` and `shared_libffi` options will make Lua and libffi provide
-`dllimport`-decorated APIs. This is not strictly necessary, but it will make
-things faster when you're really using dynamic versions of those, and it's
-not possible to autodetect. Usually, you should be using dynamic Lua but
-static libffi.
+### Windows and MinGW/MSYS style environment
+
+This environment is Unix-like, so install the necessary dependencies as you
+would on Linux. In an MSYS2 environment, this would be something like:
+
+```
+pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-pkg-config
+pacman -S mingw-w64-x86_64-meson
+pacman -S mingw-w64-x86_64-libffi mingw-w64-x86_64-lua
+```
+
+Particularly for MSYS2, you should use dependencies from just one repo,
+as e.g. `meson` installed from the MSYS2 repo won't detect `mingw-w64`
+libraries and so on.
+
+After that, proceed as you would on Linux, except use `shared_lua` and
+`shared_libffi` appropriately. By default, both are shared in the MSYS2
+environment.
+
+```
+meson .. -Dlua_version=5.3 -Dshared_lua=true -Dshared_libffi=true
+```
+
+You might also want to provide `-static-libgcc -static-libstdc++` in `LDFLAGS`
+if you wish to distribute the resulting module/library, otherwise they will
+carry dependencies the `libgcc` and `libstdc++-6` DLLs.
+
+Compile and test with:
+
+```
+ninja all
+ninja test
+```
+
+If you have just a plain MinGW compiler and no package manager environment
+with it, you will need to set it up manually and use `vendor` or `custom`
+for `lua_version` and `libffi`.
 
 ## Installing
 
