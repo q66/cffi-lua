@@ -1,6 +1,17 @@
 language: cpp
 sudo: required
+
 dist: bionic
+osx_image: xcode11.3
+
+addons:
+  homebrew:
+    packages:
+      - libffi
+      - lua
+      - ninja
+      - python3
+    update: true
 
 # TODO: release branches
 branches:
@@ -78,13 +89,28 @@ matrix:
       compiler: clang
       env: LUA_VERSION=5.3 CXX=clang++
 
-# bionic has old meson so install that via pip
+    - os: osx
+      compiler: clang
+      env: LUA_VERSION=5.3 CXX=clang++
+
 before_install:
-  - sudo apt-get update
-  - sudo apt-get -y install pkg-config ninja-build python3-pip python3-setuptools libffi-dev liblua${LUA_VERSION}-dev
-  - sudo pip3 install meson
+  - |
+      if [ "$TRAVIS_OS_NAME" == "linux" ]; then
+          sudo apt-get update || exit 1
+          sudo apt-get -y install pkg-config ninja-build python3-pip \
+              python3-setuptools libffi-dev liblua${LUA_VERSION}-dev || exit 1
+          sudo pip3 install meson
+      fi
+  - |
+      if [ "$TRAVIS_OS_NAME" == "osx" ]; then
+          pip3 install meson
+      fi
 
 script:
+  - |
+      if [ "$TRAVIS_OS_NAME" == "osx" ]; then
+          export PKG_CONFIG_PATH="/usr/local/opt/libffi/lib/pkgconfig"
+      fi
    - mkdir build && cd build
    - meson .. -Dlua_version="$LUA_VERSION"
    - ninja all
