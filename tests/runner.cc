@@ -31,7 +31,7 @@ int main(int argc, char **argv) {
     lua_setglobal(L, "skip_test");
 
     /* load test case */
-    if (luaL_loadfile(L, argv[2]) != LUA_OK) {
+    if (luaL_loadfile(L, argv[2]) != 0) {
         printf("failed loading file '%s': %s\n", argv[2], lua_tostring(L, -1));
         lua_close(L);
         return 1;
