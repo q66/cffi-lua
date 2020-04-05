@@ -1081,10 +1081,7 @@ struct ffi_module {
 
     static int addressof_f(lua_State *L) {
         auto &cd = ffi::checkcdata<void *>(L, 1);
-        if (
-            (cd.decl.type() == ast::C_BUILTIN_REF) ||
-            (cd.decl.type() == ast::C_BUILTIN_ARRAY)
-        ) {
+        if (cd.decl.type() == ast::C_BUILTIN_REF) {
             /* refs/arrays are turned into pointers with the same addr */
             ffi::newcdata<void *>(
                 L, cd.decl.as_type(ast::C_BUILTIN_PTR)

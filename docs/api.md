@@ -175,8 +175,8 @@ p = nil -- will be garbage collected and finalizer will be called
 
 **Extension, does not exist in LuaJIT.**
 
-For pointer (`T *`), reference (`T &`) and array (`T[]`) `cdata`, this returns
-a pointer cdata `T *` with the same address.
+For pointer reference (`T &`) `cdata`, this returns a pointer cdata `T *` with
+the same address.
 
 For any other `cdata` (`T`), this takes an address to that and returns a `T *`.
 
