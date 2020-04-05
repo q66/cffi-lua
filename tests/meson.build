@@ -17,6 +17,9 @@ test_cases = [
 # We put the deps path in PATH because that's where our Lua dll file is
 # located and we need the test runner to be able to find this on Windows
 
+penv = environment()
+penv.append('PATH', deps_path)
+
 foreach tcase: test_cases
     test(tcase[0], runner,
         args: [
@@ -24,6 +27,6 @@ foreach tcase: test_cases
             join_paths(meson.current_source_dir(), tcase[1] + '.lua')
         ],
         should_fail: tcase[2], depends: cffi_mod,
-        env: ['PATH=' + deps_path]
+        env: penv
     )
 endforeach
