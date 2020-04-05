@@ -1,10 +1,18 @@
 language: cpp
 sudo: required
 
+branches:
+  only:
+    - master
+    # release branches
+    - /^[0-9]+\.[0-9]+$/
+    - /^[0-9]+\.[0-9]+\.[0-9]+$/
+
 dist: bionic
 osx_image: xcode11.3
 
 addons:
+  # os x dependencies
   homebrew:
     packages:
       - libffi
@@ -12,13 +20,19 @@ addons:
       - ninja
     update: true
 
-# TODO: release branches
-branches:
-  only:
-    - master
+  # linux dependencies
+  apt:
+    packages:
+      - pkg-config
+      - ninja-build
+      - python3-pip
+      - python3-setuptools
+      - libffi-dev
+    update: true
 
 matrix:
   include:
+    # x86_64 linux, test all lua versions under gcc + 5.3 under clang
     - os: linux
       arch: amd64
       compiler: gcc
@@ -36,6 +50,7 @@ matrix:
       compiler: clang
       env: LUA_VERSION=5.3 CXX=clang++
 
+    # ppc64le linux, test gcc and clang, 5.3 only
     - os: linux
       arch: ppc64le
       compiler: gcc
@@ -45,6 +60,7 @@ matrix:
       compiler: clang
       env: LUA_VERSION=5.3 CXX=clang++
 
+    # s390x linux, test gcc and clang, 5.3 only
     - os: linux
       arch: s390x
       compiler: gcc
@@ -54,6 +70,7 @@ matrix:
       compiler: clang
       env: LUA_VERSION=5.3 CXX=clang++
 
+    # aarch64 linux, test gcc and clang, 5.3 only
     - os: linux
       arch: arm64
       compiler: gcc
@@ -63,6 +80,7 @@ matrix:
       compiler: clang
       env: LUA_VERSION=5.3 CXX=clang++
 
+    # os x, clang, 5.3 only
     - os: osx
       compiler: clang
       env: LUA_VERSION=5.3 CXX=clang++
@@ -70,9 +88,7 @@ matrix:
 before_install:
   - |
       if [ "$TRAVIS_OS_NAME" == "linux" ]; then
-          sudo apt-get update || exit 1
-          sudo apt-get -y install pkg-config ninja-build python3-pip \
-              python3-setuptools libffi-dev liblua${LUA_VERSION}-dev || exit 1
+          sudo apt-get -y install liblua${LUA_VERSION}-dev || exit 1
           sudo pip3 install meson
       fi
   - |
