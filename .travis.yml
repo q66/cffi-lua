@@ -18,7 +18,6 @@ branches:
   only:
     - master
 
-# TODO: add osx jobs
 matrix:
   include:
     - os: linux
@@ -111,7 +110,7 @@ script:
       if [ "$TRAVIS_OS_NAME" == "osx" ]; then
           export PKG_CONFIG_PATH="/usr/local/opt/libffi/lib/pkgconfig"
       fi
-   - mkdir build && cd build
-   - meson .. -Dlua_version="$LUA_VERSION"
-   - ninja all
-   - ninja test
+  - mkdir build && cd build
+  - meson .. -Dlua_version="$LUA_VERSION"
+  - ninja all
+  - ninja test
