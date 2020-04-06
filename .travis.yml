@@ -136,6 +136,18 @@ before_install:
           export PATH=/C/tools/msys64/mingw64/bin:$PATH
       fi
 
+before_cache:
+  - |
+      if [ "$FFI_TOOLCHAIN" = "msys2" ]; then
+          # https://unix.stackexchange.com/a/137322/107554
+          $msys2 pacman --sync --clean --noconfirm
+      fi
+
+cache:
+  directories:
+    - $HOME/AppData/Local/Temp/chocolatey
+    - /C/tools/msys64
+
 before_script:
   - |
       if [ "$TRAVIS_OS_NAME" == "windows" ]; then

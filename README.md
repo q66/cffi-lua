@@ -46,17 +46,23 @@ The dependencies are kept intentionally minimal.
 - `libffi`
 - `meson`, `pkg-config` (optional)
 
-Any reasonably modern version of GCC or Clang should work fine (GCC 5, maybe
-even 4.8, or Clang 3.4 or newer). Visual Studio 2019 has also been tested
-and is known to work. Other compilers will also work if they provide the
-necessary C++ standard compilance; there aren't any compiler specific
-extensions used in the code (other than some diagnostic pragmas to
-handle warnings under GCC/Clang; these are not enabled elsewhere).
+These toolchains have been tested:
 
-The module should work on any CPU architecture supported by `libffi`. It has
-been tested at least on 64-bit PowerPC (little and big endian) and x86.
-If you find that the module does not work on yours, report a bug (and maybe
-provide a patch).
+- GCC 7+ (all platforms)
+- Clang 8+ (all platforms)
+- Visual Studio 2017+ (with updates)
+
+Other toolchains may also work. The theoretical minimum is GCC 4.8 and
+Clang 3.4 (an updated VS 2017 is already the minimum, older versions are
+missing necessary language features). It is ensured that no non-standard
+extensions are used, so as long as your compiler is C++14 compliant, it
+should work (technically there are some GCC/Clang/MSVC-specific diagnostic
+pragmas used, but these are conditional and only used to control warnings).
+
+The module should work on any CPU architecture supported by `libffi`. The CI
+system tests `x86_64`, `ppc64le`, `aarch64` and `s390x`, in addition to local
+testing on other architectures. If you encounter any issues on yours, feel
+free to provide patches or at least report issues.
 
 The `pkg-config` tool is optional when using `-Dlua_version=custom` and
 `-Dlibffi=custom`. However, you will need to manually specify what to include
