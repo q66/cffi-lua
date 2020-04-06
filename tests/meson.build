@@ -1,8 +1,10 @@
 # Test suite definitions
 
-runner = executable('runner', 'runner.cc', include_directories: [
-    current_inc, runner_inc
-] + extra_inc, dependencies: [lua_dep])
+runner = executable('runner', 'runner.cc',
+    include_directories: [current_inc, runner_inc] + extra_inc,
+    dependencies: [lua_dep],
+    export_dynamic: true
+)
 
 test_cases = [
     # test_name                      test_file                    expected_fail

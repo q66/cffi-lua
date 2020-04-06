@@ -3,6 +3,35 @@
 
 #include <lua.hh>
 
+#ifdef FFI_WINDOWS_ABI
+#define DLL_EXPORT __declspec(dllexport)
+#else
+#  if defined(__GNUC__) && (__GNUC__ >= 4)
+#    define DLL_EXPORT __attribute__((visibility("default")))
+#  else
+#    define DLL_EXPORT
+#  endif
+#endif
+
+/* Export some stdio APIs so they're always available; the actual availability
+ * of these APIs may vary based on OS, e.g. on Windows stdio APIs are generally
+ * inlined so we can't rely on them being exported dynamically...
+ */
+
+extern "C" DLL_EXPORT
+int test_puts(char const *str) {
+    return puts(str);
+}
+
+extern "C" DLL_EXPORT
+int test_snprintf(char *buf, size_t n, char const *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    int ret = vsnprintf(buf, n, fmt, args);
+    va_end(args);
+    return ret;
+}
+
 int main(int argc, char **argv) {
     if (argc < 3) {
         printf("not enough arguments (%d)\n", argc);

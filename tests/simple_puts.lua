@@ -1,8 +1,8 @@
 local ffi = require("cffi")
 
 ffi.cdef [[
-    int puts(char const *str);
+    int test_puts(char const *str);
 ]]
 
-local ret = ffi.C.puts("hello world")
+local ret = ffi.C.test_puts("hello world")
 assert(ret >= 0)

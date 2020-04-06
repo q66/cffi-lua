@@ -69,9 +69,20 @@ On POSIX systems, this will contain all the symbols available by default, which
 includes the C standard library and related things (on Linux, `libm`, `libdl`
 and so on), possibly `libgcc` as well as symbols exported from Lua.
 
-On Windows systems, this would be symbols exported from the executable, the
-Lua dynamic link library, the C runtime library, as well as some other core
-DLLs.
+On Windows, symbols are looked up in this order:
+
+- The current running executable
+- The executable or library containing the FFI (`cffi.dll` when a module
+  or a dynamically linked library, or the executable when compiled in)
+- The C runtime library
+- `kernel32.dll`
+- `user32.dll`
+- `gdi32.dll`
+
+Keep in mind that C standard library symbols such as `stdio.h` symbols may
+not always be exported - e.g. MinGW defines them as inline functions. For
+Microsoft toolchain, we have an override in place that forces `stdio`
+symbols to be exported, but it's not possible on other toolchains.
 
 ### clib = cffi.load(name, [,global])
 

@@ -532,7 +532,7 @@ This is what happens on reads:
 
 This is what happens on writes:
 
-- Variables: the vaůie undergoes conversion to its C type according to the
+- Variables: the value undergoes conversion to its C type according to the
   rules defined above and the resulting value is written
 - Other declarations: an error is raised
 
