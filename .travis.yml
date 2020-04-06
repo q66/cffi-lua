@@ -198,17 +198,9 @@ script:
           cmd.exe //C 'C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat' amd64 '&&' \
           meson .. -Dlua_version=vendor -Dlibffi=vendor -Dshared_lua=true '&&' \
           ninja all '&&' ninja test
-      fi
-  - |
-      if [ "$FFI_TOOLCHAIN" == "msys2" ]; then
+      else
           meson .. -Dlua_version="$LUA_VERSION" \
               -Dshared_lua=true -Dshared_libffi=true || exit 1
-          ninja all || exit 1
-          ninja test
-      fi
-  - |
-      if [ "$TRAVIS_OS_NAME" != "windows" ]; then
-          meson .. -Dlua_version="$LUA_VERSION" || exit 1
           ninja all || exit 1
           ninja test
       fi
