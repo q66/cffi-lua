@@ -85,6 +85,14 @@ matrix:
       compiler: clang
       env: LUA_VERSION=5.3 CXX=clang++
 
+    # windows, visual studio 2017, 5.3 only
+    - os: windows
+      env: LUA_VERSION=5.3 FFI_TOOLCHAIN=msvc
+
+    # windows, MSYS2 with mingw-w64-x86_64-gcc, 5.3 only
+    - os: windows
+      env: LUA_VERSION=5.3 FFI_TOOLCHAIN=msys2
+
 before_install:
   - |
       if [ "$TRAVIS_OS_NAME" == "linux" ]; then
@@ -95,13 +103,100 @@ before_install:
       if [ "$TRAVIS_OS_NAME" == "osx" ]; then
           pip3 install meson
       fi
+  - |
+      if [ "$FFI_TOOLCHAIN" = "msvc" ]; then
+          choco install --no-progress -y 7zip.portable || exit 1
+          choco install --no-progress -y python3 || exit 1
+          choco install --no-progress -y ninja || exit 1
+
+          export PATH="/c/Python38:/c/Python38/Scripts:$PATH"
+          export PATH="/c/ProgramData/chocolatey/lib/ninja/tools:$PATH"
+          export PATH="/c/ProgramData/chocolatey/lib/7zip.portable/tools:$PATH"
+
+          pip3 install meson
+      fi
+  - |
+      if [ "$FFI_TOOLCHAIN" = "msys2" ]; then
+          [[ ! -f C:/tools/msys64/msys2_shell.cmd ]] && rm -rf C:/tools/msys64
+          choco uninstall -y mingw
+          choco upgrade --no-progress -y msys2
+
+          export msys2='cmd //C RefreshEnv.cmd '
+          export msys2+='& set MSYS=winsymlinks:nativestrict '
+          export msys2+='& C:\\tools\\msys64\\msys2_shell.cmd -defterm -no-start'
+          export mingw64="$msys2 -mingw64 -full-path -here -c "\"\$@"\" --"
+          export msys2+=" -msys2 -c "\"\$@"\" --"
+
+          $msys2 pacman -S --noconfirm --needed mingw-w64-x86_64-toolchain
+          $msys2 pacman -S --noconfirm --needed mingw-w64-x86_64-meson
+          $msys2 pacman -S --noconfirm --needed mingw-w64-x86_64-lua
+          $msys2 pacman -S --noconfirm --needed mingw-w64-x86_64-libffi
+
+          taskkill //IM gpg-agent.exe //F # https://travis-ci.community/t/4967
+          export PATH=/C/tools/msys64/mingw64/bin:$PATH
+      fi
+
+before_script:
+  - |
+      if [ "$TRAVIS_OS_NAME" == "windows" ]; then
+          # we take custom toolchain decisions here
+          unset CC CXX CC_FOR_BUILD CXX_FOR_BUILD
+      fi
+  - |
+      if [ "$FFI_TOOLCHAIN" == "msvc" ]; then
+          mkdir deps
+
+          local lua_maj="53"
+          local lua_ver="5.3.5"
+          local lua_build="Win64_dll15_lib"
+          local ffi_ver="3.3"
+          local ffi_build="vc15_x64"
+
+          # lua from luabinaries
+          wget https://downloads.sourceforge.net/project/luabinaries/${lua_ver}/Windows%20Libraries/Dynamic/lua-${lua_ver}_${lua_build}.zip || exit 1
+          cd deps
+          7z x ../lua-${lua_ver}_${lua_build}.zip || exit 1
+          mv lua${lua_maj}.lib liblua.lib
+          cd ..
+
+          # build static libffi ourselves, for our toolchain
+          wget https://github.com/winlibs/libffi/archive/libffi-${ffi_ver}.zip || exit 1
+          7z x libffi-${ffi_ver}.zip || exit 1
+          mv libffi-libffi-${ffi_ver} libffi
+
+          pushd libffi/win32/${ffi_build}
+          # need to run everything in the windows cmd.exe shell...
+          cmd.exe //C 'C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat' amd64 '&&' \
+          msbuild.exe /property:Configuration=Release
+          cp x64/Release/libffi.lib ../../../deps || exit 1
+          popd
+
+          cp libffi/include/ffi.h deps/include
+          cp libffi/src/x86/ffitarget.h deps/include
+      fi
 
 script:
+  - mkdir build && cd build
   - |
       if [ "$TRAVIS_OS_NAME" == "osx" ]; then
           export PKG_CONFIG_PATH="/usr/local/opt/libffi/lib/pkgconfig"
       fi
-  - mkdir build && cd build
-  - meson .. -Dlua_version="$LUA_VERSION"
-  - ninja all
-  - ninja test
+  - |
+      if [ "$FFI_TOOLCHAIN" == "msvc" ]; then
+          cmd.exe //C 'C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat' amd64 '&&' \
+          meson .. -Dlua_version=vendor -Dlibffi=vendor -Dshared_lua=true '&&' \
+          ninja all '&&' ninja test
+      fi
+  - |
+      if [ "$FFI_TOOLCHAIN" == "msys2" ]; then
+          meson .. -Dlua_version="$LUA_VERSION" \
+              -Dshared_lua=true -Dshared_libffi=true || exit 1
+          ninja all || exit 1
+          ninja test
+      fi
+  - |
+      if [ "$TRAVIS_OS_NAME" != "windows" ]; then
+          meson .. -Dlua_version="$LUA_VERSION" || exit 1
+          ninja all || exit 1
+          ninja test
+      fi
