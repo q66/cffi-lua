@@ -26,13 +26,6 @@ ffi.cdef [[
 print("## BEGIN TESTS ##")
 print()
 
-print("# system info")
-print("os: " .. ffi.os)
-print("arch: " .. ffi.arch)
-print("endian: " .. (ffi.abi("le") and "le" or "be"))
-print("bits: " .. (ffi.abi("64bit") and "64" or "32"))
-print()
-
 print("# main library namespace")
 print("C namespace: " .. tostring(ffi.C))
 print()

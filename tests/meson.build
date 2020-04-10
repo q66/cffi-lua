@@ -8,6 +8,7 @@ runner = executable('runner', 'runner.cc',
 
 test_cases = [
     # test_name                      test_file                    expected_fail
+    ['abi example',                  'abi',                             false],
     ['simple example',               'simple_puts',                     false],
     ['variadic calls',               'variadic',                        false],
     ['structs, arrays, unions',      'struct_array',                    false],
