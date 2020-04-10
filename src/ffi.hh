@@ -297,6 +297,13 @@ static inline cdata<T> &checkcdata(lua_State *L, int idx) {
 }
 
 template<typename T>
+static inline cdata<T> *testcval(lua_State *L, int idx) {
+    return static_cast<cdata<T> *>(
+        luaL_testudata(L, idx, lua::CFFI_CDATA_MT)
+    );
+}
+
+template<typename T>
 static inline cdata<T> *testcdata(lua_State *L, int idx) {
     auto ret = static_cast<cdata<T> *>(
         luaL_testudata(L, idx, lua::CFFI_CDATA_MT)

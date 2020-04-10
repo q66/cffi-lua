@@ -665,11 +665,23 @@ struct cdata_meta {
     }
 
     static int eq(lua_State *L) {
-        auto *cd1 = ffi::testcdata<void *>(L, 1);
-        auto *cd2 = ffi::testcdata<void *>(L, 2);
+        auto *cd1 = ffi::testcval<void *>(L, 1);
+        auto *cd2 = ffi::testcval<void *>(L, 2);
         if (!cd1 || !cd2) {
             /* equality against non-cdata object is always false */
             lua_pushboolean(L, false);
+            return 1;
+        }
+        if (
+            (cd1->gc_ref == lua::CFFI_CTYPE_TAG) ||
+            (cd2->gc_ref == lua::CFFI_CTYPE_TAG)
+        ) {
+            if (cd1->gc_ref != cd2->gc_ref) {
+                /* ctype against cdata */
+                lua_pushboolean(L, false);
+            } else {
+                lua_pushboolean(L, cd1->decl.is_same(cd2->decl, false));
+            }
             return 1;
         }
         if (!cd1->decl.deref().arith() || !cd2->decl.deref().arith()) {
