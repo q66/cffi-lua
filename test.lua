@@ -13,14 +13,6 @@ ffi.cdef [[
     mbuf strdup(char const *x);
     void *memcpy(void *dest, cptr src, size_t num);
     void free(void *p);
-
-    enum test {
-        FIRST = 1, SECOND, THIRD, FOURTH,
-
-        SOME_FLAG = 1 << 4,
-        SOME_SIZE = sizeof(void *),
-        SOME_ALIGN = alignof(long double)
-    };
 ]]
 
 print("## BEGIN TESTS ##")
@@ -91,13 +83,6 @@ print("size == " .. ffi.sizeof(pt))
 print("alignment == " .. ffi.alignof(pt))
 print()
 
-print("# enum constants")
-print("ffi.C.THIRD = " .. ffi.C.THIRD)
-print("ffi.C.SOME_FLAG = " .. ffi.C.SOME_FLAG)
-print("ffi.C:SOME_SIZE = " .. ffi.C.SOME_SIZE)
-print("ffi.C.SOME_ALIGN = " .. ffi.C.SOME_ALIGN)
-print()
-
 print("# scalar cdata")
 local scd = ffi.new("int", 10);
 print("int(10) == " .. tostring(scd))
@@ -109,27 +94,6 @@ print("original puts == " .. tostring(ffi.C.puts))
 print("pointer to puts == " .. tostring(fp))
 print("calling with 'hello world'")
 fp("hello world")
-print()
-
-print("# Scalar creation")
-local v = ffi.eval("0x1234ABCD5678FFFF")
-print("0x1234ABCD5678FFFF == " .. tostring(v))
-print()
-
-print("# Cdata arithmetic")
-local a = ffi.new("int", 150)
-local b = ffi.new("short", 300)
-print("int(150) + short(300) == " .. tostring(a + b))
-local a = ffi.cast("int *", 12)
-local b = ffi.cast("int *", 4)
-print("intptr(12) - intptr(4) == " .. (a - b))
-print("int(2) ^ int(4) == " .. tostring(ffi.cast("int", 2) ^ ffi.cast("int", 4)))
-print("-int(150) == " .. tostring(-ffi.cast("int", 150)))
-print("intptr(0) == ffi.nullptr == " .. tostring(ffi.cast("int *", 0) == ffi.nullptr))
-print("intptr(5) == ffi.nullptr == " .. tostring(ffi.cast("int *", 5) == ffi.nullptr))
-print("int(150) == int(150) == " .. tostring(ffi.cast("int", 150) == ffi.cast("int", 150)))
-print("int(200) == int(150) == " .. tostring(ffi.cast("int", 200) == ffi.cast("int", 150)))
-print("int(150) == 150 == " .. tostring(ffi.cast("int", 150) == 150))
 print()
 
 print("## END TESTS ##")

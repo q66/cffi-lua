@@ -398,9 +398,9 @@ configuration (5.3+ integers are respected).
   performed first, same with `enum`s.
 - **Equality comparisons** never raise an error, but a notable **difference
   from LuaJIT** is that metamethods are only ever triggered on compatible
-  Lua types, which means comparisons against `nil` will always be `false`
-  no matter what. Incompatible `cdata` pointers can always be tested for
-  address equality.
+  Lua types, which means comparisons of `cdata` and `nil` (or other Lua
+  values) will always be `false` no matter what. Incompatible `cdata`
+  pointers can always be tested for address equality.
 
 ### Table keys and cdata
 
