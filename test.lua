@@ -123,42 +123,6 @@ local v = ffi.eval("0x1234ABCD5678FFFF")
 print("0x1234ABCD5678FFFF == " .. tostring(v))
 print()
 
-print("# Parameterized types")
-
-print("testing parameterized struct...")
-
-local t1_t = ffi.typeof("int")
-local t2_t = ffi.typeof("char const *")
-
-ffi.cdef([[
-    typedef struct $ {
-        $ $;
-        $ $;
-    } $;
-]], "pstruct", t1_t, "test1", t2_t, "test2", "pstruct")
-
-print("defined a struct 'pstruct' with members 'test1' and 'test2'...")
-x = ffi.new("pstruct")
-print("created: " .. tostring(x))
-x.test1 = 1337
-local t2 = "test2 string"
-x.test2 = t2
-print("x.test1: " .. ffi.tonumber(x.test1))
-print("x.test2: " .. ffi.string(x.test2))
-
-print("testing parameterized enum...")
-
-ffi.cdef([[
-    enum {
-        $ = $, $
-    };
-]], "FOO", 1337, "BAR")
-
-print("created anonymous enum with members FOO and BAR...")
-print("FOO: " .. ffi.tonumber(ffi.C.FOO))
-print("BAR: " .. ffi.tonumber(ffi.C.BAR))
-print()
-
 print("# Cdata arithmetic")
 local a = ffi.new("int", 150)
 local b = ffi.new("short", 300)

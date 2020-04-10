@@ -14,6 +14,7 @@ test_cases = [
     ['ffi.copy and fill',            'copy_fill',                       false],
     ['callbacks',                    'callbacks',                       false],
     ['table initializers',           'table_init',                      false],
+    ['parameterized types',          'parameterized',                   false],
 ]
 
 # We put the deps path in PATH because that's where our Lua dll file is
