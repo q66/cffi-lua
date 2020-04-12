@@ -79,8 +79,14 @@ template<> struct builtin_traits<C_BUILTIN_REF>:
 template<> struct builtin_traits<C_BUILTIN_ARRAY>:
     detail::builtin_traits_base<char[]> {};
 
-template<> struct builtin_traits<C_BUILTIN_VA_LIST>:
-    detail::builtin_traits_base<va_list> {};
+template<> struct builtin_traits<C_BUILTIN_VA_LIST> {
+    using type = va_list;
+
+    /* special case; XXX is this good enough ABI-wise? */
+    static ffi_type *libffi_type() {
+        return &ffi_type_pointer;
+    }
+};
 
 template<> struct builtin_traits<C_BUILTIN_CHAR>:
     detail::builtin_traits_base<char> {};
