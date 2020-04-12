@@ -112,7 +112,7 @@ These are implemented by LuaJIT, but not considered urgent.
 
 - [x] Zero-sized arrays, structs, unions (GCC extension)
 - [ ] `__extension__` (GCC extension)
-- [ ] `__asm__("symbol")` (symbol redirection, GCC extension)
+- [x] `__asm__("symbol")` (symbol redirection, GCC extension)
 - [ ] `__attribute__` (GCC extension)
   - [ ] `aligned`
   - [ ] `mode`
