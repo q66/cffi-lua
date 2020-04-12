@@ -458,6 +458,80 @@ private:
         }
     }
 
+    void read_escape(char &c) {
+        next_char();
+        switch (current) {
+            case '\0':
+                lex_error("unterminated escape sequence", TOK_CHAR);
+                return;
+            case '\'':
+            case '\"':
+            case '\\':
+            case '?':
+                c = current;
+                next_char();
+                return;
+            case 'e': /* extension */
+                c = 0x1B;
+                next_char();
+                return;
+            case 'a': c = '\a'; next_char(); return;
+            case 'b': c = '\b'; next_char(); return;
+            case 'f': c = '\f'; next_char(); return;
+            case 'n': c = '\n'; next_char(); return;
+            case 'r': c = '\r'; next_char(); return;
+            case 't': c = '\t'; next_char(); return;
+            case 'v': c = '\v'; next_char(); return;
+            case 'x': {
+                next_char();
+                int c1 = current, c2 = upcoming();
+                if (!isxdigit(c1) || !isxdigit(c2)) {
+                    lex_error("malformed hex escape", TOK_CHAR);
+                }
+                c1 |= 32; c2 |= 32;
+                c1 = (c1 >= 'a') ? (c1 - 'a' + 10) : (c1 - '0');
+                c2 = (c2 >= 'a') ? (c2 - 'a' + 10) : (c2 - '0');
+                c = char(c2 + (c1 * 16));
+                next_char();
+                next_char();
+                return;
+            }
+            default:
+                if ((current >= '0') && (current <= '7')) {
+                    int c1 = current - '0';
+                    next_char();
+                    if ((current >= '0') && (current <= '7')) {
+                        /* 2 or more octal digits */
+                        int c2 = current - '0';
+                        next_char();
+                        if ((current >= '0') && (current <= '7')) {
+                            /* 3 octal digits, may be more than 255 */
+                            int c3 = current - '0';
+                            next_char();
+                            int r = (c3 + (c2 * 8) + (c1 * 64));
+                            if (r > 0xFF) {
+                                lex_error(
+                                    "octal escape out of bounds", TOK_CHAR
+                                );
+                            }
+                            c = char(r);
+                            return;
+                        } else {
+                            /* 2 octal digits */
+                            c = char(c2 + (c1 * 8));
+                            return;
+                        }
+                    } else {
+                        /* 1 octal digit */
+                        c = char(c1);
+                        return;
+                    }
+                }
+                lex_error("malformed escape sequence", TOK_CHAR);
+                return;
+        }
+    }
+
     int lex(lex_token &tok) {
         for (;;) switch (current) {
             case '\0':
@@ -551,6 +625,24 @@ cont:
                 next_char();
                 next_char();
                 return TOK_ELLIPSIS;
+            }
+            /* character literal */
+            case '\'': {
+                next_char();
+                if (current == '\0') {
+                    lex_error("unterminated literal", TOK_CHAR);
+                } else if (current == '\\') {
+                    read_escape(tok.value.c);
+                } else {
+                    tok.value.c = char(current);
+                    next_char();
+                }
+                if (current != '\'') {
+                    lex_error("unterminated literal", TOK_CHAR);
+                }
+                next_char();
+                tok.numtag = ast::c_expr_type::CHAR;
+                return TOK_CHAR;
             }
             /* single-char tokens, number literals, keywords, names */
             default: {
