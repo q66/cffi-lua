@@ -644,6 +644,27 @@ cont:
                 tok.numtag = ast::c_expr_type::CHAR;
                 return TOK_CHAR;
             }
+            /* string literal */
+            case '\"': {
+                p_buf.clear();
+                next_char();
+                while ((current != '\"')) {
+                    if (current == '\0') {
+                        lex_error("unterminated string", TOK_STRING);
+                    }
+                    if (current == '\\') {
+                        char c = '\0';
+                        read_escape(c);
+                        p_buf.push_back(c);
+                    } else {
+                        p_buf.push_back(char(current));
+                        next_char();
+                    }
+                }
+                next_char();
+                tok.value_s = std::string{&p_buf[0], p_buf.size()};
+                return TOK_STRING;
+            }
             /* single-char tokens, number literals, keywords, names */
             default: {
                 if (isspace(current)) {
