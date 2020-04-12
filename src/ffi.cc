@@ -1212,17 +1212,15 @@ void get_global(lua_State *L, lib::c_lib const *dl, const char *sname) {
 
     switch (tp) {
         case ast::c_object_type::VARIABLE: {
-            void *symp = lib::get_sym(dl, L, sname);
-            auto &var = decl->as<ast::c_variable>().type();
-            if (var.type() == ast::C_BUILTIN_FUNC) {
+            auto &var = decl->as<ast::c_variable>();
+            void *symp = lib::get_sym(dl, L, var.sym());
+            if (var.type().type() == ast::C_BUILTIN_FUNC) {
                 make_cdata_func(
                     L, reinterpret_cast<void (*)()>(symp),
-                    var.function(), false, nullptr
+                    var.type().function(), false, nullptr
                 );
             } else {
-                to_lua(
-                    L, decl->as<ast::c_variable>().type(), symp, RULE_RET
-                );
+                to_lua(L, var.type(), symp, RULE_RET);
             }
             return;
         }
@@ -1249,14 +1247,14 @@ void set_global(lua_State *L, lib::c_lib const *dl, char const *sname, int idx) 
     if (decl->obj_type() != ast::c_object_type::VARIABLE) {
         luaL_error(L, "symbol '%s' is not mutable", decl->name());
     }
-    auto &cv = decl->as<ast::c_variable>().type();
-    if (cv.type() == ast::C_BUILTIN_FUNC) {
+    auto &cv = decl->as<ast::c_variable>();
+    if (cv.type().type() == ast::C_BUILTIN_FUNC) {
         luaL_error(L, "symbol '%s' is not mutable", decl->name());
     }
 
-    void *symp = lib::get_sym(dl, L, sname);
+    void *symp = lib::get_sym(dl, L, cv.sym());
     size_t rsz;
-    from_lua(L, cv, symp, idx, rsz, RULE_CONV);
+    from_lua(L, cv.type(), symp, idx, rsz, RULE_CONV);
 }
 
 void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {

@@ -1958,7 +1958,22 @@ static void parse_decl(lex_state &ls) {
     }
 
     auto tp = parse_type(ls, &dname);
-    ls.store_decl(new ast::c_variable{std::move(dname), std::move(tp)}, dline);
+    std::string sym;
+    /* symbol redirection */
+    if (test_next(ls, TOK___asm__)) {
+        int lnum = ls.line_number;
+        check_next(ls, '(');
+        check(ls, TOK_STRING);
+        if (ls.t.value_s.empty()) {
+            ls.syntax_error("empty symbol name");
+        }
+        sym = std::move(ls.t.value_s);
+        ls.get();
+        check_match(ls, ')', '(', lnum);
+    }
+    ls.store_decl(new ast::c_variable{
+        std::move(dname), std::move(sym), std::move(tp)
+    }, dline);
 }
 
 static void parse_decls(lex_state &ls) {

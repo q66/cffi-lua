@@ -17,6 +17,7 @@ test_cases = [
     ['table initializers',           'table_init',                      false],
     ['parameterized types',          'parameterized',                   false],
     ['scalar types',                 'scalar',                          false],
+    ['symbol redirection',           'redir',                           false],
 ]
 
 # We put the deps path in PATH because that's where our Lua dll file is

@@ -779,8 +779,9 @@ private:
 };
 
 struct c_variable: c_object {
-    c_variable(std::string vname, c_type vtype):
-        p_name{std::move(vname)}, p_type{std::move(vtype)}
+    c_variable(std::string vname, std::string sym, c_type vtype):
+        p_name{std::move(vname)}, p_sname{std::move(sym)},
+        p_type{std::move(vtype)}
     {}
 
     c_object_type obj_type() const {
@@ -792,6 +793,13 @@ struct c_variable: c_object {
     }
 
     char const *name() const {
+        return p_name.c_str();
+    }
+
+    char const *sym() const {
+        if (!p_sname.empty()) {
+            return p_sname.c_str();
+        }
         return p_name.c_str();
     }
 
@@ -809,6 +817,7 @@ struct c_variable: c_object {
 
 private:
     std::string p_name;
+    std::string p_sname;
     c_type p_type;
 };
 
