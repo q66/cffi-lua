@@ -54,7 +54,7 @@ enum c_token {
 
     TOK_ELLIPSIS,
 
-    TOK_INTEGER, TOK_NAME, KEYWORDS
+    TOK_INTEGER, TOK_FLOAT, TOK_CHAR, TOK_STRING, TOK_NAME, KEYWORDS
 };
 
 #undef KW
@@ -71,7 +71,7 @@ static char const *tokens[] = {
 
     "...",
 
-    "<integer>", "<name>", KEYWORDS
+    "<integer>", "<float>", "<char>", "<string>", "<name>", KEYWORDS
 };
 
 #undef KW
