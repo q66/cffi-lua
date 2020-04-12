@@ -655,7 +655,16 @@ cont:
             case '\"': {
                 p_buf.clear();
                 next_char();
-                while ((current != '\"')) {
+                for (;;) {
+                    if (current == '\"') {
+                        /* multiple string literals are one string */
+                        if (upcoming() == '\"') {
+                            next_char();
+                            next_char();
+                        } else {
+                            break;
+                        }
+                    }
                     if (current == '\0') {
                         lex_error("unterminated string", TOK_STRING);
                     }
