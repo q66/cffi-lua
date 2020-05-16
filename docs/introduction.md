@@ -318,7 +318,7 @@ printf("%d", ffi.new("int", 1))
 
 **This applies in the default Lua configuration.** If your Lua is configured
 to use a different type for numbers, the conversions may be different; see
-the `semantics.md` document.
+the [semantics.md](semantics.md) document.
 
 **With Lua 5.3, integers will always get converted to an integer type, not
 a floating point type.** That means passing `1.0` and `1` is different in 5.3,

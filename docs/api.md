@@ -31,7 +31,8 @@ with `cffi.cdef`, then accessed through the appropriate namespace.
 
 This function takes one or more C declarations as a string and declares them
 within the FFI. The string is actually a chunk of C code. Common C syntax
-is generally supported, please refer to `syntax.md` for suported syntax.
+is generally supported, please refer to [syntax.md](syntax.md) for supported
+syntax.
 
 There is no preprocessor and the parser doesn't support any C preprocessor
 tokens. Otherwise, the syntax support is reasonably complete. You could use
@@ -58,7 +59,8 @@ errors and any declarations staged during the call will be discarded. You do
 not have to worry about partial declarations leaking through.
 
 **Note:** The `cdef` function supports parameterized types. Read up on those
-in the `semantics.md` document. The extra parameters are used with those.
+in the [semantics.md](semantics.md) document. The extra parameters are used
+with those.
 
 ### cffi.C
 
@@ -113,8 +115,8 @@ This creates a `cdata` object for the given `ct`. VLA/VLS types require the
 `nelem` argument and will raise an error if that is not given.
 
 The `cdata` object is initialized using standard initializer rules described
-in `semantics.md`, using the optional `init` argument(s). Excess initializers
-will raise an error.
+in [semantics.md](semantics.md), using the optional `init` argument(s). Excess
+initializers will raise an error.
 
 Keep in mind that anonymous `struct` or `union` declarations in `ct` will
 create a new declaration every time, which is probably not something you want.
@@ -132,13 +134,15 @@ the `ct` argument once and return a permanent handle to it, which you can use
 with a constructor like above.
 
 **Note:** The `typeof` function supports parameterized types. Read up on those
-in the `semantics.md` document. The extra parameters are used with those.
+in the [semantics.md](semantics.md) document. The extra parameters are used with
+those.
 
 ### cdata = cffi.cast(ct, init)
 
 This creates a new `cdata` object using the C type cast rules. See the right
-section in `semantics.md` for more information. In some cases it will be the
-same as `cffi.new`, but things like pointer compatibility checks are ignored.
+section in [semantics.md](semantics.md) for more information. In some cases
+it will be the same as `cffi.new`, but things like pointer compatibility checks
+are ignored.
 
 ### ctype = cffi.metatype(ct, metatable)
 
@@ -382,11 +386,11 @@ metamethods set through `cffi.metatype`. Most of them will raise errors
 if there is no default behavior for them.
 
 Arithmetic and comparison metamethods have default implementations that
-work on relevant `cdata`, as described in `semantics.md`.
+work on relevant `cdata`, as described in [semantics.md](semantics.md).
 
 The `__index` and `__newindex` metamethods are implemented by default for
 pointer, reference, array and aggregate type `cdata`. The semantics of those
-are described in `semantics.md`.
+are described in [semantics.md](semantics.md).
 
 ### mt(cdata).__tostring
 

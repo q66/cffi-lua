@@ -8,8 +8,8 @@ will be clearly marked as such.
 
 ## C language support
 
-You can refer to `syntax.md` for this, which covers all of the syntax
-implemented by the FFI at this point.
+You can refer to [syntax.md](syntax.md) for this, which covers all of the
+syntax implemented by the FFI at this point.
 
 Our C parser aims to be simple first and foremost. Therefore, it does not
 have detailed error message analysis and so on. It will, however, reject
