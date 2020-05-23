@@ -1457,11 +1457,11 @@ newlevel:
         /* now attach the function or array or whatever */
         if (olev->is_func) {
             /* outer level has an arglist */
-            bool variadic = false;
+            int fflags = 0;
             if (!olev->argl.empty() && (
                 olev->argl.back().type().type() == ast::C_BUILTIN_VOID
             )) {
-                variadic = true;
+                fflags |= ast::C_FUNC_VARIADIC;
                 olev->argl.pop_back();
             }
             /* check if return type can be passed */
@@ -1475,7 +1475,7 @@ newlevel:
                 ls.syntax_error(buf);
                 break;
             }
-            ast::c_function cf{std::move(tp), std::move(olev->argl), variadic};
+            ast::c_function cf{std::move(tp), std::move(olev->argl), fflags};
             tp.~CT();
             new (&tp) ast::c_type{std::move(cf), 0};
         } else if (olev->is_arr) {

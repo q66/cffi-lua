@@ -253,6 +253,15 @@ enum c_type_flags {
     C_TYPE_VLA = 1 << 19
 };
 
+enum c_func_flags {
+    C_FUNC_CDECL = 0,
+    C_FUNC_FASTCALL,
+    C_FUNC_STDCALL,
+    C_FUNC_THISCALL,
+
+    C_FUNC_VARIADIC = 1 << 8,
+};
+
 enum class c_object_type {
     INVALID = 0,
     FUNCTION,
@@ -735,9 +744,9 @@ private:
 };
 
 struct c_function: c_object {
-    c_function(c_type result, std::vector<c_param> params, bool variadic):
+    c_function(c_type result, std::vector<c_param> params, int flags):
         p_result{std::move(result)}, p_params{std::move(params)},
-        p_variadic{variadic}
+        p_flags{flags}
     {}
 
     c_object_type obj_type() const {
@@ -769,12 +778,17 @@ struct c_function: c_object {
     bool is_same(c_function const &other) const;
 
     bool variadic() const {
-        return p_variadic;
+        return !!(p_flags & C_FUNC_VARIADIC);
+    }
+
+    int callconv() const {
+        return p_flags & 0xF;
     }
 
 private:
     c_type p_result;
     std::vector<c_param> p_params;
+    int p_flags;
     bool p_variadic;
 };
 
