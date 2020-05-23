@@ -3,8 +3,17 @@
 
 #include <lua.hh>
 
+#define TEST_STDCALL
+#define TEST_FASTCALL
+
 #ifdef FFI_WINDOWS_ABI
-#define DLL_EXPORT __declspec(dllexport)
+#  if FFI_ARCH == FFI_ARCH_X86
+#    undef TEST_STDCALL
+#    undef TEST_FASTCALL
+#    define TEST_STDCALL __stdcall
+#    define TEST_FASTCALL __fastcall
+#  endif
+#  define DLL_EXPORT __declspec(dllexport)
 #else
 #  if defined(__GNUC__) && (__GNUC__ >= 4)
 #    define DLL_EXPORT __attribute__((visibility("default")))
@@ -30,6 +39,16 @@ int test_snprintf(char *buf, size_t n, char const *fmt, ...) {
     int ret = vsnprintf(buf, n, fmt, args);
     va_end(args);
     return ret;
+}
+
+extern "C" DLL_EXPORT
+int TEST_STDCALL test_stdcall(int a, int b) {
+    return a + b;
+}
+
+extern "C" DLL_EXPORT
+int TEST_FASTCALL test_fastcall(int a, int b) {
+    return a + b;
 }
 
 int main(int argc, char **argv) {
