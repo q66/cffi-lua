@@ -116,12 +116,12 @@ These are implemented by LuaJIT, but not considered urgent.
 - [ ] `__attribute__` (GCC extension)
   - [ ] `aligned`
   - [ ] `mode`
-  - [ ] `cdecl`
-  - [ ] `fastcall`
-  - [ ] `stdcall`
-  - [ ] `thiscall`
+  - [x] `cdecl`
+  - [x] `fastcall`
+  - [x] `stdcall`
+  - [x] `thiscall`
 - [ ] `__declspec(align(n))` (MSVC)
-- [ ] `__cdecl`, `__fastcall`, `__stdcall`, `__thiscall` (MSVC)
+- [x] `__cdecl`, `__fastcall`, `__stdcall`, `__thiscall` (MSVC)
 
 #### Wishlist
 

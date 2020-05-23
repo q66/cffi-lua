@@ -785,6 +785,11 @@ struct c_function: c_object {
         return p_flags & 0xF;
     }
 
+    void callconv(int conv) {
+        p_flags ^= callconv();
+        p_flags |= conv & 0xFF;
+    }
+
 private:
     c_type p_result;
     std::vector<c_param> p_params;

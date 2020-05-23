@@ -59,7 +59,7 @@ enum c_token {
     TOK_EQ = TOK_CUSTOM, TOK_NEQ, TOK_GE, TOK_LE,
     TOK_AND, TOK_OR, TOK_LSH, TOK_RSH,
 
-    TOK_ELLIPSIS,
+    TOK_ELLIPSIS, TOK_ATTRIBB, TOK_ATTRIBE,
 
     TOK_INTEGER, TOK_FLOAT, TOK_CHAR, TOK_STRING, TOK_NAME, KEYWORDS
 };
@@ -76,7 +76,7 @@ static char const *tokens[] = {
     "==", "!=", ">=", "<=",
     "&&", "||", "<<", ">>",
 
-    "...",
+    "...", "((", "))",
 
     "<integer>", "<float>", "<char>", "<string>", "<name>", KEYWORDS
 };
@@ -122,7 +122,8 @@ struct lex_state_error: public std::runtime_error {
 enum parse_mode {
     PARSE_MODE_DEFAULT,
     PARSE_MODE_TYPEDEF,
-    PARSE_MODE_NOTCDEF
+    PARSE_MODE_NOTCDEF,
+    PARSE_MODE_ATTRIB,
 };
 
 struct lex_state {
@@ -633,6 +634,24 @@ cont:
                 next_char();
                 return TOK_ELLIPSIS;
             }
+            /* (, (( */
+            case '(': {
+                next_char();
+                if ((p_mode == PARSE_MODE_ATTRIB) && (current == '(')) {
+                    next_char();
+                    return TOK_ATTRIBB;
+                }
+                return '(';
+            }
+            /* ), )) */
+            case ')': {
+                next_char();
+                if ((p_mode == PARSE_MODE_ATTRIB) && (current == ')')) {
+                    next_char();
+                    return TOK_ATTRIBE;
+                }
+                return ')';
+            }
             /* character literal */
             case '\'': {
                 next_char();
@@ -1076,6 +1095,53 @@ static int parse_cv(lex_state &ls) {
     return quals;
 }
 
+static int parse_callconv_attrib(lex_state &ls) {
+    if (ls.t.token != TOK___attribute__) {
+        return -1;
+    }
+    int omod = ls.mode(PARSE_MODE_ATTRIB);
+    ls.get();
+    int ln = ls.line_number;
+    check_next(ls, TOK_ATTRIBB);
+    int conv = -1;
+    check(ls, TOK_NAME);
+    if (ls.t.value_s == "cdecl") {
+        conv = ast::C_FUNC_CDECL;
+    } else if (ls.t.value_s == "fastcall") {
+        conv = ast::C_FUNC_FASTCALL;
+    } else if (ls.t.value_s == "stdcall") {
+        conv = ast::C_FUNC_STDCALL;
+    } else if (ls.t.value_s == "thiscall") {
+        conv = ast::C_FUNC_THISCALL;
+    } else {
+        ls.syntax_error("invalid calling convention");
+    }
+    ls.get();
+    check_match(ls, TOK_ATTRIBE, TOK_ATTRIBB, ln);
+    ls.mode(omod);
+    return conv;
+}
+
+static int parse_callconv_ms(lex_state &ls) {
+    switch (ls.t.token) {
+        case TOK___cdecl:
+            ls.get();
+            return ast::C_FUNC_CDECL;
+        case TOK___fastcall:
+            ls.get();
+            return ast::C_FUNC_FASTCALL;
+        case TOK___stdcall:
+            ls.get();
+            return ast::C_FUNC_STDCALL;
+        case TOK___thiscall:
+            ls.get();
+            return ast::C_FUNC_THISCALL;
+        default:
+            break;
+    }
+    return -1;
+}
+
 struct arrdim {
     size_t size;
     int quals;
@@ -1179,7 +1245,8 @@ struct plevel {
     std::vector<ast::c_param> argl{};
     std::stack<arrdim> arrd{};
     int cv: 16;
-    int flags: 8;
+    int flags: 6;
+    int cconv: 6;
     unsigned int is_term: 1;
     unsigned int is_func: 1;
     unsigned int is_ref: 1;
@@ -1291,14 +1358,21 @@ static ast::c_type parse_type_ptr(
      *
      */
     std::deque<plevel> pcvq;
+    bool nolev = true;
     /* normally we'd consume the '(', but remember, first level is implicit */
     goto newlevel;
     do {
         ls.get();
+        nolev = false;
 newlevel:
         /* create the sentinel */
         pcvq.emplace_back();
         pcvq.back().is_term = true;
+        if (!nolev) {
+            pcvq.back().cconv = parse_callconv_ms(ls);
+        } else {
+            pcvq.back().cconv = -1;
+        }
         /* count all '*' and create element for each */
         while (ls.t.token == '*') {
             ls.get();
@@ -1322,6 +1396,10 @@ newlevel:
         } else if (ls.t.token == '(') {
             /* these indicate not an arglist, so keep going */
             switch (ls.lookahead()) {
+                case TOK___cdecl:
+                case TOK___fastcall:
+                case TOK___stdcall:
+                case TOK___thiscall:
                 case '*':
                 case '&':
                 case '(':
@@ -1332,6 +1410,15 @@ newlevel:
             break;
         }
     } while (ls.t.token == '(');
+    /* the most basic special case when there are no (),
+     * calling convention can go before the name
+     */
+    if (nolev) {
+        pcvq.front().cconv = parse_callconv_ms(ls);
+        if (pcvq.front().cconv == -1) {
+            pcvq.front().cconv = parse_callconv_attrib(ls);
+        }
+    }
     /* if 'fpname' was passed, it means we might want to handle a named type
      * or declaration, with the name being optional or mandatory depending
      * on 'needn' - if name was optionally requested but not found, we write
@@ -1363,6 +1450,7 @@ newlevel:
      * in short, in 'void (*foo(argl1))(argl2)', 'argl1' will be attached to
      * level 2, while 'argl2' will be stored in level 1 (the implicit one)
      */
+    int prevconv = -1;
     for (auto it = pcvq.rbegin();;) {
         plevel &clev = *it;
         if (!clev.is_term) { /* skip non-sentinels */
@@ -1375,6 +1463,11 @@ newlevel:
              */
             clev.argl = parse_paramlist(ls);
             clev.is_func = true;
+            /* attribute style calling convention after paramlist */
+            clev.cconv = parse_callconv_attrib(ls);
+            if (clev.cconv == -1) {
+                clev.cconv = prevconv;
+            }
         } else if (ls.t.token == '[') {
             /* array dimensions may be multiple */
             int flags;
@@ -1382,6 +1475,10 @@ newlevel:
             /* shifted by 16 to fit into bitfield, will be unshifted later */
             clev.flags = flags >> 16;
         }
+        if (!clev.is_func && (prevconv != -1)) {
+            ls.syntax_error("calling convention on non-function declaration");
+        }
+        prevconv = clev.cconv;
         ++it;
         /* special case of the implicit level, it's not present in syntax */
         if (it == pcvq.rend()) {
@@ -1457,7 +1554,10 @@ newlevel:
         /* now attach the function or array or whatever */
         if (olev->is_func) {
             /* outer level has an arglist */
-            int fflags = 0;
+            int fflags = olev->cconv;
+            if (fflags < 0) {
+                fflags = ast::C_FUNC_CDECL;
+            }
             if (!olev->argl.empty() && (
                 olev->argl.back().type().type() == ast::C_BUILTIN_VOID
             )) {
@@ -1957,7 +2057,15 @@ static void parse_decl(lex_state &ls) {
             break;
     }
 
+    int cconv = parse_callconv_attrib(ls);
     auto tp = parse_type(ls, &dname);
+    if (cconv != -1) {
+        if (tp.type() != ast::C_BUILTIN_FUNC) {
+            ls.syntax_error("calling convention on non-function declaration");
+        }
+        auto *func = const_cast<ast::c_function *>(&tp.function());
+        func->callconv(cconv);
+    }
     std::string sym;
     /* symbol redirection */
     if (test_next(ls, TOK___asm__)) {
