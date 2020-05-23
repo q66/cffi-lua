@@ -150,7 +150,7 @@ Implements the functionality provided by the parser.
 - [x] Structs
 - [x] Unions
 - [x] Arrays
-- [ ] Alternate calling conventions
+- [x] Alternate calling conventions
 - [ ] Constant expressions
   - [x] Simple integer expressions
   - [x] Correct integer promotions
