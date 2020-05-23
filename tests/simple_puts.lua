@@ -1,7 +1,7 @@
 local ffi = require("cffi")
 
 ffi.cdef [[
-    int test_puts(char const *str);
+    int __stdcall test_puts(char const *str);
 ]]
 
 local ret = ffi.C.test_puts("hello world")

@@ -151,6 +151,29 @@ static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
     }
 }
 
+#if defined(FFI_WINDOWS_ABI) && (FFI_ARCH == FFI_ARCH_X86)
+static inline ffi_abi to_libffi_abi(int conv) {
+    switch (conv) {
+        case AST::C_FUNC_CDECL:
+            return FFI_MS_CDECL;
+        case ast::C_FUNC_FASTCALL:
+            return FFI_FASTCALL;
+        case ast::C_FUNC_STDCALL:
+            return FFI_STDCALL;
+        case ast::C_FUNC_THISCALL:
+            return FFI_THISCALL;
+        default:
+            break;
+    }
+    assert(false);
+    return FFI_DEFAULT_ABI;
+}
+#else
+static inline ffi_abi to_libffi_abi(int) {
+    return FFI_DEFAULT_ABI;
+}
+#endif
+
 /* this initializes a non-vararg cif with the given number of arguments
  * for variadics, this is initialized once for zero args, and then handled
  * dynamically before every call
@@ -163,7 +186,7 @@ static bool prepare_cif(
     }
     using U = unsigned int;
     return (ffi_prep_cif(
-        &cif, FFI_DEFAULT_ABI, U(nargs),
+        &cif, to_libffi_abi(func.callconv()), U(nargs),
         func.result().libffi_type(), targs
     ) == FFI_OK);
 }
@@ -297,7 +320,7 @@ static bool prepare_cif_var(
 
     using U = unsigned int;
     return (ffi_prep_cif_var(
-        &fud.val.cif, FFI_DEFAULT_ABI, U(fargs), U(nargs),
+        &fud.val.cif, to_libffi_abi(func.callconv()), U(fargs), U(nargs),
         func.result().libffi_type(), targs
     ) == FFI_OK);
 }
