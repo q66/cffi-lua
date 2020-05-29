@@ -347,6 +347,7 @@ The target architecture name.
 | `arm64`      | AArch64 LE      |
 | `arm64be`    | AArch64 BE      |
 | `ppc`        | PowerPC BE      |
+| `ppcle`      | PowerPC LE      |
 | `ppc64le`    | 64-bit POWER LE |
 | `ppc64`      | 64-bit POWER    |
 | `mips`       | MIPS BE         |

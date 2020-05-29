@@ -165,7 +165,11 @@ static_assert(
       defined(__powerpc) || defined(__ppc) || defined(__PPC) || \
       defined(__POWERPC__) || defined(__POWERPC) || defined(_M_PPC)
 #  define FFI_ARCH FFI_ARCH_PPC
-#  define FFI_ARCH_NAME "ppc"
+#  if defined(FFI_LITTLE_ENDIAN)
+#    define FFI_ARCH_NAME "ppcle"
+#  else
+#    define FFI_ARCH_NAME "ppc"
+#  endif
 #elif defined(__mips64__) || defined(__mips64) || defined(__MIPS64__) || \
       defined(__MIPS64)
 #  define FFI_ARCH FFI_ARCH_MIPS64
