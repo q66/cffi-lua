@@ -19,6 +19,7 @@ test_cases = [
     ['scalar types',                 'scalar',                          false],
     ['symbol redirection',           'redir',                           false],
     ['calling conventions',          'callconv',                        false],
+    ['constant expressions',         'cexpr',                           false],
 ]
 
 # We put the deps path in PATH because that's where our Lua dll file is

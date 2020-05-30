@@ -928,6 +928,48 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
             ls.get();
             return ret;
         }
+        case TOK_NAME: {
+            ast::c_expr ret;
+            auto *o = ls.lookup(ls.t.value_s.c_str());
+            if (!o || (o->obj_type() != ast::c_object_type::CONSTANT)) {
+                std::string buf = "unknown constant '";
+                buf += ls.t.value_s;
+                buf += "'";
+                ls.syntax_error(buf);
+            }
+            auto &ct = o->as<ast::c_constant>();
+            switch (ct.type().type()) {
+                case ast::C_BUILTIN_INT:
+                    ret.type(ast::c_expr_type::INT); break;
+                case ast::C_BUILTIN_UINT:
+                    ret.type(ast::c_expr_type::UINT); break;
+                case ast::C_BUILTIN_LONG:
+                    ret.type(ast::c_expr_type::LONG); break;
+                case ast::C_BUILTIN_ULONG:
+                    ret.type(ast::c_expr_type::ULONG); break;
+                case ast::C_BUILTIN_LLONG:
+                    ret.type(ast::c_expr_type::LLONG); break;
+                case ast::C_BUILTIN_ULLONG:
+                    ret.type(ast::c_expr_type::ULLONG); break;
+                case ast::C_BUILTIN_FLOAT:
+                    ret.type(ast::c_expr_type::FLOAT); break;
+                case ast::C_BUILTIN_DOUBLE:
+                    ret.type(ast::c_expr_type::DOUBLE); break;
+                case ast::C_BUILTIN_LDOUBLE:
+                    ret.type(ast::c_expr_type::LDOUBLE); break;
+                case ast::C_BUILTIN_CHAR:
+                    ret.type(ast::c_expr_type::CHAR); break;
+                case ast::C_BUILTIN_BOOL:
+                    ret.type(ast::c_expr_type::BOOL); break;
+                default:
+                    /* should be generally unreachable */
+                    ls.syntax_error("unknown type");
+                    break;
+            }
+            ret.val = ct.value();
+            ls.get();
+            return ret;
+        }
         case TOK_true:
         case TOK_false: {
             ast::c_expr ret;
