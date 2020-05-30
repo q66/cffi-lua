@@ -1091,19 +1091,6 @@ void decl_store::add(c_object *decl) {
     p_dlist.emplace_back(decl);
     auto &d = *p_dlist.back();
     p_dmap.emplace(d.name(), &d);
-
-    /* enums: register fields as constant values
-     * FIXME: don't hardcode like this
-     */
-    if (d.obj_type() == c_object_type::ENUM) {
-        for (auto &fld: d.as<c_enum>().fields()) {
-            c_value val;
-            val.i = fld.value;
-            add(
-                new c_constant{fld.name, c_type{C_BUILTIN_INT, 0}, val}
-            );
-        }
-    }
 }
 
 void decl_store::commit() {

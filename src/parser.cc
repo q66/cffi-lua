@@ -1980,12 +1980,14 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
     std::vector<ast::c_enum::field> fields;
 
     while (ls.t.token != '}') {
+        int eln = ls.line_number;
         ls.param_maybe_name();
         check(ls, TOK_NAME);
         std::string fname = ls.t.value_s;
         ls.get();
         if (ls.t.token == '=') {
             ls.get();
+            eln = ls.line_number;
             auto exp = parse_cexpr(ls);
             ast::c_expr_type et;
             auto val = exp.eval(et, true);
@@ -2007,6 +2009,16 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
                 std::move(fname), fields.empty() ? 0 : (fields.back().value + 1)
             );
         }
+        /* enums: register fields as constant values
+         * FIXME: don't hardcode like this
+         */
+        auto &fld = fields.back();
+        ast::c_value fval;
+        fval.i = fld.value;
+        auto *p = new ast::c_constant{
+            fld.name, ast::c_type{ast::C_BUILTIN_INT, 0}, fval
+        };
+        ls.store_decl(p, eln);
         if (ls.t.token != ',') {
             break;
         } else {
