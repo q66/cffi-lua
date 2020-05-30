@@ -1,11 +1,11 @@
 # Project definition
 
 project('cffi-lua', ['cpp'],
-    version: '0.0.4',
+    version: '0.0.5',
     default_options: [
         'buildtype=debugoptimized', 'cpp_std=c++14', 'warning_level=3'
     ],
-    meson_version: '>=0.46'
+    meson_version: '>=0.50'
 )
 
 # Extra compiler warnings for gcc/clang + symbol visibility
@@ -44,7 +44,7 @@ add_global_arguments('-DHAVE_CONFIG_H=1', language: 'cpp')
 # Vendor library path; used to find libs and also added to PATH for Windows
 
 deps_path = join_paths(meson.source_root(), 'deps')
-extra_inc = []
+extra_inc = [include_directories('include')]
 
 # Lua dependency checks
 
@@ -129,10 +129,11 @@ configure_file(output: 'config.h', configuration: config_h)
 # Module build definition
 
 luaver_maj = '5'
-luaver_min = cxx.compute_int(
-    'LUA_VERSION_NUM - 500', prefix: '#include <lua.hpp>',
+luaver_num = cxx.compute_int(
+    'LUA_VERSION_NUM', prefix: '#include <lua.hpp>',
     dependencies: lua_dep, include_directories: extra_inc
 )
+luaver_min = luaver_num - 500
 luaver_str = '@0@.@1@'.format(luaver_maj, luaver_min)
 
 # follow what lua does, i.e. .so everywhere except windows
@@ -197,10 +198,28 @@ cffi_mod = shared_module('cffi',
     include_directories: extra_inc
 )
 
+# Public API
+
+cffi_lib_i = 'cffi-lua-@0@'.format(luaver_str)
+
+pub_config_h = configuration_data()
+pub_config_h.set('CFFI_LUA_LUA_VERSION', luaver_num)
+
+configure_file(output: 'cffi-lua-config.h',
+    input: 'include/cffi-lua-config.h.in',
+    install: true,
+    install_dir: join_paths(get_option('includedir'), cffi_lib_i),
+    configuration: pub_config_h
+)
+
+install_headers('include/cffi-lua.h',
+    subdir: cffi_lib_i
+)
+
 # Pkg-config file for the library
 
 pkgc = import('pkgconfig')
-pkgc.generate(cffi_lib_d)
+pkgc.generate(cffi_lib_d, subdirs: [cffi_lib_i])
 
 # Tests
 

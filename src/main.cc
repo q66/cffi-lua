@@ -9,28 +9,17 @@
  */
 
 #include "lua.hh"
-#include "platform.hh"
 
-#ifdef FFI_WINDOWS_ABI
-#  ifdef FFI_BUILD_DLL
-#    define FFI_EXPORT __declspec(dllexport)
-#  else
-#    define FFI_EXPORT
-#  endif
-#else
-#  if defined(FFI_BUILD_DLL)
-/* -Wunused-macros */
-#  endif
-#  if defined(__GNUC__) && (__GNUC__ >= 4)
-#    define FFI_EXPORT __attribute__((visibility("default")))
-#  else
-#    define FFI_EXPORT
-#  endif
+#ifdef FFI_BUILD_DLL
+#  define CFFI_LUA_DLL
 #endif
+#define CFFI_LUA_BUILD
+
+#include <cffi-lua.h>
 
 void ffi_module_open(lua_State *L);
 
-extern "C" FFI_EXPORT int luaopen_cffi(lua_State *L) {
+extern "C" CFFI_LUA_EXPORT int luaopen_cffi(lua_State *L) {
     ffi_module_open(L);
     return 1;
 }
