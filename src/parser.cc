@@ -187,7 +187,10 @@ struct lex_state {
         try {
             p_dstore.add(obj);
         } catch (ast::redefine_error const &e) {
-            throw lex_state_error{e.what(), -1, lnum};
+            std::string msg = "'";
+            msg += e.what();
+            msg += "' redefined";
+            throw lex_state_error{msg, -1, lnum};
         }
     }
 
