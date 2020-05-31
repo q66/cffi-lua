@@ -41,6 +41,13 @@ local b = ffi.cast("int *", 4)
 
 assert((a - b) == ((12 - 4) / ffi.sizeof("int")))
 
+-- arrays can be treated the same
+
+local a = ffi.new("int[4]")
+local b = a + 3
+
+assert((b - a) == 3)
+
 -- pow
 
 assert(ffi.tonumber(ffi.cast("int", 2) ^ ffi.cast("int", 4)) == 16)

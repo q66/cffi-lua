@@ -495,7 +495,7 @@ struct cdata_meta {
         auto *cd1 = ffi::testcdata<void *>(L, 1);
         auto *cd2 = ffi::testcdata<void *>(L, 2);
         /* pointer arithmetic */
-        if (cd1 && (cd1->decl.type() == ast::C_BUILTIN_PTR)) {
+        if (cd1 && cd1->decl.ptr_like()) {
             size_t asize = cd1->decl.ptr_base().alloc_size();
             if (!asize) {
                 if (binop_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
@@ -511,10 +511,12 @@ struct cdata_meta {
                 ffi::check_arith<ptrdiff_t>(L, 2);
             }
             auto *p = static_cast<unsigned char *>(cd1->val);
-            auto &ret = ffi::newcdata<void *>(L, cd1->decl);
+            auto &ret = ffi::newcdata<void *>(
+                L, cd1->decl.as_type(ast::C_BUILTIN_PTR)
+            );
             ret.val = p + d * asize;
             return 1;
-        } else if (cd2 && (cd2->decl.type() == ast::C_BUILTIN_PTR)) {
+        } else if (cd2 && cd2->decl.ptr_like()) {
             size_t asize = cd2->decl.ptr_base().alloc_size();
             if (!asize) {
                 if (binop_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
@@ -530,7 +532,9 @@ struct cdata_meta {
                 ffi::check_arith<ptrdiff_t>(L, 1);
             }
             auto *p = static_cast<unsigned char *>(cd2->val);
-            auto &ret = ffi::newcdata<void *>(L, cd2->decl);
+            auto &ret = ffi::newcdata<void *>(
+                L, cd2->decl.as_type(ast::C_BUILTIN_PTR)
+            );
             ret.val = d * asize + p;
             return 1;
         }
@@ -545,7 +549,7 @@ struct cdata_meta {
         auto *cd1 = ffi::testcdata<void *>(L, 1);
         auto *cd2 = ffi::testcdata<void *>(L, 2);
         /* pointer difference */
-        if (cd1 && (cd1->decl.type() == ast::C_BUILTIN_PTR)) {
+        if (cd1 && cd1->decl.ptr_like()) {
             size_t asize = cd1->decl.ptr_base().alloc_size();
             if (!asize) {
                 if (binop_try_mt<ffi::METATYPE_FLAG_SUB>(L, cd1, cd2)) {
@@ -553,7 +557,7 @@ struct cdata_meta {
                 }
                 luaL_error(L, "unknown C type size");
             }
-            if (cd2 && (cd2->decl.type() == ast::C_BUILTIN_PTR)) {
+            if (cd2 && cd2->decl.ptr_like()) {
                 if (!cd1->decl.ptr_base().is_same(cd2->decl.ptr_base(), true)) {
                     if (binop_try_mt<ffi::METATYPE_FLAG_SUB>(L, cd1, cd2)) {
                         return 1;
