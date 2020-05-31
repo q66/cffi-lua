@@ -1083,9 +1083,17 @@ void c_record::set_fields(std::vector<field> fields) {
 
 void decl_store::add(c_object *decl) {
     if (lookup(decl->name())) {
-        redefine_error rd{decl->name()};
-        delete decl;
-        throw rd;
+        if (decl->obj_type() != ast::c_object_type::VARIABLE) {
+            redefine_error rd{decl->name()};
+            delete decl;
+            throw rd;
+        } else {
+            /* redefinitions of vars and funcs are okay
+             * luajit doesn't check them so we don't either
+             */
+            delete decl;
+            return;
+        }
     }
 
     p_dlist.emplace_back(decl);
