@@ -25,3 +25,11 @@ local ret, msg = pcall(ffi.cdef, [[
 
 assert(not ret)
 assert(msg == "input:1: 'struct foo' redefined")
+
+-- typedef redefinitions are also okay, first one applies
+ffi.cdef [[
+    typedef struct foo foo;
+    typedef struct bar foo;
+]]
+
+assert(tostring(ffi.typeof("foo")) == "ctype<struct foo>")

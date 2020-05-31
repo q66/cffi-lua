@@ -1083,7 +1083,11 @@ void c_record::set_fields(std::vector<field> fields) {
 
 void decl_store::add(c_object *decl) {
     if (lookup(decl->name())) {
-        if (decl->obj_type() != ast::c_object_type::VARIABLE) {
+        auto ot = decl->obj_type();
+        if (
+            (ot != ast::c_object_type::VARIABLE) &&
+            (ot != ast::c_object_type::TYPEDEF)
+        ) {
             redefine_error rd{decl->name()};
             delete decl;
             throw rd;
