@@ -739,6 +739,12 @@ static void from_lua_cdata_ptr(
         }
         /* converting to anything else */
         default:
+            if ((rule == RULE_CAST) && tp.integer()) {
+                /* casting to integer types is fine, it's the user's
+                 * responsibility to ensure it's safe by using correct types
+                 */
+                return;
+            }
             break;
     }
     fail_convert_cd(L, cd, tp);
