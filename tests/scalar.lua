@@ -25,6 +25,15 @@ local c = -ffi.cast("int", 150)
 
 assert(ffi.tonumber(a + b + c) == 300)
 
+-- pointer addition
+
+local a = ffi.cast("int *", 0)
+local b = a + 3
+local c = 3 + a
+
+assert(ffi.tonumber(ffi.cast("size_t", b)) == 3 * ffi.sizeof("int"))
+assert(ffi.tonumber(ffi.cast("size_t", c)) == 3 * ffi.sizeof("int"))
+
 -- pointer difference
 
 local a = ffi.cast("int *", 12)

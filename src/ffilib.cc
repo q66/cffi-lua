@@ -512,7 +512,7 @@ struct cdata_meta {
             }
             auto *p = static_cast<unsigned char *>(cd1->val);
             auto &ret = ffi::newcdata<void *>(L, cd1->decl);
-            ret.val = p + d;
+            ret.val = p + d * asize;
             return 1;
         } else if (cd2 && (cd2->decl.type() == ast::C_BUILTIN_PTR)) {
             size_t asize = cd2->decl.ptr_base().alloc_size();
@@ -531,7 +531,7 @@ struct cdata_meta {
             }
             auto *p = static_cast<unsigned char *>(cd2->val);
             auto &ret = ffi::newcdata<void *>(L, cd2->decl);
-            ret.val = d + p;
+            ret.val = d * asize + p;
             return 1;
         }
         if (binop_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
