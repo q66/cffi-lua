@@ -435,6 +435,25 @@ int to_lua(
     lua_State *L, ast::c_type const &tp, void const *value,
     int rule, bool lossy
 ) {
+    if (tp.is_ref()) {
+        if (tp.type() == ast::C_BUILTIN_FUNC) {
+            make_cdata_func(
+                L, *reinterpret_cast<void (* const *)()>(value),
+                tp.function(), rule != RULE_CONV, nullptr
+            );
+            return 1;
+        }
+        if (rule == RULE_CONV) {
+            /* dereference, continue as normal */
+            value = *reinterpret_cast<void * const *>(value);
+        } else {
+            /* reference cdata */
+            newcdata<void *>(L, tp).val =
+                *reinterpret_cast<void * const *>(value);
+            return 1;
+        }
+    }
+
     switch (ast::c_builtin(tp.type())) {
         /* no retval */
         case ast::C_BUILTIN_VOID:
@@ -473,6 +492,7 @@ int to_lua(
         case ast::C_BUILTIN_ULLONG:
             return push_int<unsigned long long>(L, tp, value, lossy);
 
+        /* XXX: drop */
         case ast::C_BUILTIN_REF:
             if (rule == RULE_CONV) {
                 /* for this rule, dereference and pass that */
@@ -518,6 +538,7 @@ int to_lua(
             /* TODO: large enums */
             return push_int<int>(L, tp, value, lossy);
 
+        /* FIXME: new ref */
         case ast::C_BUILTIN_ARRAY: {
             if (rule == RULE_CONV) {
                 /* here, value may be a pointer to temporary, hack around it */
@@ -533,6 +554,7 @@ int to_lua(
             return 1;
         }
 
+        /* FIXME: new ref */
         case ast::C_BUILTIN_RECORD: {
             if (rule == RULE_CONV) {
                 newcdata<void const *>(
@@ -576,6 +598,13 @@ static void *from_lua_num(
     lua_State *L, ast::c_type const &tp, void *stor, int index,
     size_t &dsz, int rule
 ) {
+    if (tp.is_ref() && (rule == RULE_CAST)) {
+        dsz = sizeof(void *);
+        return &(*static_cast<void **>(stor) = reinterpret_cast<void *>(
+            size_t(lua_tointeger(L, index))
+        ));
+    }
+
     switch (ast::c_builtin(tp.type())) {
         case ast::C_BUILTIN_FLOAT:
             return write_flt<float>(L, index, stor, dsz);
@@ -615,7 +644,7 @@ static void *from_lua_num(
             return write_int<int>(L, index, stor, dsz);
 
         case ast::C_BUILTIN_PTR:
-        case ast::C_BUILTIN_REF:
+        case ast::C_BUILTIN_REF: /* XXX: drop */
             if (rule == RULE_CAST) {
                 dsz = sizeof(void *);
                 return &(*static_cast<void **>(stor) = reinterpret_cast<void *>(
@@ -666,6 +695,7 @@ static inline bool func_convertible(
     return true;
 }
 
+/* FIXME: new ref */
 static inline bool ptr_convertible(
     ast::c_type const &from, ast::c_type const &to
 ) {
@@ -694,49 +724,14 @@ static inline bool ptr_convertible(
 static void from_lua_cdata_ptr(
     lua_State *L, ast::c_type const &cd, ast::c_type const &tp, int rule
 ) {
+    if (tp.is_ref()) {
+        goto isptr;
+    }
     switch (tp.type()) {
         /* converting to pointer or reference */
         case ast::C_BUILTIN_PTR:
-        case ast::C_BUILTIN_REF: {
-            if (rule == RULE_CAST) {
-                /* casting: disregard any typing rules */
-                return;
-            }
-            /* initializing a function pointer/reference */
-            if (tp.ptr_base().type() == ast::C_BUILTIN_FUNC) {
-                if (cd.type() == ast::C_BUILTIN_FUNC) {
-                    /* plain function: check convertible, init from addr */
-                    if (!func_convertible(
-                        cd.function(), tp.ptr_base().function()
-                    )) {
-                        fail_convert_cd(L, cd, tp);
-                    }
-                    return;
-                } else if (
-                    (cd.type() != ast::C_BUILTIN_PTR) &&
-                    (cd.type() != ast::C_BUILTIN_REF)
-                ) {
-                    /* otherwise given value must be a pointer/ref */
-                    fail_convert_cd(L, cd, tp);
-                }
-                /* it must be a pointer/ref to function */
-                if (cd.ptr_base().type() != ast::C_BUILTIN_FUNC) {
-                    fail_convert_cd(L, cd, tp);
-                }
-                /* and it must satisfy convertible check */
-                if (!func_convertible(
-                    cd.ptr_base().function(), tp.ptr_base().function()
-                )) {
-                    fail_convert_cd(L, cd, tp);
-                }
-                /* then init from address */
-                return;
-            }
-            if (!ptr_convertible(cd, tp)) {
-                fail_convert_cd(L, cd, tp);
-            }
-            return;
-        }
+        case ast::C_BUILTIN_REF: /* XXX: drop */
+            break;
         /* converting to anything else */
         default:
             if ((rule == RULE_CAST) && tp.integer()) {
@@ -745,9 +740,49 @@ static void from_lua_cdata_ptr(
                  */
                 return;
             }
+            fail_convert_cd(L, cd, tp);
             break;
     }
-    fail_convert_cd(L, cd, tp);
+
+isptr:
+    if (rule == RULE_CAST) {
+        /* casting: disregard any typing rules */
+        return;
+    }
+    /* initializing a function pointer/reference */
+    /* FIXME: new ref */
+    if (tp.ptr_base().type() == ast::C_BUILTIN_FUNC) {
+        if (cd.type() == ast::C_BUILTIN_FUNC) {
+            /* plain function: check convertible, init from addr */
+            if (!func_convertible(
+                cd.function(), tp.ptr_base().function()
+            )) {
+                fail_convert_cd(L, cd, tp);
+            }
+            return;
+        } else if (
+            (cd.type() != ast::C_BUILTIN_PTR) &&
+            (cd.type() != ast::C_BUILTIN_REF)
+        ) {
+            /* otherwise given value must be a pointer/ref */
+            fail_convert_cd(L, cd, tp);
+        }
+        /* it must be a pointer/ref to function */
+        if (cd.ptr_base().type() != ast::C_BUILTIN_FUNC) {
+            fail_convert_cd(L, cd, tp);
+        }
+        /* and it must satisfy convertible check */
+        if (!func_convertible(
+            cd.ptr_base().function(), tp.ptr_base().function()
+        )) {
+            fail_convert_cd(L, cd, tp);
+        }
+        /* then init from address */
+        return;
+    }
+    if (!ptr_convertible(cd, tp)) {
+        fail_convert_cd(L, cd, tp);
+    }
 }
 
 template<typename T>
@@ -762,21 +797,14 @@ static void *from_lua_cnumber(
         return &(*static_cast<U *>(stor) = UT(*static_cast<T *>(sval))); \
     }
 
+    if (tp.is_ref()) {
+        goto ptr_ref;
+    }
+
     switch (tp.type()) {
         case ast::C_BUILTIN_PTR:
-        case ast::C_BUILTIN_REF:
-            /* only for cast we can initialize pointers with integer addrs */
-            if (rule != RULE_CAST) {
-                break;
-            }
-            /* must not be floating point */
-            if (!std::is_integral<T>::value) {
-                break;
-            }
-            dsz = sizeof(void *);
-            return &(*static_cast<void **>(stor) = reinterpret_cast<void *>(
-                size_t(*static_cast<T *>(sval))
-            ));
+        case ast::C_BUILTIN_REF: /* XXX: drop */
+            goto ptr_ref;
         CONV_CASE(ENUM, int)
         CONV_CASE(BOOL, bool)
         CONV_CASE(CHAR, char)
@@ -794,13 +822,27 @@ static void *from_lua_cnumber(
         CONV_CASE(DOUBLE, double)
         CONV_CASE(LDOUBLE, long double)
         default:
-            break;
+            fail_convert_cd(L, cd, tp);
+            return nullptr;
     }
 
 #undef CONV_CASE
 
-    fail_convert_cd(L, cd, tp);
-    return nullptr;
+ptr_ref:
+    /* only for cast we can initialize pointers with integer addrs */
+    if (rule != RULE_CAST) {
+        fail_convert_cd(L, cd, tp);
+        return nullptr;
+    }
+    /* must not be floating point */
+    if (!std::is_integral<T>::value) {
+        fail_convert_cd(L, cd, tp);
+        return nullptr;
+    }
+    dsz = sizeof(void *);
+    return &(*static_cast<void **>(stor) = reinterpret_cast<void *>(
+        size_t(*static_cast<T *>(sval))
+    ));
 }
 
 static void *from_lua_cdata(
@@ -813,6 +855,7 @@ static void *from_lua_cdata(
             L, cd.as_type(ast::C_BUILTIN_PTR), tp, sval, stor, dsz, rule
         );
     }
+    /* FIXME: new ref */
     /* we're passing an argument and the expected type is a reference...
      * this is a special case, the given type must be either a non-reference
      * type that matches the base type of the reference and has same or weaker
@@ -950,8 +993,12 @@ void *from_lua(
     auto vtp = lua_type(L, index);
     switch (vtp) {
         case LUA_TNIL:
+            if (tp.is_ref()) {
+                dsz = sizeof(void *);
+                return &(*static_cast<void **>(stor) = nullptr);
+            }
             switch (tp.type()) {
-                case ast::C_BUILTIN_REF:
+                case ast::C_BUILTIN_REF: /* XXX: drop */
                     if (rule == RULE_CAST) {
                         goto likeptr;
                     }
@@ -1007,7 +1054,11 @@ void *from_lua(
                 ) {
                     return &(*static_cast<void **>(stor) = ud);
                 }
-            } else if ((tpt == ast::C_BUILTIN_REF) && (rule == RULE_CAST)) {
+            } else if (
+                /* XXX: drop */
+                ((tpt == ast::C_BUILTIN_REF) || tp.is_ref()) &&
+                (rule == RULE_CAST)
+            ) {
                 /* when casting we can initialize refs from userdata */
                 void *ud = lua_touserdata(L, index);
                 if (luaL_testudata(L, index, LUA_FILEHANDLE)) {

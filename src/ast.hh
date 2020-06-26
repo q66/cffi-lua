@@ -637,6 +637,14 @@ struct c_type: c_object {
         return ((tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_ARRAY));
     }
 
+    bool is_ref() const {
+        return false;
+    }
+
+    c_type unref() const {
+        return *this;
+    }
+
     bool is_unsigned() const {
         auto *p = libffi_type();
         return (
