@@ -593,10 +593,7 @@ c_type::~c_type() {
     int tp = type();
     if (tp == C_BUILTIN_FUNC) {
         delete p_fptr;
-    } else if (
-        (tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_REF) || /* XXX: drop */
-        (tp == C_BUILTIN_ARRAY)
-    ) {
+    } else if ((tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_ARRAY)) {
         delete p_ptr;
     }
 }
@@ -606,10 +603,7 @@ c_type::c_type(c_type const &v): p_asize{v.p_asize}, p_type{v.p_type} {
     int tp = type();
     if (tp == C_BUILTIN_FUNC) {
         p_fptr = weak ? v.p_fptr : new c_function{*v.p_fptr};
-    } else if (
-        (tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_REF) || /* XXX: drop */
-        (tp == C_BUILTIN_ARRAY)
-    ) {
+    } else if ((tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_ARRAY)) {
         p_ptr = weak ? v.p_ptr : new c_type{*v.p_ptr};
     } else if ((tp == C_BUILTIN_RECORD) || (tp == C_BUILTIN_ENUM)) {
         p_ptr = v.p_ptr;
@@ -664,19 +658,6 @@ void c_type::do_serialize(
                 }
                 out += '*';
                 add_cv(out, d.cv);
-                if (d.cont) {
-                    d.cont(out, d.data);
-                }
-            }, &val);
-            break;
-        /* XXX: drop */
-        case C_BUILTIN_REF:
-            p_ptr->do_serialize(o, [](std::string &out, void *idata) {
-                D &d = *static_cast<D *>(idata);
-                if ((out.back() != '*') && (out.back() != '(')) {
-                    out += ' ';
-                }
-                out += '&';
                 if (d.cont) {
                     d.cont(out, d.data);
                 }
@@ -748,10 +729,13 @@ bool c_type::passable() const {
     return ast::builtin_ffi_type<C_BUILTIN_##bt>();
 
 ffi_type *c_type::libffi_type() const {
+    if (is_ref()) {
+        return &ffi_type_pointer;
+    }
+
     switch (c_builtin(type())) {
         C_BUILTIN_CASE(VOID)
         C_BUILTIN_CASE(PTR)
-        C_BUILTIN_CASE(REF)
         C_BUILTIN_CASE(ARRAY)
         C_BUILTIN_CASE(VA_LIST)
 
@@ -878,12 +862,6 @@ bool c_type::is_same(
                 }
                 return false;
             }
-            if (type() != other.type()) {
-                return false;
-            }
-            return p_cptr->is_same(*other.p_cptr);
-
-        case C_BUILTIN_REF:
             if (type() != other.type()) {
                 return false;
             }

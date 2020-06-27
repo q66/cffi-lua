@@ -23,8 +23,6 @@ enum c_builtin {
     C_BUILTIN_INVALID = 0,
 
     C_BUILTIN_VOID,
-
-    C_BUILTIN_REF,
     C_BUILTIN_PTR,
 
     C_BUILTIN_FUNC,
@@ -72,9 +70,6 @@ template<> struct builtin_traits<C_BUILTIN_VOID>:
 
 template<> struct builtin_traits<C_BUILTIN_PTR>:
     detail::builtin_traits_base<void *> {};
-
-template<> struct builtin_traits<C_BUILTIN_REF>:
-    detail::builtin_traits_base<char &> {};
 
 template<> struct builtin_traits<C_BUILTIN_ARRAY>:
     detail::builtin_traits_base<char[]> {};
@@ -189,9 +184,6 @@ namespace detail {
     };
     template<typename T> struct builtin_v_base<T *> {
         static constexpr c_builtin value = C_BUILTIN_PTR;
-    };
-    template<typename T> struct builtin_v_base<T &> {
-        static constexpr c_builtin value = C_BUILTIN_REF;
     };
 
     /* need this hack because some toolchains are garbage */
@@ -604,7 +596,6 @@ struct c_type: c_object {
             case C_BUILTIN_FUNC:
                 return p_type & C_TYPE_CLOSURE;
             case C_BUILTIN_PTR:
-            case C_BUILTIN_REF: /* XXX: drop */
                 return ptr_base().p_type & C_TYPE_CLOSURE;
             default:
                 break;
@@ -621,8 +612,7 @@ struct c_type: c_object {
         if (tp == C_BUILTIN_FUNC) {
             return true;
         }
-        /* XXX: drop */
-        if ((tp != C_BUILTIN_PTR) && (tp != C_BUILTIN_REF)) {
+        if (tp != C_BUILTIN_PTR) {
             return false;
         }
         return ptr_base().type() == C_BUILTIN_FUNC;
@@ -698,9 +688,6 @@ struct c_type: c_object {
 
     /* XXX: drop */
     c_type const &deref() const {
-        if (type() == C_BUILTIN_REF) {
-            return ptr_base();
-        }
         return *this;
     }
 
