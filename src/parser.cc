@@ -1585,15 +1585,16 @@ newlevel:
             /* references are trailing, we can't make pointers
              * to them nor we can make references to references
              */
-            if (tp.type() == ast::C_BUILTIN_REF) {
+            if (tp.is_ref()) {
                 ls.syntax_error("references must be trailing");
             }
-            ast::c_type ntp{
-                std::move(tp), it->cv,
-                it->is_ref ? ast::C_BUILTIN_REF : ast::C_BUILTIN_PTR
-            };
-            tp.~CT();
-            new (&tp) ast::c_type{std::move(ntp)};
+            if (it->is_ref) {
+                tp.add_ref();
+            } else {
+                ast::c_type ntp{std::move(tp), it->cv, ast::C_BUILTIN_PTR};
+                tp.~CT();
+                new (&tp) ast::c_type{std::move(ntp)};
+            }
             ++it;
         }
         /* now attach the function or array or whatever */

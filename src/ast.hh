@@ -651,8 +651,12 @@ struct c_type: c_object {
 
     c_type as_ref() const {
         auto ret = *this;
-        ret.p_type |= C_TYPE_REF;
+        ret.add_ref();
         return ret;
+    }
+
+    void add_ref() {
+        p_type |= C_TYPE_REF;
     }
 
     bool is_unsigned() const {
