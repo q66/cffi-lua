@@ -685,8 +685,8 @@ struct cdata_meta {
             }
             return 1;
         }
-        if (!cd1->decl.deref().arith() || !cd2->decl.deref().arith()) {
-            if (cd1->decl.deref().ptr_like() && cd2->decl.deref().ptr_like()) {
+        if (!cd1->decl.arith() || !cd2->decl.arith()) {
+            if (cd1->decl.ptr_like() && cd2->decl.ptr_like()) {
                 lua_pushboolean(
                     L, cd1->get_deref_addr() == cd2->get_deref_addr()
                 );
@@ -730,18 +730,16 @@ struct cdata_meta {
             arith_64bit_cmp(L, op);
             return true;
         }
-        if (cd1->decl.deref().arith() && cd2->decl.deref().arith()) {
+        if (cd1->decl.arith() && cd2->decl.arith()) {
             /* compare values if both are arithmetic types */
             arith_64bit_cmp(L, op);
             return true;
         }
         /* compare only compatible pointers */
         if ((
-            (cd1->decl.deref().type() != ast::C_BUILTIN_PTR) ||
-            (cd2->decl.deref().type() != ast::C_BUILTIN_PTR)
-        ) || (!cd1->decl.deref().ptr_base().is_same(
-            cd2->decl.deref().ptr_base(), true
-        ))) {
+            (cd1->decl.type() != ast::C_BUILTIN_PTR) ||
+            (cd2->decl.type() != ast::C_BUILTIN_PTR)
+        ) || (!cd1->decl.ptr_base().is_same(cd2->decl.ptr_base(), true))) {
             if (binop_try_mt<mf1>(L, cd1, cd2)) {
                 return true;
             } else if ((mf2 != mf1) && binop_try_mt<mf2>(L, cd2, cd1)) {

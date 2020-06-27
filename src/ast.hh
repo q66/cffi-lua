@@ -686,11 +686,6 @@ struct c_type: c_object {
         return *p_crec;
     }
 
-    /* XXX: drop */
-    c_type const &deref() const {
-        return *this;
-    }
-
     ffi_type *libffi_type() const;
 
     size_t alloc_size() const;
