@@ -129,24 +129,44 @@ struct cdata {
     alignas(arg_stor_t) T val;
 
     void *get_addr() {
+        if (decl.is_ref()) {
+            goto reft;
+        }
         switch (decl.type()) {
             case ast::C_BUILTIN_PTR:
-            case ast::C_BUILTIN_REF:
+            case ast::C_BUILTIN_REF: /* XXX: drop */
             case ast::C_BUILTIN_FUNC:
-            case ast::C_BUILTIN_ARRAY: {
-                union { T *op; void **np; } u;
-                u.op = &val;
-                return *u.np;
-            }
+            case ast::C_BUILTIN_ARRAY:
+                goto reft;
             default:
                 break;
         }
         return &val;
+    reft:
+        union { T *op; void **np; } u;
+        u.op = &val;
+        return *u.np;
     }
 
     void *get_deref_addr() {
+        /* XXX: drop */
         if (decl.type() == ast::C_BUILTIN_REF) {
             switch (decl.ptr_base().type()) {
+                case ast::C_BUILTIN_PTR:
+                case ast::C_BUILTIN_FUNC:
+                case ast::C_BUILTIN_ARRAY: {
+                    union { T *op; void ***np; } u;
+                    u.op = &val;
+                    return **u.np;
+                }
+                default: {
+                    union { T *op; void **np; } u;
+                    u.op = &val;
+                    return *u.np;
+                }
+            }
+        } else if (decl.is_ref()) {
+            switch (decl.type()) {
                 case ast::C_BUILTIN_PTR:
                 case ast::C_BUILTIN_FUNC:
                 case ast::C_BUILTIN_ARRAY: {
@@ -451,8 +471,13 @@ static inline bool test_arith(lua_State *L, int idx, T &out) {
         return true;
     };
     int tp = cd->decl.type();
+    /* XXX: drop */
     if (tp == ast::C_BUILTIN_REF) {
         if (gf(cd->decl.ptr_base().type(), *cd->val.as<arg_stor_t *>(), out)) {
+            return true;
+        }
+    } else if (cd->decl.is_ref()) {
+        if (gf(cd->decl.type(), *cd->val.as<arg_stor_t *>(), out)) {
             return true;
         }
     } else if (gf(tp, cd->val, out)) {
@@ -616,8 +641,11 @@ static inline ast::c_expr_type check_arith_expr(
     };
     ast::c_expr_type ret;
     int tp = cd->decl.type();
+    /* XXX: drop */
     if (tp == ast::C_BUILTIN_REF) {
         ret = gf(cd->decl.ptr_base().type(), *cd->val.as<arg_stor_t *>(), iv);
+    } else if (cd->decl.is_ref()) {
+        ret = gf(cd->decl.type(), *cd->val.as<arg_stor_t *>(), iv);
     } else {
         ret = gf(tp, cd->val, iv);
     }

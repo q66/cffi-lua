@@ -594,7 +594,7 @@ c_type::~c_type() {
     if (tp == C_BUILTIN_FUNC) {
         delete p_fptr;
     } else if (
-        (tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_REF) ||
+        (tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_REF) || /* XXX: drop */
         (tp == C_BUILTIN_ARRAY)
     ) {
         delete p_ptr;
@@ -607,7 +607,7 @@ c_type::c_type(c_type const &v): p_asize{v.p_asize}, p_type{v.p_type} {
     if (tp == C_BUILTIN_FUNC) {
         p_fptr = weak ? v.p_fptr : new c_function{*v.p_fptr};
     } else if (
-        (tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_REF) ||
+        (tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_REF) || /* XXX: drop */
         (tp == C_BUILTIN_ARRAY)
     ) {
         p_ptr = weak ? v.p_ptr : new c_type{*v.p_ptr};
@@ -641,6 +641,20 @@ void c_type::do_serialize(
         int cv;
     };
     D val{cont, data, this, cv()};
+    /* FIXME: don't use unref() */
+    if (is_ref()) {
+        unref().do_serialize(o, [](std::string &out, void *idata) {
+            D &d = *static_cast<D *>(idata);
+            if ((out.back() != '*') && (out.back() != '(')) {
+                out += ' ';
+            }
+            out += '&';
+            if (d.cont) {
+                d.cont(out, d.data);
+            }
+        }, &val);
+        return;
+    }
     switch (type()) {
         case C_BUILTIN_PTR:
             p_ptr->do_serialize(o, [](std::string &out, void *idata) {
@@ -655,6 +669,7 @@ void c_type::do_serialize(
                 }
             }, &val);
             break;
+        /* XXX: drop */
         case C_BUILTIN_REF:
             p_ptr->do_serialize(o, [](std::string &out, void *idata) {
                 D &d = *static_cast<D *>(idata);

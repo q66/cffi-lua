@@ -603,7 +603,7 @@ struct c_type: c_object {
             case C_BUILTIN_FUNC:
                 return p_type & C_TYPE_CLOSURE;
             case C_BUILTIN_PTR:
-            case C_BUILTIN_REF:
+            case C_BUILTIN_REF: /* XXX: drop */
                 return ptr_base().p_type & C_TYPE_CLOSURE;
             default:
                 break;
@@ -620,6 +620,7 @@ struct c_type: c_object {
         if (tp == C_BUILTIN_FUNC) {
             return true;
         }
+        /* XXX: drop */
         if ((tp != C_BUILTIN_PTR) && (tp != C_BUILTIN_REF)) {
             return false;
         }
@@ -675,6 +676,7 @@ struct c_type: c_object {
         return *p_crec;
     }
 
+    /* XXX: drop */
     c_type const &deref() const {
         if (type() == C_BUILTIN_REF) {
             return ptr_base();

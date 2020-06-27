@@ -85,6 +85,7 @@ struct cdata_meta {
         if (tp == ast::C_BUILTIN_RECORD) {
             return cd.decl.record().metatype(mflags);
         } else if ((tp == ast::C_BUILTIN_PTR) || (tp == ast::C_BUILTIN_REF)) {
+            /* XXX: drop */
             if (cd.decl.ptr_base().type() != ast::C_BUILTIN_RECORD) {
                 return LUA_REFNIL;
             }
@@ -116,8 +117,11 @@ struct cdata_meta {
         }
         auto const *tp = &cd.decl;
         ffi::arg_stor_t const *val = &cd.val;
+        /* XXX: drop */
         if (tp->type() == ast::C_BUILTIN_REF) {
             tp = &tp->ptr_base();
+            val = cd.val.as<ffi::arg_stor_t const *>();
+        } else if (tp->is_ref()) {
             val = cd.val.as<ffi::arg_stor_t const *>();
         }
         /* 64-bit integers */
@@ -178,9 +182,12 @@ struct cdata_meta {
         }
         void **valp = &cd.val;
         auto const *decl = &cd.decl;
+        /* XXX: drop */
         if (decl->type() == ast::C_BUILTIN_REF) {
             /* when a reference, dereference first */
             decl = &decl->ptr_base();
+            valp = reinterpret_cast<void **>(*valp);
+        } else if (decl->is_ref()) {
             valp = reinterpret_cast<void **>(*valp);
         }
         if (
@@ -1097,6 +1104,7 @@ struct ffi_module {
 
     static int addressof_f(lua_State *L) {
         auto &cd = ffi::checkcdata<void *>(L, 1);
+        /* XXX: drop */
         if (cd.decl.type() == ast::C_BUILTIN_REF) {
             /* refs/arrays are turned into pointers with the same addr */
             ffi::newcdata<void *>(
@@ -1104,7 +1112,8 @@ struct ffi_module {
             ).val = cd.val;
         } else {
             /* otherwise just make a cdata pointing to whatever it was */
-            ffi::newcdata<void *>(L, ast::c_type{cd.decl, 0}).val = &cd.val;
+            ffi::newcdata<void *>(L, ast::c_type{cd.decl, 0}).val =
+                cd.decl.is_ref() ? cd.val : &cd.val;
         }
         return 1;
     }
@@ -1209,6 +1218,9 @@ struct ffi_module {
             if ((ctp == ast::C_BUILTIN_PTR) || (ctp == ast::C_BUILTIN_REF)) {
                 lua_pushboolean(L, ct.is_same(cd.decl.ptr_base(), true));
                 return 1;
+            } else if (cd.decl.is_ref()) {
+                lua_pushboolean(L, ct.is_same(cd.decl.unref(), true));
+                return 1;
             }
         }
         lua_pushboolean(L, ct.is_same(cd.decl, true));
@@ -1262,8 +1274,9 @@ struct ffi_module {
             auto ctp = cd.decl.type();
             if (
                 (ctp != ast::C_BUILTIN_PTR) &&
-                (ctp != ast::C_BUILTIN_REF) &&
-                (ctp != ast::C_BUILTIN_ARRAY)
+                (ctp != ast::C_BUILTIN_REF) && /* XXX: drop */
+                (ctp != ast::C_BUILTIN_ARRAY) &&
+                !cd.decl.is_ref()
             ) {
                 lua_pushfstring(
                     L, "cannot convert '%s' to 'void *'",
@@ -1318,9 +1331,12 @@ struct ffi_module {
             ast::c_type const *tp = &cd->decl;
             void *val = &cd->val;
             int btp = cd->decl.type();
+            /* XXX: drop */
             if (btp == ast::C_BUILTIN_REF) {
                 tp = &cd->decl.ptr_base();
                 btp = tp->type();
+                val = cd->val;
+            } else if (cd->decl.is_ref()) {
                 val = cd->val;
             }
             if (tp->arith()) {
