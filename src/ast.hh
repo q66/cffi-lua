@@ -250,7 +250,8 @@ enum c_type_flags {
     C_TYPE_WEAK = 1 << 16,
     C_TYPE_CLOSURE = 1 << 17,
     C_TYPE_NOSIZE = 1 << 18,
-    C_TYPE_VLA = 1 << 19
+    C_TYPE_VLA = 1 << 19,
+    C_TYPE_REF = 1 << 20,
 };
 
 enum c_func_flags {
@@ -639,11 +640,19 @@ struct c_type: c_object {
     }
 
     bool is_ref() const {
-        return false;
+        return p_type & C_TYPE_REF;
     }
 
     c_type unref() const {
-        return *this;
+        auto ret = *this;
+        ret.p_type ^= C_TYPE_REF;
+        return ret;
+    }
+
+    c_type as_ref() const {
+        auto ret = *this;
+        ret.p_type |= C_TYPE_REF;
+        return ret;
     }
 
     bool is_unsigned() const {

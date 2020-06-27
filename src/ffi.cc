@@ -538,13 +538,10 @@ int to_lua(
             /* TODO: large enums */
             return push_int<int>(L, tp, value, lossy);
 
-        /* FIXME: new ref */
         case ast::C_BUILTIN_ARRAY: {
             if (rule == RULE_CONV) {
                 /* here, value may be a pointer to temporary, hack around it */
-                auto &cd = newcdata<void *[2]>(L, ast::c_type{
-                    tp, 0, ast::C_BUILTIN_REF
-                });
+                auto &cd = newcdata<void *[2]>(L, tp.as_ref());
                 cd.val[1] = *reinterpret_cast<void * const *>(value);
                 cd.val[0] = &cd.val[1];
                 return 1;
@@ -554,12 +551,9 @@ int to_lua(
             return 1;
         }
 
-        /* FIXME: new ref */
         case ast::C_BUILTIN_RECORD: {
             if (rule == RULE_CONV) {
-                newcdata<void const *>(
-                    L, ast::c_type{tp, 0, ast::C_BUILTIN_REF}
-                ).val = value;
+                newcdata<void const *>(L, tp.as_ref()).val = value;
                 return 1;
             }
             auto sz = tp.alloc_size();
