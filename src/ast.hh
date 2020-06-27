@@ -664,6 +664,13 @@ struct c_type: c_object {
         return *p_ptr;
     }
 
+    c_type const &ptr_ref_base() const {
+        if (is_ref()) {
+            return *this;
+        }
+        return *p_ptr;
+    }
+
     /* only use if you know it's callable() */
     c_function const &function() const {
         if (type() == C_BUILTIN_FUNC) {
@@ -692,7 +699,9 @@ struct c_type: c_object {
         return p_asize;
     }
 
-    bool is_same(c_type const &other, bool ignore_cv = false) const;
+    bool is_same(
+        c_type const &other, bool ignore_cv = false, bool ignore_ref = false
+    ) const;
 
     /* only use this with ref and ptr types */
     c_type as_type(int cbt) const {

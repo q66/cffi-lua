@@ -818,8 +818,13 @@ size_t c_type::alloc_size() const {
  * to have something to get started with, edge cases will be covered later
  */
 
-bool c_type::is_same(c_type const &other, bool ignore_cv) const {
+bool c_type::is_same(
+    c_type const &other, bool ignore_cv, bool ignore_ref
+) const {
     if (!ignore_cv && (cv() != other.cv())) {
+        return false;
+    }
+    if (!ignore_ref && (is_ref() != other.is_ref())) {
         return false;
     }
     /* again manually covering all cases to make sure we really have them */
@@ -846,7 +851,7 @@ bool c_type::is_same(c_type const &other, bool ignore_cv) const {
         case C_BUILTIN_FUNC:
             if (other.type() == C_BUILTIN_PTR) {
                 if (other.ptr_base().type() == C_BUILTIN_FUNC) {
-                    return is_same(other.ptr_base());
+                    return is_same(other.ptr_base(), false, ignore_ref);
                 }
                 return false;
             } else if (other.type() == C_BUILTIN_FUNC) {

@@ -691,7 +691,7 @@ struct cdata_meta {
                 /* ctype against cdata */
                 lua_pushboolean(L, false);
             } else {
-                lua_pushboolean(L, cd1->decl.is_same(cd2->decl, false));
+                lua_pushboolean(L, cd1->decl.is_same(cd2->decl));
             }
             return 1;
         }
@@ -1219,7 +1219,7 @@ struct ffi_module {
                 lua_pushboolean(L, ct.is_same(cd.decl.ptr_base(), true));
                 return 1;
             } else if (cd.decl.is_ref()) {
-                lua_pushboolean(L, ct.is_same(cd.decl.unref(), true));
+                lua_pushboolean(L, ct.is_same(cd.decl, true, !ct.is_ref()));
                 return 1;
             }
         }

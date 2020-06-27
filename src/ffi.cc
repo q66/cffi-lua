@@ -695,12 +695,11 @@ static inline bool func_convertible(
     return true;
 }
 
-/* FIXME: new ref */
 static inline bool ptr_convertible(
     ast::c_type const &from, ast::c_type const &to
 ) {
-    auto &fpb = from.ptr_base();
-    auto &tpb = to.ptr_base();
+    auto &fpb = from.is_ref() ? from : from.ptr_base();
+    auto &tpb = to.is_ref() ? to : to.ptr_base();
     if (!cv_convertible(fpb.cv(), tpb.cv())) {
         return false;
     }
@@ -717,7 +716,7 @@ static inline bool ptr_convertible(
     ) {
         return ptr_convertible(fpb, tpb);
     }
-    return fpb.is_same(tpb, true);
+    return fpb.is_same(tpb, true, true);
 }
 
 /* converting from cdata: pointer */
@@ -750,8 +749,7 @@ isptr:
         return;
     }
     /* initializing a function pointer/reference */
-    /* FIXME: new ref */
-    if (tp.ptr_base().type() == ast::C_BUILTIN_FUNC) {
+    if (tp.ptr_ref_base().type() == ast::C_BUILTIN_FUNC) {
         if (cd.type() == ast::C_BUILTIN_FUNC) {
             /* plain function: check convertible, init from addr */
             if (!func_convertible(
@@ -762,18 +760,18 @@ isptr:
             return;
         } else if (
             (cd.type() != ast::C_BUILTIN_PTR) &&
-            (cd.type() != ast::C_BUILTIN_REF)
+            (cd.type() != ast::C_BUILTIN_REF) && !cd.is_ref()
         ) {
             /* otherwise given value must be a pointer/ref */
             fail_convert_cd(L, cd, tp);
         }
         /* it must be a pointer/ref to function */
-        if (cd.ptr_base().type() != ast::C_BUILTIN_FUNC) {
+        if (cd.ptr_ref_base().type() != ast::C_BUILTIN_FUNC) {
             fail_convert_cd(L, cd, tp);
         }
         /* and it must satisfy convertible check */
         if (!func_convertible(
-            cd.ptr_base().function(), tp.ptr_base().function()
+            cd.ptr_ref_base().function(), tp.ptr_ref_base().function()
         )) {
             fail_convert_cd(L, cd, tp);
         }
@@ -855,28 +853,40 @@ static void *from_lua_cdata(
             L, cd.as_type(ast::C_BUILTIN_PTR), tp, sval, stor, dsz, rule
         );
     }
-    /* FIXME: new ref */
     /* we're passing an argument and the expected type is a reference...
      * this is a special case, the given type must be either a non-reference
      * type that matches the base type of the reference and has same or weaker
      * qualifiers - then its address is taken - or a matching reference type,
      * then it's passed as-is
      */
-    if ((rule == RULE_PASS) && (tp.type() == ast::C_BUILTIN_REF)) {
+    /* XXX: drop */
+    if ((rule == RULE_PASS) && (tp.type() == ast::C_BUILTIN_REF || tp.is_ref())) {
         if (cd.type() == ast::C_BUILTIN_REF) {
             return from_lua_cdata(
                 L, cd.ptr_base(), tp, *static_cast<void **>(sval),
                 stor, dsz, rule
             );
+        } else if (cd.is_ref()) {
+            return from_lua_cdata(
+                L, cd.unref(), tp, *static_cast<void **>(sval),
+                stor, dsz, rule
+            );
         }
-        if (!cv_convertible(cd.cv(), tp.ptr_base().cv())) {
+        if (!cv_convertible(cd.cv(), tp.is_ref() ? tp.cv() : tp.ptr_base().cv())) {
             fail_convert_cd(L, cd, tp);
         }
-        if (!cd.is_same(tp.ptr_base(), true)) {
+        if (!cd.is_same(tp.is_ref() ? tp : tp.ptr_base(), true, true)) {
             fail_convert_cd(L, cd, tp);
         }
         dsz = sizeof(void *);
         return &(*static_cast<void **>(stor) = sval);
+    }
+    if (cd.is_ref()) {
+        /* always dereference */
+        return from_lua_cdata(
+            L, cd.unref(), tp, *static_cast<void **>(sval),
+            stor, dsz, rule
+        );
     }
     switch (cd.type()) {
         case ast::C_BUILTIN_PTR:
@@ -905,7 +915,7 @@ static void *from_lua_cdata(
             }
             dsz = sizeof(void *);
             return sval;
-        case ast::C_BUILTIN_REF:
+        case ast::C_BUILTIN_REF: /* XXX: drop */
             /* always dereference */
             return from_lua_cdata(
                 L, cd.ptr_base(), tp, *static_cast<void **>(sval),
