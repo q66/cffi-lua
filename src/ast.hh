@@ -234,16 +234,16 @@ inline ffi_type *builtin_ffi_type() {
 }
 
 enum c_cv {
-    C_CV_CONST = 1 << 8,
-    C_CV_VOLATILE = 1 << 9,
+    C_CV_CONST = 1 << 0,
+    C_CV_VOLATILE = 1 << 1,
 };
 
 enum c_type_flags {
-    C_TYPE_WEAK = 1 << 16,
-    C_TYPE_CLOSURE = 1 << 17,
-    C_TYPE_NOSIZE = 1 << 18,
-    C_TYPE_VLA = 1 << 19,
-    C_TYPE_REF = 1 << 20,
+    C_TYPE_WEAK = 1 << 0,
+    C_TYPE_CLOSURE = 1 << 1,
+    C_TYPE_NOSIZE = 1 << 2,
+    C_TYPE_VLA = 1 << 3,
+    C_TYPE_REF = 1 << 4,
 };
 
 enum c_func_flags {
@@ -378,11 +378,14 @@ union c_value {
 };
 
 struct c_expr {
-    c_expr(int flags = 0): p_type(int(c_expr_type::INVALID) | flags) {}
+    c_expr(int flags = 0):
+        p_etype{int(c_expr_type::INVALID)}, p_flags{flags}
+    {}
 
     c_expr(c_expr const &) = delete;
-    c_expr(c_expr &&e): p_type(e.p_type) {
-        e.p_type = int(c_expr_type::INVALID);
+    c_expr(c_expr &&e): p_etype{e.p_etype}, p_flags{e.p_flags} {
+        e.p_etype = int(c_expr_type::INVALID);
+        e.p_flags = 0;
         /* copy largest union */
         memcpy(&tern, &e.tern, sizeof(e.tern));
     }
@@ -390,8 +393,10 @@ struct c_expr {
     c_expr &operator=(c_expr const &) = delete;
     c_expr &operator=(c_expr &&e) {
         clear();
-        p_type = e.p_type;
-        e.p_type = int(c_expr_type::INVALID);
+        p_etype = e.p_etype;
+        p_flags = e.p_flags;
+        e.p_etype = int(c_expr_type::INVALID);
+        e.p_flags = 0;
         memcpy(&tern, &e.tern, sizeof(e.tern));
         return *this;
     }
@@ -427,20 +432,20 @@ struct c_expr {
     c_value eval(c_expr_type &et, bool promote = false) const;
 
     c_expr_type type() const {
-        return c_expr_type(p_type & 0xFF);
+        return c_expr_type(p_etype);
     }
 
     void type(c_expr_type tp) {
-        p_type ^= int(type());
-        p_type |= int(tp);
+        p_etype = int(tp);
     }
 
     bool owns() const {
-        return !bool(p_type & C_TYPE_WEAK);
+        return !bool(p_flags & C_TYPE_WEAK);
     }
 
 private:
-    int p_type;
+    int p_etype: 6;
+    int p_flags: 6;
 
     void clear() {
         if (!owns()) {
@@ -500,37 +505,42 @@ struct c_enum;
 
 struct c_type: c_object {
     c_type(int cbt, int qual):
-        p_ptr{nullptr}, p_type{uint32_t(cbt) | uint32_t(qual)}
+        p_ptr{nullptr}, p_ttype{uint32_t(cbt)},
+        p_flags{0}, p_cv{uint32_t(qual)}
     {}
 
     c_type(c_type tp, int qual, int cbt = C_BUILTIN_PTR):
-        p_ptr{new c_type{std::move(tp)}}, p_type{cbt | uint32_t(qual)}
+        p_ptr{new c_type{std::move(tp)}}, p_ttype{uint32_t(cbt)},
+        p_flags{0}, p_cv{uint32_t(qual)}
     {}
 
     c_type(c_type tp, int qual, size_t arrlen, int flags):
         p_ptr{new c_type{std::move(tp)}}, p_asize{arrlen},
-        p_type{C_BUILTIN_ARRAY | uint32_t(qual) | flags}
+        p_ttype{C_BUILTIN_ARRAY}, p_flags{uint32_t(flags)},
+        p_cv{uint32_t(qual)}
     {}
 
     c_type(c_type const *ctp, int qual, int cbt = C_BUILTIN_PTR):
-        p_cptr{ctp}, p_type{cbt | C_TYPE_WEAK | uint32_t(qual)}
+        p_cptr{ctp}, p_ttype{uint32_t(cbt)}, p_flags{C_TYPE_WEAK},
+        p_cv{uint32_t(qual)}
     {}
 
     c_type(c_function tp, int qual, bool cb = false);
 
     c_type(c_function const *ctp, int qual, bool cb = false):
-        p_cfptr{ctp}, p_type{
-            C_BUILTIN_FUNC | C_TYPE_WEAK |
-            (cb ? C_TYPE_CLOSURE : 0) | uint32_t(qual)
-        }
+        p_cfptr{ctp}, p_ttype{C_BUILTIN_FUNC},
+        p_flags{uint32_t(C_TYPE_WEAK | (cb ? C_TYPE_CLOSURE : 0))},
+        p_cv{uint32_t(qual)}
     {}
 
     c_type(c_record const *ctp, int qual):
-        p_crec{ctp}, p_type{C_BUILTIN_RECORD | C_TYPE_WEAK | uint32_t(qual)}
+        p_crec{ctp}, p_ttype{C_BUILTIN_RECORD},
+        p_flags{C_TYPE_WEAK}, p_cv{uint32_t(qual)}
     {}
 
     c_type(c_enum const *ctp, int qual):
-        p_cenum{ctp}, p_type{C_BUILTIN_ENUM | C_TYPE_WEAK | uint32_t(qual)}
+        p_cenum{ctp}, p_ttype{C_BUILTIN_ENUM},
+        p_flags{C_TYPE_WEAK}, p_cv{uint32_t(qual)}
     {}
 
     c_type(c_type const &);
@@ -572,31 +582,31 @@ struct c_type: c_object {
     }
 
     int type() const {
-        return int(p_type & 0xFF);
+        return p_ttype;
     }
 
     int cv() const {
-        return int(p_type & (0xFF << 8));
+        return p_cv;
     }
 
     bool owns() const {
-        return !bool(p_type & C_TYPE_WEAK);
+        return !bool(p_flags & C_TYPE_WEAK);
     }
 
     bool vla() const {
-        return p_type & C_TYPE_VLA;
+        return p_flags & C_TYPE_VLA;
     }
 
     bool unbounded() const {
-        return p_type & C_TYPE_NOSIZE;
+        return p_flags & C_TYPE_NOSIZE;
     }
 
     bool closure() const {
         switch (type()) {
             case C_BUILTIN_FUNC:
-                return p_type & C_TYPE_CLOSURE;
+                return p_flags & C_TYPE_CLOSURE;
             case C_BUILTIN_PTR:
-                return ptr_base().p_type & C_TYPE_CLOSURE;
+                return ptr_base().p_flags & C_TYPE_CLOSURE;
             default:
                 break;
         }
@@ -630,12 +640,12 @@ struct c_type: c_object {
     }
 
     bool is_ref() const {
-        return p_type & C_TYPE_REF;
+        return p_flags & C_TYPE_REF;
     }
 
     c_type unref() const {
         auto ret = *this;
-        ret.p_type ^= C_TYPE_REF;
+        ret.p_flags ^= C_TYPE_REF;
         return ret;
     }
 
@@ -646,7 +656,7 @@ struct c_type: c_object {
     }
 
     void add_ref() {
-        p_type |= C_TYPE_REF;
+        p_flags |= C_TYPE_REF;
     }
 
     bool is_unsigned() const {
@@ -660,7 +670,7 @@ struct c_type: c_object {
     }
 
     void cv(int qual) {
-        p_type |= uint32_t(qual);
+        p_cv |= uint32_t(qual);
     }
 
     c_type const &ptr_base() const {
@@ -701,8 +711,8 @@ struct c_type: c_object {
     /* only use this with ref and ptr types */
     c_type as_type(int cbt) const {
         auto ret = c_type{*this};
-        ret.p_type ^= ret.type();
-        ret.p_type |= cbt;
+        ret.p_ttype ^= ret.type();
+        ret.p_ttype |= cbt;
         return ret;
     }
 
@@ -717,12 +727,9 @@ private:
         c_enum const *p_cenum;
     };
     size_t p_asize = 0;
-    /*
-     * 8 bits: type type (builtin/regular)
-     * 8 bits: qualifier
-     * 8 bits: ownership
-     */
-    uint32_t p_type;
+    uint32_t p_ttype: 5;
+    uint32_t p_flags: 5;
+    uint32_t p_cv: 2;
 };
 
 struct c_param: c_object {

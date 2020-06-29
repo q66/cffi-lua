@@ -1517,8 +1517,7 @@ newlevel:
             /* array dimensions may be multiple */
             int flags;
             clev.is_arr = parse_array(ls, flags, clev.arrd);
-            /* shifted by 16 to fit into bitfield, will be unshifted later */
-            clev.flags = flags >> 16;
+            clev.flags = flags;
         }
         if (!clev.is_func && (prevconv != -1)) {
             ls.syntax_error("calling convention on non-function declaration");
@@ -1636,7 +1635,7 @@ newlevel:
                 olev->arrd.pop();
                 ast::c_type atp{
                     std::move(tp), quals, dim,
-                    (olev->arrd.empty() ? (olev->flags << 16) : 0)
+                    (olev->arrd.empty() ? olev->flags : 0)
                 };
                 tp.~CT();
                 new (&tp) ast::c_type{std::move(atp)};

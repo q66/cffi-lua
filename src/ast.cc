@@ -581,9 +581,8 @@ void c_function::do_serialize(
 }
 
 c_type::c_type(c_function tp, int qual, bool cb):
-    p_fptr{new c_function{std::move(tp)}}, p_type{
-        C_BUILTIN_FUNC | (cb ? C_TYPE_CLOSURE : 0) | uint32_t(qual)
-    }
+    p_fptr{new c_function{std::move(tp)}}, p_ttype{C_BUILTIN_FUNC},
+    p_flags{uint32_t(cb ? C_TYPE_CLOSURE : 0)}, p_cv{uint32_t(qual)}
 {}
 
 c_type::~c_type() {
@@ -598,7 +597,9 @@ c_type::~c_type() {
     }
 }
 
-c_type::c_type(c_type const &v): p_asize{v.p_asize}, p_type{v.p_type} {
+c_type::c_type(c_type const &v):
+    p_asize{v.p_asize}, p_ttype{v.p_ttype}, p_flags{v.p_flags}, p_cv{v.p_cv}
+{
     bool weak = !owns();
     int tp = type();
     if (tp == C_BUILTIN_FUNC) {
@@ -612,8 +613,7 @@ c_type::c_type(c_type const &v): p_asize{v.p_asize}, p_type{v.p_type} {
 
 c_type::c_type(c_type &&v):
     p_ptr{std::exchange(v.p_ptr, nullptr)},
-    p_asize{v.p_asize},
-    p_type{v.p_type}
+    p_asize{v.p_asize}, p_ttype{v.p_ttype}, p_flags{v.p_flags}, p_cv{v.p_cv}
 {}
 
 static inline void add_cv(std::string &o, int cv) {
