@@ -116,6 +116,9 @@ before_install:
               mkdir -p ../deps/include
               cp src/lua*.h* ../deps/include
               cp src/lauxlib.h ../deps/include
+              if [ -d etc -a -f etc/lua.hpp ]; then
+                  cp etc/lua.hpp ../deps/include
+              fi
               cp src/liblua.a ../deps
               cd ..
           fi
