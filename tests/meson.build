@@ -2,7 +2,7 @@
 
 runner = executable('runner', 'runner.cc',
     include_directories: [current_inc, runner_inc] + extra_inc,
-    dependencies: [lua_dep],
+    dependencies: [dl_lib, lua_dep],
     export_dynamic: true
 )
 

@@ -43,7 +43,7 @@ semantics. Use `cffi.nullptr` instead. The other limitations are caused by
 The dependencies are kept intentionally minimal.
 
 - A C++ compiler supporting the right subset of C++14
-- Lua 5.1 or newer (tested up to 5.4) or equivalent (e.g. LuaJIT)
+- Lua 5.1 or newer (tested up to and including 5.4) or equivalent (e.g. LuaJIT)
 - `libffi`
 - `meson`, `pkg-config` (optional)
 
@@ -106,6 +106,12 @@ implementation than that but it still provides the same compliant API,
 you can bypass the check with `-Dlua_version=custom` and then provide
 the appropriate include path and linkage via `CXXFLAGS` and `LDFLAGS`.
 
+It is also possible to pass `-Dlua_version=vendor`, in which case the
+library will be taken from `deps` and the includes from `deps/include`.
+The `deps` directory can be either in the source root or in the directory
+you run `meson` from. On Unix-like systems, the library will be named
+`liblua.a`.
+
 When using `homebrew` on macOS, its `libffi` is not installed globally.
 Therefore, you will need to set your `PKG_CONFIG_PATH` so that `pkg-config`
 can find its `.pc` file.
@@ -131,7 +137,8 @@ distribution of `libffi` and the right version of Lua. They must be compatible
 with the runtime you're targeting.
 
 Drop the `.lib` files (import libs or static libs) of `libffi` and `lua`
-in the `deps` directory, naming them `libffi.lib` and `liblua.lib`. Drop
+in the `deps` directory (either in the source root or the directory you
+are running `meson` from), naming them `libffi.lib` and `liblua.lib`. Drop
 the include files for `libffi` (`ffi.h` and `ffitarget.h`) into `deps/include`,
 same with the Lua include files.
 

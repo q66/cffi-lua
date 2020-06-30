@@ -43,7 +43,11 @@ add_global_arguments('-DHAVE_CONFIG_H=1', language: 'cpp')
 
 # Vendor library path; used to find libs and also added to PATH for Windows
 
-deps_path = join_paths(meson.source_root(), 'deps')
+deps_path = 'deps'
+deps_libs = [
+    join_paths(meson.source_root(), deps_path),
+    join_paths(meson.build_root(), deps_path)
+]
 extra_inc = [include_directories('include')]
 
 # Lua dependency checks
@@ -70,7 +74,7 @@ elif luaver != 'auto' and luaver != 'custom' and luaver != 'vendor'
 elif luaver == 'custom'
     lua_dep = dependency('', required: false)
 elif luaver == 'vendor'
-    lua_dep = cxx.find_library('lua', dirs: [deps_path])
+    lua_dep = cxx.find_library('lua', dirs: deps_libs)
     extra_inc += include_directories(join_paths(deps_path, 'include'))
 else
     lua_dep = dependency('lua')
@@ -83,7 +87,7 @@ ffiver = get_option('libffi')
 if ffiver == 'custom'
     ffi_dep = dependency('', required: false)
 elif ffiver == 'vendor'
-    ffi_dep = cxx.find_library('ffi', dirs: [deps_path])
+    ffi_dep = cxx.find_library('ffi', dirs: deps_libs)
     extra_inc += include_directories(join_paths(deps_path, 'include'))
     config_h.set10('HAVE_FFI_H', true)
 else
@@ -135,6 +139,10 @@ luaver_num = cxx.compute_int(
 )
 luaver_min = luaver_num - 500
 luaver_str = '@0@.@1@'.format(luaver_maj, luaver_min)
+
+if luaver_min < 1
+    error('Lua 5.1 or newer is required')
+endif
 
 # follow what lua does, i.e. .so everywhere except windows
 plugin_suffix = 'so'
