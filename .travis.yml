@@ -42,11 +42,11 @@ matrix:
     - os: linux
       arch: amd64
       compiler: gcc
-      env: LUA_VERSION=5.1.5 LUA_SRC=1 CC=gcc CXX=g++
+      env: LUA_VERSION=5.1 CC=gcc CXX=g++
     - os: linux
       arch: amd64
       compiler: gcc
-      env: LUA_VERSION=5.2.4 LUA_SRC=1 CC=gcc CXX=g++
+      env: LUA_VERSION=5.2 CC=gcc CXX=g++
     - os: linux
       arch: amd64
       compiler: gcc
@@ -116,9 +116,6 @@ before_install:
               mkdir -p ../deps/include
               cp src/lua*.h* ../deps/include
               cp src/lauxlib.h ../deps/include
-              if [ -d etc -a -f etc/lua.hpp ]; then
-                  cp etc/lua.hpp ../deps/include
-              fi
               cp src/liblua.a ../deps
               cd ..
           fi
@@ -228,7 +225,7 @@ script:
           ninja all || exit 1
           ninja test
       else
-          meson .. -Dlua_version="${LUA_VERSION%.*}" \
+          meson .. -Dlua_version="${LUA_VERSION}" \
               -Dshared_lua=true -Dshared_libffi=true || exit 1
           ninja all || exit 1
           ninja test
