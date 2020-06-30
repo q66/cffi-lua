@@ -84,11 +84,11 @@ matrix:
     - os: linux
       arch: arm64
       compiler: gcc
-      env: LUA_VERSION=5.4.0 CC=gcc CXX=g++
+      env: LUA_VERSION=5.4.0 LUA_SRC=1 CC=gcc CXX=g++
     - os: linux
       arch: arm64
       compiler: clang
-      env: LUA_VERSION=5.4.0 CC=clang CXX=clang++
+      env: LUA_VERSION=5.4.0 LUA_SRC=1 CC=clang CXX=clang++
 
     # os x, clang, 5.3 only
     - os: osx
