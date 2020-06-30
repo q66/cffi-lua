@@ -163,6 +163,17 @@ All metamethods implementable for `userdata` in the given Lua version are
 supported. That means at very least those supported by Lua 5.1, plus anything
 added later (5.2 supports `__pairs` and `__ipairs`, 5.3 adds bitwise ops).
 
+When using Lua 5.3 or later, `__name` from the metatable is used when calling
+`tostring`. Its type must be `string`, any other type is ignored, following the
+standard Lua semantics (this includes numbers, i.e. `type(v) == "string"` must
+be true). For `ctype` objects, the result of `tostring` will be the value of
+`__name`, for `cdata` objects the `__name` will replace the C type signature
+of the result (i.e. you will get something like `foo: 0xDEADBEEF`).
+
+With Lua 5.4, the `__close` metamethod for to-be-closed variables is also
+supported. On `ctype` objects, it is ignored, as if it didn't exist; on
+`cdata` objects it follows the standard semantics.
+
 **Difference from LuaJIT:** because of how metamethods in Lua work, the
 `__eq` metamethod will never be called if any of the sides is not `userdata`.
 That means checking equality against `nil` or any Lua value will always return

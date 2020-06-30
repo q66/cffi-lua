@@ -111,9 +111,30 @@ struct cdata_meta {
         }
         auto &cd = ffi::tocdata<ffi::arg_stor_t>(L, 1);
         if (ffi::isctype(cd)) {
+#if LUA_VERSION_NUM > 502
+            if (metatype_check<ffi::METATYPE_FLAG_NAME>(L, 1)) {
+                /* __name is respected only when it's specifically
+                 * a string, otherwise ignore like if it didn't exist
+                 */
+                if (lua_type(L, -1) == LUA_TSTRING) {
+                    return 1;
+                }
+                lua_pop(L, 1);
+            }
+#endif
             lua_pushfstring(L, "ctype<%s>", cd.decl.serialize().c_str());
             return 1;
         }
+#if LUA_VERSION_NUM > 502
+        if (metatype_check<ffi::METATYPE_FLAG_NAME>(L, 1)) {
+            if (lua_type(L, -1) == LUA_TSTRING) {
+                lua_pushfstring(L, ": %p", cd.get_addr());
+                lua_concat(L, 2);
+                return 1;
+            }
+            lua_pop(L, 1);
+        }
+#endif
         auto const *tp = &cd.decl;
         ffi::arg_stor_t const *val = &cd.val;
         if (tp->is_ref()) {
@@ -838,6 +859,17 @@ struct cdata_meta {
         ffi::make_cdata_arith(L, retp, rv);
         return 1;
     }
+
+#if LUA_VERSION_NUM > 503
+    static int close(lua_State *L) {
+        auto *cd = ffi::testcdata<void *>(L, 1);
+        if (cd && metatype_check<ffi::METATYPE_FLAG_CLOSE>(L, 1)) {
+            lua_insert(L, 1);
+            lua_call(L, 1, 0);
+        }
+        return 0;
+    }
+#endif /* LUA_VERSION_NUM > 503 */
 #endif /* LUA_VERSION_NUM > 502 */
 #endif /* LUA_VERSION_NUM > 501 */
 
@@ -961,6 +993,11 @@ struct cdata_meta {
             ffi::METATYPE_FLAG_SHR, ast::c_expr_binop::RSH
         >));
         lua_setfield(L, -2, "__shr");
+
+#if LUA_VERSION_NUM > 503
+        lua_pushcfunction(L, close);
+        lua_setfield(L, -2, "__close");
+#endif /* LUA_VERSION_NUM > 503 */
 #endif /* LUA_VERSION_NUM > 502 */
 #endif /* LUA_VERSION_NUM > 501 */
 

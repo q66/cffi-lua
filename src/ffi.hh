@@ -55,6 +55,11 @@ enum metatype_flag {
     METATYPE_FLAG_BNOT     = 1 << 24,
     METATYPE_FLAG_SHL      = 1 << 25,
     METATYPE_FLAG_SHR      = 1 << 26,
+
+    METATYPE_FLAG_NAME     = 1 << 27,
+#if LUA_VERSION_NUM > 503
+    METATYPE_FLAG_CLOSE    = 1 << 28,
+#endif /* LUA_VERSION_NUM > 503 */
 #endif /* LUA_VERSION_NUM > 502 */
 #endif /* LUA_VERSION_NUM > 501 */
 };
@@ -92,6 +97,10 @@ static inline constexpr auto metafield_name(metatype_flag flag) {
         case METATYPE_FLAG_BNOT:     return "__bnot";
         case METATYPE_FLAG_SHL:      return "__shl";
         case METATYPE_FLAG_SHR:      return "__shr";
+        case METATYPE_FLAG_NAME:     return "__name";
+#if LUA_VERSION_NUM > 503
+        case METATYPE_FLAG_CLOSE:    return "__close";
+#endif /* LUA_VERSION_NUM > 503 */
 #endif /* LUA_VERSION_NUM > 502 */
 #endif /* LUA_VERSION_NUM > 501 */
         default: break;
