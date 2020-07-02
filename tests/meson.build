@@ -22,6 +22,7 @@ test_cases = [
     ['constant expressions',         'cexpr',                           false],
     ['redefinitions',                'redef',                           false],
     ['casting rules',                'cast',                            false],
+    ['metatype',                     'metatype',                        false],
 ]
 
 # We put the deps path in PATH because that's where our Lua dll file is
