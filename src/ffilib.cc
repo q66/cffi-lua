@@ -319,16 +319,23 @@ struct cdata_meta {
                 return 1;
             }
             /* otherwise, index it with key that's on top of the stack */
-            lua_insert(L, -2);
+            lua_pushvalue(L, 2);
             lua_gettable(L, -2);
             if (!lua_isnil(L, -1)) {
                 return 1;
             }
         }
-        luaL_error(
-            L, "'%s' has no member named '%s'",
-            cd.decl.serialize().c_str(), lua_tostring(L, 2)
-        );
+        if (lua_type(L, 2) != LUA_TSTRING) {
+            luaL_error(
+                L, "'%s' is not indexable with '%s'",
+                cd.decl.serialize().c_str(), lua_typename(L, 2)
+            );
+        } else {
+            luaL_error(
+                L, "'%s' has no member named '%s'",
+                cd.decl.serialize().c_str(), lua_tostring(L, 2)
+            );
+        }
         return 1;
     }
 
