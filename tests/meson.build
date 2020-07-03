@@ -7,22 +7,23 @@ runner = executable('runner', 'runner.cc',
 )
 
 test_cases = [
-    # test_name                      test_file                    expected_fail
-    ['abi example',                  'abi',                             false],
-    ['simple example',               'simple_puts',                     false],
-    ['variadic calls',               'variadic',                        false],
-    ['structs, arrays, unions',      'struct_array',                    false],
-    ['ffi.copy and fill',            'copy_fill',                       false],
-    ['callbacks',                    'callbacks',                       false],
-    ['table initializers',           'table_init',                      false],
-    ['parameterized types',          'parameterized',                   false],
-    ['scalar types',                 'scalar',                          false],
-    ['symbol redirection',           'redir',                           false],
-    ['calling conventions',          'callconv',                        false],
-    ['constant expressions',         'cexpr',                           false],
-    ['redefinitions',                'redef',                           false],
-    ['casting rules',                'cast',                            false],
-    ['metatype',                     'metatype',                        false],
+    # test_name                      test_file            expected_fail  minver
+    ['abi example',                  'abi',                      false,   501],
+    ['simple example',               'simple_puts',              false,   501],
+    ['variadic calls',               'variadic',                 false,   501],
+    ['structs, arrays, unions',      'struct_array',             false,   501],
+    ['ffi.copy and fill',            'copy_fill',                false,   501],
+    ['callbacks',                    'callbacks',                false,   501],
+    ['table initializers',           'table_init',               false,   501],
+    ['parameterized types',          'parameterized',            false,   501],
+    ['scalar types',                 'scalar',                   false,   501],
+    ['symbol redirection',           'redir',                    false,   501],
+    ['calling conventions',          'callconv',                 false,   501],
+    ['constant expressions',         'cexpr',                    false,   501],
+    ['redefinitions',                'redef',                    false,   501],
+    ['casting rules',                'cast',                     false,   501],
+    ['metatype',                     'metatype',                 false,   501],
+    ['metatype (5.4)',               'metatype54',               false,   504],
 ]
 
 # We put the deps path in PATH because that's where our Lua dll file is
@@ -32,6 +33,9 @@ penv = environment()
 penv.append('PATH', deps_path)
 
 foreach tcase: test_cases
+    if luaver_num < tcase[3]
+        continue
+    endif
     test(tcase[0], runner,
         args: [
             meson.build_root(),

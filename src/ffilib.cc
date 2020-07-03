@@ -872,7 +872,7 @@ struct cdata_meta {
         auto *cd = ffi::testcdata<void *>(L, 1);
         if (cd && metatype_check<ffi::METATYPE_FLAG_CLOSE>(L, 1)) {
             lua_insert(L, 1);
-            lua_call(L, 1, 0);
+            lua_call(L, 2, 0);
         }
         return 0;
     }
@@ -1103,6 +1103,11 @@ struct ffi_module {
         FIELD_CHECK("bnot", BNOT)
         FIELD_CHECK("shl", SHL)
         FIELD_CHECK("shr", SHR)
+
+        FIELD_CHECK("name", NAME)
+#if LUA_VERSION_NUM > 503
+        FIELD_CHECK("close", CLOSE)
+#endif /* LUA_VERSION_NUM > 503 */
 #endif /* LUA_VERSION_NUM > 502 */
 #endif /* LUA_VERSION_NUM > 501 */
 
