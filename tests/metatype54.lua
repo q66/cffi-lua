@@ -11,11 +11,13 @@ local closed_count = 0
 local foo = ffi.metatype("foo", {
     __close = function()
         closed_count = closed_count + 1
-    end
+    end,
+    __name = "foo"
 })
 
 local x <close> = foo(5)
 assert(closed_count == 0)
+assert(tostring(x):match("^foo: "))
 
 do
     local x <close> = foo(5)
