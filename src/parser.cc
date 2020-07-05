@@ -19,9 +19,9 @@ namespace parser {
 /* define all keywords our subset of C understands */
 
 /* stdint types might as well also be builtin... */
-#define KEYWORDS KW(alignof), KW(alignas), KW(const), KW(enum), KW(extern), \
-    KW(sizeof), KW(struct), KW(signed), KW(typedef), KW(union), KW(unsigned), \
-    KW(volatile), KW(void), \
+#define KEYWORDS KW(alignof), KW(alignas), KW(auto), KW(const), KW(enum), \
+    KW(extern), KW(sizeof), KW(struct), KW(signed), KW(typedef), KW(union), \
+    KW(unsigned), KW(volatile), KW(void), \
     \
     KW(_Alignas), \
     \
@@ -59,7 +59,7 @@ enum c_token {
     TOK_EQ = TOK_CUSTOM, TOK_NEQ, TOK_GE, TOK_LE,
     TOK_AND, TOK_OR, TOK_LSH, TOK_RSH,
 
-    TOK_ELLIPSIS, TOK_ATTRIBB, TOK_ATTRIBE,
+    TOK_ELLIPSIS, TOK_ATTRIBB, TOK_ATTRIBE, TOK_ARROW,
 
     TOK_INTEGER, TOK_FLOAT, TOK_CHAR, TOK_STRING, TOK_NAME, KEYWORDS
 };
@@ -76,7 +76,7 @@ static char const *tokens[] = {
     "==", "!=", ">=", "<=",
     "&&", "||", "<<", ">>",
 
-    "...", "((", "))",
+    "...", "((", "))", "->",
 
     "<integer>", "<float>", "<char>", "<string>", "<name>", KEYWORDS
 };
@@ -654,6 +654,15 @@ cont:
                     return TOK_ATTRIBE;
                 }
                 return ')';
+            }
+            /* -, -> */
+            case '-': {
+                next_char();
+                if (current == '>') {
+                    next_char();
+                    return TOK_ARROW;
+                }
+                return '-';
             }
             /* character literal */
             case '\'': {
