@@ -2160,30 +2160,34 @@ static void parse_decl(lex_state &ls) {
     }
 
     int cconv = parse_callconv_attrib(ls);
-    auto tp = parse_type(ls, &dname);
-    if (cconv != -1) {
-        if (tp.type() != ast::C_BUILTIN_FUNC) {
-            ls.syntax_error("calling convention on non-function declaration");
+    auto tpb = parse_typebase(ls);
+    do {
+        dname.clear();
+        auto tp = parse_type_ptr(ls, tpb, &dname, true);
+        if (cconv != -1) {
+            if (tp.type() != ast::C_BUILTIN_FUNC) {
+                ls.syntax_error("calling convention on non-function declaration");
+            }
+            auto *func = const_cast<ast::c_function *>(&tp.function());
+            func->callconv(cconv);
         }
-        auto *func = const_cast<ast::c_function *>(&tp.function());
-        func->callconv(cconv);
-    }
-    std::string sym;
-    /* symbol redirection */
-    if (test_next(ls, TOK___asm__)) {
-        int lnum = ls.line_number;
-        check_next(ls, '(');
-        check(ls, TOK_STRING);
-        if (ls.t.value_s.empty()) {
-            ls.syntax_error("empty symbol name");
+        std::string sym;
+        /* symbol redirection */
+        if (test_next(ls, TOK___asm__)) {
+            int lnum = ls.line_number;
+            check_next(ls, '(');
+            check(ls, TOK_STRING);
+            if (ls.t.value_s.empty()) {
+                ls.syntax_error("empty symbol name");
+            }
+            sym = std::move(ls.t.value_s);
+            ls.get();
+            check_match(ls, ')', '(', lnum);
         }
-        sym = std::move(ls.t.value_s);
-        ls.get();
-        check_match(ls, ')', '(', lnum);
-    }
-    ls.store_decl(new ast::c_variable{
-        std::move(dname), std::move(sym), std::move(tp)
-    }, dline);
+        ls.store_decl(new ast::c_variable{
+            std::move(dname), std::move(sym), std::move(tp)
+        }, dline);
+    } while (test_next(ls, '.'));
 }
 
 static void parse_decls(lex_state &ls) {
