@@ -1569,7 +1569,6 @@ newlevel:
      */
     plevel *olev = &pcvq.front();
     for (auto it = pcvq.begin() + 1;; ++it) {
-        using CT = ast::c_type;
         /* for the implicit level, its pointers/ref are bound to current 'tp',
          * as there is definitely no outer arglist or anything, and we need
          * to make sure return types for functions are properly built, e.g.
@@ -1594,8 +1593,7 @@ newlevel:
                 tp.add_ref();
             } else {
                 ast::c_type ntp{std::move(tp), it->cv, ast::C_BUILTIN_PTR};
-                tp.~CT();
-                new (&tp) ast::c_type{std::move(ntp)};
+                tp = std::move(ntp);
             }
             ++it;
         }
@@ -1624,8 +1622,7 @@ newlevel:
                 break;
             }
             ast::c_function cf{std::move(tp), std::move(olev->argl), fflags};
-            tp.~CT();
-            new (&tp) ast::c_type{std::move(cf), 0};
+            tp = ast::c_type{std::move(cf), 0};
         } else if (olev->is_arr) {
             if ((tp.vla() || tp.unbounded()) && !olev->arrd.empty()) {
                 ls.syntax_error(
@@ -1640,8 +1637,7 @@ newlevel:
                     std::move(tp), quals, dim,
                     (olev->arrd.empty() ? olev->flags : 0)
                 };
-                tp.~CT();
-                new (&tp) ast::c_type{std::move(atp)};
+                tp = std::move(atp);
             }
         }
         if (it == pcvq.end()) {
@@ -1940,7 +1936,6 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
 
     while (ls.t.token != '}') {
         ast::c_type tpb{ast::C_BUILTIN_INVALID, 0};
-        using CT = ast::c_type;
         if ((ls.t.token == TOK_struct) || (ls.t.token == TOK_union)) {
             bool transp = false;
             auto &st = parse_record(ls, &transp);
@@ -1948,11 +1943,9 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
                 fields.emplace_back(std::string{}, ast::c_type{&st, 0});
                 continue;
             }
-            tpb.~CT();
-            new (&tpb) CT{&st, parse_cv(ls)};
+            tpb = ast::c_type{&st, parse_cv(ls)};
         } else {
-            tpb.~CT();
-            new (&tpb) CT{parse_typebase(ls)};
+            tpb = parse_typebase(ls);
         }
         bool flexible = false;
         do {
