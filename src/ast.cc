@@ -585,7 +585,7 @@ c_type::c_type(c_function tp, int qual, bool cb):
     p_flags{uint32_t(cb ? C_TYPE_CLOSURE : 0)}, p_cv{uint32_t(qual)}
 {}
 
-c_type::~c_type() {
+void c_type::clear() {
     if (!owns()) {
         return;
     }
@@ -597,9 +597,12 @@ c_type::~c_type() {
     }
 }
 
-c_type::c_type(c_type const &v):
-    p_asize{v.p_asize}, p_ttype{v.p_ttype}, p_flags{v.p_flags}, p_cv{v.p_cv}
-{
+void c_type::copy(c_type const &v) {
+    p_asize = v.p_asize;
+    p_ttype = v.p_ttype;
+    p_flags = v.p_flags;
+    p_cv = v.p_cv;
+
     bool weak = !owns();
     int tp = type();
     if (tp == C_BUILTIN_FUNC) {
@@ -614,7 +617,24 @@ c_type::c_type(c_type const &v):
 c_type::c_type(c_type &&v):
     p_ptr{std::exchange(v.p_ptr, nullptr)},
     p_asize{v.p_asize}, p_ttype{v.p_ttype}, p_flags{v.p_flags}, p_cv{v.p_cv}
-{}
+{
+    v.p_ttype = C_BUILTIN_INVALID;
+    v.p_flags = 0;
+    v.p_cv = 0;
+}
+
+c_type &c_type::operator=(c_type &&v) {
+    clear();
+    p_ptr = std::exchange(v.p_ptr, nullptr);
+    p_asize = v.p_asize;
+    p_ttype = v.p_ttype;
+    p_flags = v.p_flags;
+    p_cv = v.p_cv;
+    v.p_ttype = C_BUILTIN_INVALID;
+    v.p_flags = 0;
+    v.p_cv = 0;
+    return *this;
+}
 
 static inline void add_cv(std::string &o, int cv) {
     if (cv & C_CV_CONST) {

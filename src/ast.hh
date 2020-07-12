@@ -543,13 +543,22 @@ struct c_type: c_object {
         p_flags{C_TYPE_WEAK}, p_cv{uint32_t(qual)}
     {}
 
-    c_type(c_type const &);
+    c_type(c_type const &tp) {
+        copy(tp);
+    }
+
     c_type(c_type &&);
 
-    c_type &operator=(c_type const &) = delete;
-    c_type &operator=(c_type &&) = delete;
+    c_type &operator=(c_type const &tp) {
+        clear();
+        copy(tp);
+        return *this;
+    }
+    c_type &operator=(c_type &&);
 
-    ~c_type();
+    ~c_type() {
+        clear();
+    }
 
     c_object_type obj_type() const {
         return c_object_type::TYPE;
@@ -717,6 +726,9 @@ struct c_type: c_object {
     }
 
 private:
+    void clear();
+    void copy(c_type const &);
+
     /* maybe a pointer? */
     union {
         c_type *p_ptr;
