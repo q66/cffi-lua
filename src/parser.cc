@@ -1970,27 +1970,19 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
             tpb.~CT();
             new (&tpb) CT{parse_typebase(ls)};
         }
-        std::deque<typedecl> lst;
-        std::string fpn;
-        do {
-            fpn.clear();
-            auto tp = parse_type_ptr(ls, tpb, &fpn, true);
-            lst.emplace_back(std::move(tp), std::move(fpn));
-        } while (test_next(ls, ','));
         bool flexible = false;
-        while (!lst.empty()) {
-            auto &td = lst.front();
-            if (td.type.unbounded()) {
-                if (lst.size() > 1) {
-                    ls.syntax_error("flexible array member not at the end");
-                }
-                flexible = true;
+        do {
+            std::string fpn;
+            auto tp = parse_type_ptr(ls, tpb, &fpn, true);
+            flexible = tp.unbounded();
+            fields.emplace_back(std::move(fpn), std::move(tp));
+            /* unbounded array must be the last in the list */
+            if (flexible) {
+                break;
             }
-            fields.emplace_back(std::move(td.name), std::move(td.type));
-            lst.pop_front();
-        }
+        } while (test_next(ls, ','));
         check_next(ls, ';');
-        /* if we have an unbounded array as an element, it must be last */
+        /* unbounded array must be the last in the struct */
         if (flexible) {
             break;
         }
