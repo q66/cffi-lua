@@ -1671,18 +1671,14 @@ enum type_signedness {
     TYPE_UNSIGNED = 1 << 1
 };
 
-/* a bit naive for now, and builtins could be handled better (we don't care
- * about the real signatures, only about their sizes and signedness and so
- * on to provide to the codegen) but it's a start
- */
-static ast::c_type parse_type(lex_state &ls, std::string *fpn, bool needn) {
+static ast::c_type parse_typebase(lex_state &ls) {
     /* left-side cv */
     int quals = parse_cv(ls);
     int squals = 0;
 
     /* parameterized types */
     if (ls.t.token == '$') {
-        return parse_type_ptr(ls, ls.param_get_type(), fpn, needn);
+        return ls.param_get_type();
     }
 
     ast::c_builtin cbt = ast::C_BUILTIN_INVALID;
@@ -1714,13 +1710,9 @@ static ast::c_type parse_type(lex_state &ls, std::string *fpn, bool needn) {
         }
         goto newtype;
     } else if ((ls.t.token == TOK_struct) || (ls.t.token == TOK_union)) {
-        return parse_type_ptr(
-            ls, ast::c_type{&parse_record(ls), quals}, fpn, needn
-        );
+        return ast::c_type{&parse_record(ls), quals};
     } else if (ls.t.token == TOK_enum) {
-        return parse_type_ptr(
-            ls, ast::c_type{&parse_enum(ls), quals}, fpn, needn
-        );
+        return ast::c_type{&parse_enum(ls), quals};
     }
 
 qualified:
@@ -1740,21 +1732,17 @@ qualified:
                 ast::c_type tp{decl->as<ast::c_typedef>().type()};
                 /* merge qualifiers */
                 tp.cv(quals);
-                return parse_type_ptr(ls, std::move(tp), fpn, needn);
+                return tp;
             }
             case ast::c_object_type::RECORD: {
                 ls.get();
                 auto &tp = decl->as<ast::c_record>();
-                return parse_type_ptr(
-                    ls, ast::c_type{&tp, quals}, fpn, needn
-                );
+                return ast::c_type{&tp, quals};
             }
             case ast::c_object_type::ENUM: {
                 ls.get();
                 auto &tp = decl->as<ast::c_enum>();
-                return parse_type_ptr(
-                    ls, ast::c_type{&tp, quals}, fpn, needn
-                );
+                return ast::c_type{&tp, quals};
             }
             default: {
                 std::string buf;
@@ -1884,7 +1872,11 @@ qualified:
 
 newtype:
     assert(cbt != ast::C_BUILTIN_INVALID);
-    return parse_type_ptr(ls, ast::c_type{cbt, quals}, fpn, needn);
+    return ast::c_type{cbt, quals};
+}
+
+static ast::c_type parse_type(lex_state &ls, std::string *fpn, bool needn) {
+    return parse_type_ptr(ls, parse_typebase(ls), fpn, needn);
 }
 
 static void parse_typedef(
