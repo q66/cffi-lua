@@ -910,8 +910,28 @@ static std::unique_ptr<ast::c_expr> expr_dup(ast::c_expr &&exp) {
 static ast::c_expr parse_cexpr(lex_state &ls);
 static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec);
 
+/* FIXME: ugly layout */
+struct typedecl {
+    ast::c_type type;
+    std::string name;
+
+    typedecl() = default;
+    typedecl(typedecl const &) = default;
+    typedecl(typedecl &&) = default;
+    typedecl &operator=(typedecl const &) = delete;
+    typedecl &operator=(typedecl &&) = delete;
+
+    typedecl(ast::c_type &&tp, std::string &&nm):
+        type{std::move(tp)}, name{std::move(nm)}
+    {}
+};
+
 static ast::c_type parse_type(
     lex_state &ls, std::string *fpname = nullptr, bool needn = true
+);
+
+static std::vector<typedecl> parse_typelist(
+    lex_state &ls, bool needn = true
 );
 
 static ast::c_record const &parse_record(lex_state &ls, bool *newst = nullptr);
@@ -1326,14 +1346,8 @@ static ast::c_type parse_type_ptr(
     lex_state &ls, ast::c_type tp, std::string *fpname, bool needn
 ) {
     /* our input is the left-side qualified type; that means constructs such
-     * as 'const int' or 'const unsigned long int'; that much is parsed by
-     * the function that wraps this one
+     * as 'const int' or 'unsigned long int const'
      */
-
-    /* that means we start with parsing the right-side cv qualfiers that may
-     * follow; at this point we've parsed e.g. 'char const'
-     */
-    tp.cv(parse_cv(ls));
 
     /*
      * now the real fun begins, because we're going to be statekeeping
@@ -1671,14 +1685,16 @@ enum type_signedness {
     TYPE_UNSIGNED = 1 << 1
 };
 
-static ast::c_type parse_typebase(lex_state &ls) {
+static ast::c_type parse_typebase_core(lex_state &ls) {
     /* left-side cv */
     int quals = parse_cv(ls);
     int squals = 0;
 
     /* parameterized types */
     if (ls.t.token == '$') {
-        return ls.param_get_type();
+        auto ret = ls.param_get_type();
+        ret.cv(quals);
+        return ret;
     }
 
     ast::c_builtin cbt = ast::C_BUILTIN_INVALID;
@@ -1875,8 +1891,27 @@ newtype:
     return ast::c_type{cbt, quals};
 }
 
+static ast::c_type parse_typebase(lex_state &ls) {
+    auto tp = parse_typebase_core(ls);
+    /* right-side cv that can always apply */
+    tp.cv(parse_cv(ls));
+    return tp;
+}
+
 static ast::c_type parse_type(lex_state &ls, std::string *fpn, bool needn) {
     return parse_type_ptr(ls, parse_typebase(ls), fpn, needn);
+}
+
+static std::vector<typedecl> parse_typelist(lex_state &ls, bool needn) {
+    std::vector<typedecl> r;
+    std::string fpn;
+    auto tpb = parse_typebase(ls);
+    do {
+        fpn.clear();
+        auto tp = parse_type_ptr(ls, tpb, &fpn, needn);
+        r.emplace_back(std::move(tp), std::move(fpn));
+    } while (test_next(ls, ','));
+    return r;
 }
 
 static void parse_typedef(
