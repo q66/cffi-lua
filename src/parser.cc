@@ -910,22 +910,6 @@ static std::unique_ptr<ast::c_expr> expr_dup(ast::c_expr &&exp) {
 static ast::c_expr parse_cexpr(lex_state &ls);
 static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec);
 
-/* FIXME: ugly layout */
-struct typedecl {
-    ast::c_type type;
-    std::string name;
-
-    typedecl() = default;
-    typedecl(typedecl const &) = default;
-    typedecl(typedecl &&) = default;
-    typedecl &operator=(typedecl const &) = delete;
-    typedecl &operator=(typedecl &&) = delete;
-
-    typedecl(ast::c_type &&tp, std::string &&nm):
-        type{std::move(tp)}, name{std::move(nm)}
-    {}
-};
-
 static ast::c_type parse_type(
     lex_state &ls, std::string *fpname = nullptr, bool needn = true
 );
