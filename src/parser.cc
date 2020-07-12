@@ -930,10 +930,6 @@ static ast::c_type parse_type(
     lex_state &ls, std::string *fpname = nullptr, bool needn = true
 );
 
-static std::deque<typedecl> parse_typelist(
-    lex_state &ls, ast::c_type tpb, bool needn = true
-);
-
 static ast::c_record const &parse_record(lex_state &ls, bool *newst = nullptr);
 static ast::c_enum const &parse_enum(lex_state &ls);
 
@@ -1902,19 +1898,6 @@ static ast::c_type parse_type(lex_state &ls, std::string *fpn, bool needn) {
     return parse_type_ptr(ls, parse_typebase(ls), fpn, needn);
 }
 
-static std::deque<typedecl> parse_typelist(
-    lex_state &ls, ast::c_type tpb, bool needn
-) {
-    std::deque<typedecl> r;
-    std::string fpn;
-    do {
-        fpn.clear();
-        auto tp = parse_type_ptr(ls, tpb, &fpn, needn);
-        r.emplace_back(std::move(tp), std::move(fpn));
-    } while (test_next(ls, ','));
-    return r;
-}
-
 static void parse_typedef(
     lex_state &ls, ast::c_type &&tp, std::string &aname, int tline
 ) {
@@ -1987,7 +1970,13 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
             tpb.~CT();
             new (&tpb) CT{parse_typebase(ls)};
         }
-        auto lst = parse_typelist(ls, std::move(tpb), true);
+        std::deque<typedecl> lst;
+        std::string fpn;
+        do {
+            fpn.clear();
+            auto tp = parse_type_ptr(ls, tpb, &fpn, true);
+            lst.emplace_back(std::move(tp), std::move(fpn));
+        } while (test_next(ls, ','));
         bool flexible = false;
         while (!lst.empty()) {
             auto &td = lst.front();
