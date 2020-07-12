@@ -3,12 +3,10 @@ local ffi = require("cffi")
 ffi.cdef [[
     struct foo {
         int x;
-        size_t pad1;
-        size_t pad2;
+        size_t pad1, pad2;
         struct {
             char y;
-            size_t pad3;
-            size_t pad4;
+            size_t pad3, pad4;
             short z;
         };
         size_t pad5;
@@ -23,8 +21,7 @@ ffi.cdef [[
 
     union bar {
         struct {
-            unsigned char x;
-            unsigned char y;
+            unsigned char x, y;
         };
         unsigned short z;
     };

@@ -930,8 +930,8 @@ static ast::c_type parse_type(
     lex_state &ls, std::string *fpname = nullptr, bool needn = true
 );
 
-static std::vector<typedecl> parse_typelist(
-    lex_state &ls, bool needn = true
+static std::deque<typedecl> parse_typelist(
+    lex_state &ls, ast::c_type tpb, bool needn = true
 );
 
 static ast::c_record const &parse_record(lex_state &ls, bool *newst = nullptr);
@@ -1902,10 +1902,11 @@ static ast::c_type parse_type(lex_state &ls, std::string *fpn, bool needn) {
     return parse_type_ptr(ls, parse_typebase(ls), fpn, needn);
 }
 
-static std::vector<typedecl> parse_typelist(lex_state &ls, bool needn) {
-    std::vector<typedecl> r;
+static std::deque<typedecl> parse_typelist(
+    lex_state &ls, ast::c_type tpb, bool needn
+) {
+    std::deque<typedecl> r;
     std::string fpn;
-    auto tpb = parse_typebase(ls);
     do {
         fpn.clear();
         auto tp = parse_type_ptr(ls, tpb, &fpn, needn);
@@ -1971,26 +1972,34 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
     std::vector<ast::c_record::field> fields;
 
     while (ls.t.token != '}') {
-        std::string fname{};
-        ast::c_type tp{ast::C_BUILTIN_INVALID, 0};
+        ast::c_type tpb{ast::C_BUILTIN_INVALID, 0};
         using CT = ast::c_type;
         if ((ls.t.token == TOK_struct) || (ls.t.token == TOK_union)) {
             bool transp = false;
             auto &st = parse_record(ls, &transp);
             if (transp && test_next(ls, ';')) {
-                fields.emplace_back(fname, ast::c_type{&st, 0});
+                fields.emplace_back(std::string{}, ast::c_type{&st, 0});
                 continue;
             }
-            tp.~CT();
-            new (&tp) CT{parse_type_ptr(
-                ls, ast::c_type{&st, 0}, &fname, true
-            )};
+            tpb.~CT();
+            new (&tpb) CT{&st, parse_cv(ls)};
         } else {
-            tp.~CT();
-            new (&tp) CT{parse_type(ls, &fname)};
+            tpb.~CT();
+            new (&tpb) CT{parse_typebase(ls)};
         }
-        bool flexible = tp.unbounded();
-        fields.emplace_back(std::move(fname), std::move(tp));
+        auto lst = parse_typelist(ls, std::move(tpb), true);
+        bool flexible = false;
+        while (!lst.empty()) {
+            auto &td = lst.front();
+            if (td.type.unbounded()) {
+                if (lst.size() > 1) {
+                    ls.syntax_error("flexible array member not at the end");
+                }
+                flexible = true;
+            }
+            fields.emplace_back(std::move(td.name), std::move(td.type));
+            lst.pop_front();
+        }
         check_next(ls, ';');
         /* if we have an unbounded array as an element, it must be last */
         if (flexible) {
