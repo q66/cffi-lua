@@ -2090,9 +2090,6 @@ static void parse_decl(lex_state &ls) {
     int dline = ls.line_number;
     std::string dname;
     switch (ls.t.token) {
-        case TOK_enum:
-            parse_enum(ls);
-            return;
         case TOK_extern:
             /* may precede any declaration without changing its behavior */
             ls.get();
@@ -2103,7 +2100,8 @@ static void parse_decl(lex_state &ls) {
     bool tdef = false;
     auto tpb = parse_typebase(ls, &tdef);
     bool first = true;
-    bool rec = (tpb.type() == ast::C_BUILTIN_RECORD);
+    bool rec = (tpb.type() == ast::C_BUILTIN_RECORD) ||
+               (tpb.type() == ast::C_BUILTIN_ENUM);
     do {
         dname.clear();
         int oldmode = 0;
