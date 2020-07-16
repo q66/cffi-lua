@@ -1118,7 +1118,7 @@ done:
     return size_t(uval);
 }
 
-static int parse_cv(lex_state &ls) {
+static int parse_cv(lex_state &ls, bool *tdef = nullptr) {
     int quals = 0;
 
     for (;;) switch (ls.t.token) {
@@ -1139,6 +1139,17 @@ static int parse_cv(lex_state &ls) {
             }
             ls.get();
             quals |= ast::C_CV_VOLATILE;
+            break;
+        case TOK_typedef:
+            if (!tdef) {
+                return quals;
+            }
+            if (*tdef) {
+                ls.syntax_error("duplicate typedef qualifier");
+                break;
+            }
+            ls.get();
+            *tdef = true;
             break;
         default:
             return quals;
@@ -1659,9 +1670,9 @@ enum type_signedness {
     TYPE_UNSIGNED = 1 << 1
 };
 
-static ast::c_type parse_typebase_core(lex_state &ls) {
+static ast::c_type parse_typebase_core(lex_state &ls, bool *tdef) {
     /* left-side cv */
-    int quals = parse_cv(ls);
+    int quals = parse_cv(ls, tdef);
     int squals = 0;
 
     /* parameterized types */
@@ -1865,10 +1876,10 @@ newtype:
     return ast::c_type{cbt, quals};
 }
 
-static ast::c_type parse_typebase(lex_state &ls) {
-    auto tp = parse_typebase_core(ls);
+static ast::c_type parse_typebase(lex_state &ls, bool *tdef = nullptr) {
+    auto tp = parse_typebase_core(ls, tdef);
     /* right-side cv that can always apply */
-    tp.cv(parse_cv(ls));
+    tp.cv(parse_cv(ls, tdef));
     return tp;
 }
 
@@ -2079,27 +2090,6 @@ static void parse_decl(lex_state &ls) {
     int dline = ls.line_number;
     std::string dname;
     switch (ls.t.token) {
-        case TOK_typedef: {
-            /* TODO: typedef as a storage class for infix syntax */
-            ls.get();
-            /* switch mode for type parsing so we can have void */
-            int oldmode = ls.mode(PARSE_MODE_TYPEDEF);
-            auto tp = parse_type(ls, &dname);
-            if (dname != "?") {
-                /* store if the name is non-empty, if it's empty there is no
-                 * way to access the type and it'd be unique either way
-                 */
-                ls.store_decl(
-                    new ast::c_typedef{std::move(dname), std::move(tp)}, dline
-                );
-            }
-            ls.mode(oldmode);
-            return;
-        }
-        case TOK_struct:
-        case TOK_union:
-            parse_record(ls);
-            return;
         case TOK_enum:
             parse_enum(ls);
             return;
@@ -2110,16 +2100,42 @@ static void parse_decl(lex_state &ls) {
     }
 
     int cconv = parse_callconv_attrib(ls);
-    auto tpb = parse_typebase(ls);
+    bool tdef = false;
+    auto tpb = parse_typebase(ls, &tdef);
+    bool first = true;
+    bool rec = (tpb.type() == ast::C_BUILTIN_RECORD);
     do {
         dname.clear();
-        auto tp = parse_type_ptr(ls, tpb, &dname, true);
+        int oldmode = 0;
+        if (tdef) {
+            oldmode = ls.mode(PARSE_MODE_TYPEDEF);
+        }
+        auto tp = parse_type_ptr(ls, tpb, &dname, !first || (!tdef && !rec));
+        first = false;
         if (cconv != -1) {
             if (tp.type() != ast::C_BUILTIN_FUNC) {
                 ls.syntax_error("calling convention on non-function declaration");
             }
             auto *func = const_cast<ast::c_function *>(&tp.function());
             func->callconv(cconv);
+        }
+        if (tdef) {
+            ls.mode(oldmode);
+            if (dname != "?") {
+                /* store if the name is non-empty, if it's empty there is no
+                 * way to access the type and it'd be unique either way
+                 */
+                ls.store_decl(
+                    new ast::c_typedef{std::move(dname), std::move(tp)}, dline
+                );
+                continue;
+            } else {
+                /* unnamed typedef must not be a list */
+                break;
+            }
+        } else if (rec && (dname != "?")) {
+            /* unnamed records must not be lists */
+            break;
         }
         std::string sym;
         /* symbol redirection */

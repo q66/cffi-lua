@@ -29,7 +29,7 @@ assert(msg == "input:1: 'struct foo' redefined")
 
 -- typedef redefinitions are also okay, first one applies
 ffi.cdef [[
-    typedef struct foo foo;
+    struct foo typedef foo;
     typedef struct bar foo;
 ]]
 
