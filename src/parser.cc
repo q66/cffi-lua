@@ -1118,7 +1118,7 @@ done:
     return size_t(uval);
 }
 
-static int parse_cv(lex_state &ls, bool *tdef = nullptr) {
+static int parse_cv(lex_state &ls, bool *tdef = nullptr, bool *extr = nullptr) {
     int quals = 0;
 
     for (;;) switch (ls.t.token) {
@@ -1150,6 +1150,17 @@ static int parse_cv(lex_state &ls, bool *tdef = nullptr) {
             }
             ls.get();
             *tdef = true;
+            break;
+        case TOK_extern:
+            if (!extr) {
+                return quals;
+            }
+            if (*extr) {
+                ls.syntax_error("duplicate extern qualifier");
+                break;
+            }
+            ls.get();
+            *extr = true;
             break;
         default:
             return quals;
@@ -1670,9 +1681,9 @@ enum type_signedness {
     TYPE_UNSIGNED = 1 << 1
 };
 
-static ast::c_type parse_typebase_core(lex_state &ls, bool *tdef) {
+static ast::c_type parse_typebase_core(lex_state &ls, bool *tdef, bool *extr) {
     /* left-side cv */
-    int quals = parse_cv(ls, tdef);
+    int quals = parse_cv(ls, tdef, extr);
     int squals = 0;
 
     /* parameterized types */
@@ -1876,10 +1887,12 @@ newtype:
     return ast::c_type{cbt, quals};
 }
 
-static ast::c_type parse_typebase(lex_state &ls, bool *tdef = nullptr) {
-    auto tp = parse_typebase_core(ls, tdef);
+static ast::c_type parse_typebase(
+    lex_state &ls, bool *tdef = nullptr, bool *extr = nullptr
+) {
+    auto tp = parse_typebase_core(ls, tdef, extr);
     /* right-side cv that can always apply */
-    tp.cv(parse_cv(ls, tdef));
+    tp.cv(parse_cv(ls, tdef, extr));
     return tp;
 }
 
@@ -2088,22 +2101,14 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
 
 static void parse_decl(lex_state &ls) {
     int dline = ls.line_number;
-    std::string dname;
-    switch (ls.t.token) {
-        case TOK_extern:
-            /* may precede any declaration without changing its behavior */
-            ls.get();
-            break;
-    }
-
     int cconv = parse_callconv_attrib(ls);
-    bool tdef = false;
-    auto tpb = parse_typebase(ls, &tdef);
+    bool tdef = false, extr = false;
+    auto tpb = parse_typebase(ls, &tdef, &extr);
     bool first = true;
     bool rec = (tpb.type() == ast::C_BUILTIN_RECORD) ||
                (tpb.type() == ast::C_BUILTIN_ENUM);
     do {
-        dname.clear();
+        std::string dname;
         int oldmode = 0;
         if (tdef) {
             oldmode = ls.mode(PARSE_MODE_TYPEDEF);
