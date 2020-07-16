@@ -2137,7 +2137,7 @@ static void parse_decl(lex_state &ls) {
         ls.store_decl(new ast::c_variable{
             std::move(dname), std::move(sym), std::move(tp)
         }, dline);
-    } while (test_next(ls, '.'));
+    } while (test_next(ls, ','));
 }
 
 static void parse_decls(lex_state &ls) {
