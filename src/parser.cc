@@ -910,9 +910,7 @@ static std::unique_ptr<ast::c_expr> expr_dup(ast::c_expr &&exp) {
 static ast::c_expr parse_cexpr(lex_state &ls);
 static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec);
 
-static ast::c_type parse_type(
-    lex_state &ls, std::string *fpname = nullptr, bool needn = true
-);
+static ast::c_type parse_type(lex_state &ls, std::string *fpname = nullptr);
 
 static ast::c_record const &parse_record(lex_state &ls, bool *newst = nullptr);
 static ast::c_enum const &parse_enum(lex_state &ls);
@@ -1260,7 +1258,7 @@ static std::vector<ast::c_param> parse_paramlist(lex_state &ls) {
             break;
         }
         std::string pname;
-        auto pt = parse_type(ls, &pname, false);
+        auto pt = parse_type(ls, &pname);
         /* check if argument type can be passed by value */
         if (!pt.passable()) {
             std::string buf = "'";
@@ -1874,22 +1872,8 @@ static ast::c_type parse_typebase(lex_state &ls) {
     return tp;
 }
 
-static ast::c_type parse_type(lex_state &ls, std::string *fpn, bool needn) {
-    return parse_type_ptr(ls, parse_typebase(ls), fpn, needn);
-}
-
-static void parse_typedef(
-    lex_state &ls, ast::c_type &&tp, std::string &aname, int tline
-) {
-    /* the new type name */
-    if (aname.empty()) {
-        ls.param_maybe_name();
-        check(ls, TOK_NAME);
-        aname = ls.t.value_s;
-        ls.get();
-    }
-
-    ls.store_decl(new ast::c_typedef{std::move(aname), std::move(tp)}, tline);
+static ast::c_type parse_type(lex_state &ls, std::string *fpn) {
+    return parse_type_ptr(ls, parse_typebase(ls), fpn, false);
 }
 
 static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
@@ -2100,7 +2084,15 @@ static void parse_decl(lex_state &ls) {
             ls.get();
             /* switch mode for type parsing so we can have void */
             int oldmode = ls.mode(PARSE_MODE_TYPEDEF);
-            parse_typedef(ls, parse_type(ls, &dname), dname, dline);
+            auto tp = parse_type(ls, &dname);
+            if (dname != "?") {
+                /* store if the name is non-empty, if it's empty there is no
+                 * way to access the type and it'd be unique either way
+                 */
+                ls.store_decl(
+                    new ast::c_typedef{std::move(dname), std::move(tp)}, dline
+                );
+            }
             ls.mode(oldmode);
             return;
         }

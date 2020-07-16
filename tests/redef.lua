@@ -15,7 +15,8 @@ local p = ffi.C.malloc(4)
 assert(ffi.istype("void *", p))
 
 ffi.cdef [[
-    struct foo { int x; };
+    // try an empty typedef while at it, struct will get registered
+    typedef struct foo { int x; };
 ]]
 
 -- redefining structs etc. is invalid
