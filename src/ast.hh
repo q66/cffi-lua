@@ -1000,6 +1000,20 @@ struct c_record: c_object {
         return !p_elements;
     }
 
+    bool flexible(c_type const **outt = nullptr) const {
+        if (p_fields.empty()) {
+            return false;
+        }
+        auto &lf = p_fields.back();
+        if (lf.type.type() == ast::C_BUILTIN_RECORD) {
+            return lf.type.record().flexible(outt);
+        }
+        if (outt) {
+            *outt = &lf.type;
+        }
+        return lf.type.unbounded();
+    }
+
     bool passable() const {
         if (opaque() || is_union()) {
             return false;
@@ -1017,10 +1031,6 @@ struct c_record: c_object {
 
     bool is_union() const {
         return p_uni;
-    }
-
-    std::vector<field> const &fields() const {
-        return p_fields;
     }
 
     /* it is the responsibility of the caller to ensure we're not redefining */

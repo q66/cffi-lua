@@ -1090,15 +1090,16 @@ static void from_lua_table_record(
     int tidx, int sidx, int ninit
 ) {
     auto &sb = decl.record();
-    if (sb.fields().empty()) {
-        return;
-    }
     bool uni = sb.is_union();
     auto *val = static_cast<unsigned char *>(stor);
     bool filled = false;
-    sb.iter_fields([L, rsz, val, &decl, &sidx, &filled, &ninit, tidx, uni](
+    bool empty = true;
+    sb.iter_fields([
+        L, rsz, val, &decl, &sidx, &filled, &empty, &ninit, tidx, uni
+    ](
         char const *fname, ast::c_type const &fld, size_t off
     ) {
+        empty = false;
         if (tidx && (ninit < 0)) {
             lua_getfield(L, tidx, fname);
             if (lua_isnil(L, -1)) {
@@ -1154,6 +1155,9 @@ static void from_lua_table_record(
         lua_pop(L, 1);
         return uni;
     });
+    if (empty) {
+        return;
+    }
     if (uni && !filled) {
         memset(stor, 0, rsz);
     }
@@ -1324,21 +1328,18 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
         rsz = decl.ptr_base().alloc_size() * narr + sizeof(arg_stor_t);
         goto newdata;
     } else if (decl.type() == ast::C_BUILTIN_RECORD) {
-        auto &flds = decl.record().fields();
-        if (!flds.empty()) {
-            auto &lf = flds.back().type;
-            if (lf.unbounded()) {
-                auto arrs = luaL_checkinteger(L, idx);
-                if (arrs < 0) {
-                    luaL_error(L, "size of C type is unknown");
-                }
-                ++iidx;
-                ninits = lua_gettop(L) - iidx + 1;
-                rsz = decl.alloc_size() + (
-                    size_t(arrs) * lf.ptr_base().alloc_size()
-                );
-                goto newdata;
+        ast::c_type const *lf = nullptr;
+        if (decl.record().flexible(&lf)) {
+            auto arrs = luaL_checkinteger(L, idx);
+            if (arrs < 0) {
+                luaL_error(L, "size of C type is unknown");
             }
+            ++iidx;
+            ninits = lua_gettop(L) - iidx + 1;
+            rsz = decl.alloc_size() + (
+                size_t(arrs) * lf->ptr_base().alloc_size()
+            );
+            goto newdata;
         }
         ninits = lua_gettop(L) - iidx + 1;
         rsz = decl.alloc_size();
