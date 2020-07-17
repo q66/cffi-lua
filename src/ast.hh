@@ -288,7 +288,7 @@ enum class c_expr_type {
     TERNARY
 };
 
-static inline int to_builtin_type(c_expr_type v) {
+static inline c_builtin to_builtin_type(c_expr_type v) {
     switch (v) {
         case c_expr_type::INT:
             return C_BUILTIN_INT;
@@ -504,12 +504,12 @@ struct c_record;
 struct c_enum;
 
 struct c_type: c_object {
-    c_type(int cbt, int qual):
+    c_type(c_builtin cbt, int qual):
         p_ptr{nullptr}, p_ttype{uint32_t(cbt)},
         p_flags{0}, p_cv{uint32_t(qual)}
     {}
 
-    c_type(c_type tp, int qual, int cbt = C_BUILTIN_PTR):
+    c_type(c_type tp, int qual, c_builtin cbt = C_BUILTIN_PTR):
         p_ptr{new c_type{std::move(tp)}}, p_ttype{uint32_t(cbt)},
         p_flags{0}, p_cv{uint32_t(qual)}
     {}
@@ -520,7 +520,7 @@ struct c_type: c_object {
         p_cv{uint32_t(qual)}
     {}
 
-    c_type(c_type const *ctp, int qual, int cbt = C_BUILTIN_PTR):
+    c_type(c_type const *ctp, int qual, c_builtin cbt = C_BUILTIN_PTR):
         p_cptr{ctp}, p_ttype{uint32_t(cbt)}, p_flags{C_TYPE_WEAK},
         p_cv{uint32_t(qual)}
     {}
@@ -590,8 +590,8 @@ struct c_type: c_object {
         return nullptr;
     }
 
-    int type() const {
-        return p_ttype;
+    c_builtin type() const {
+        return c_builtin(p_ttype);
     }
 
     int cv() const {
