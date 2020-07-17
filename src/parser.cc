@@ -1958,7 +1958,11 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
         bool flexible = false;
         do {
             std::string fpn;
-            auto tp = parse_type_ptr(ls, tpb, &fpn, true);
+            auto tp = parse_type_ptr(ls, tpb, &fpn, false);
+            if (fpn == "?") {
+                /* nameless field declarations do nothing */
+                goto field_end;
+            }
             flexible = tp.unbounded();
             fields.emplace_back(std::move(fpn), std::move(tp));
             /* unbounded array must be the last in the list */
@@ -1966,6 +1970,7 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
                 break;
             }
         } while (test_next(ls, ','));
+field_end:
         check_next(ls, ';');
         /* unbounded array must be the last in the struct */
         if (flexible) {
