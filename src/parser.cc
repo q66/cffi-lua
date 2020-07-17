@@ -2105,15 +2105,13 @@ static void parse_decl(lex_state &ls) {
     bool tdef = false, extr = false;
     auto tpb = parse_typebase(ls, &tdef, &extr);
     bool first = true;
-    bool rec = (tpb.type() == ast::C_BUILTIN_RECORD) ||
-               (tpb.type() == ast::C_BUILTIN_ENUM);
     do {
         std::string dname;
         int oldmode = 0;
         if (tdef) {
             oldmode = ls.mode(PARSE_MODE_TYPEDEF);
         }
-        auto tp = parse_type_ptr(ls, tpb, &dname, !first || (!tdef && !rec));
+        auto tp = parse_type_ptr(ls, tpb, &dname, !first);
         first = false;
         if (cconv != -1) {
             if (tp.type() != ast::C_BUILTIN_FUNC) {
@@ -2136,8 +2134,8 @@ static void parse_decl(lex_state &ls) {
                 /* unnamed typedef must not be a list */
                 break;
             }
-        } else if (rec && (dname != "?")) {
-            /* unnamed records must not be lists */
+        } else if (dname == "?") {
+            /* if no name is permitted, it must be the only one */
             break;
         }
         std::string sym;
