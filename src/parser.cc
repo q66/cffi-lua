@@ -1118,8 +1118,10 @@ done:
     return size_t(uval);
 }
 
-static int parse_cv(lex_state &ls, bool *tdef = nullptr, bool *extr = nullptr) {
-    int quals = 0;
+static uint32_t parse_cv(
+    lex_state &ls, bool *tdef = nullptr, bool *extr = nullptr
+) {
+    uint32_t quals = 0;
 
     for (;;) switch (ls.t.token) {
         case TOK_const:
@@ -1169,9 +1171,9 @@ static int parse_cv(lex_state &ls, bool *tdef = nullptr, bool *extr = nullptr) {
     return quals;
 }
 
-static int parse_callconv_attrib(lex_state &ls) {
+static uint32_t parse_callconv_attrib(lex_state &ls) {
     if (ls.t.token != TOK___attribute__) {
-        return -1;
+        return ast::C_FUNC_DEFAULT;
     }
     int omod = ls.mode(PARSE_MODE_ATTRIB);
     ls.get();
@@ -1196,7 +1198,7 @@ static int parse_callconv_attrib(lex_state &ls) {
     return conv;
 }
 
-static int parse_callconv_ms(lex_state &ls) {
+static uint32_t parse_callconv_ms(lex_state &ls) {
     switch (ls.t.token) {
         case TOK___cdecl:
             ls.get();
@@ -1213,12 +1215,12 @@ static int parse_callconv_ms(lex_state &ls) {
         default:
             break;
     }
-    return -1;
+    return ast::C_FUNC_DEFAULT;
 }
 
 struct arrdim {
     size_t size;
-    int quals;
+    uint32_t quals;
 };
 
 /* FIXME: when in var declarations, all components must be complete */
@@ -1228,7 +1230,7 @@ static bool parse_array(lex_state &ls, int &flags, std::stack<arrdim> &dims) {
         return false;
     }
     ls.get();
-    int cv = parse_cv(ls);
+    auto cv = parse_cv(ls);
     if (ls.t.token == ']') {
         flags |= ast::C_TYPE_NOSIZE;
         dims.push({0, cv});
@@ -1318,13 +1320,13 @@ struct plevel {
 
     std::vector<ast::c_param> argl{};
     std::stack<arrdim> arrd{};
-    int cv: 16;
-    int flags: 6;
-    int cconv: 6;
-    unsigned int is_term: 1;
-    unsigned int is_func: 1;
-    unsigned int is_ref: 1;
-    unsigned int is_arr: 1;
+    uint32_t cv: 2;
+    uint32_t flags: 6;
+    uint32_t cconv: 6;
+    uint32_t is_term: 1;
+    uint32_t is_func: 1;
+    uint32_t is_ref: 1;
+    uint32_t is_arr: 1;
 };
 
 /* FIXME: optimize, right now this uses more memory than necessary
@@ -1439,7 +1441,7 @@ newlevel:
         if (!nolev) {
             pcvq.back().cconv = parse_callconv_ms(ls);
         } else {
-            pcvq.back().cconv = -1;
+            pcvq.back().cconv = ast::C_FUNC_DEFAULT;
         }
         /* count all '*' and create element for each */
         while (ls.t.token == '*') {
@@ -1483,7 +1485,7 @@ newlevel:
      */
     if (nolev) {
         pcvq.front().cconv = parse_callconv_ms(ls);
-        if (pcvq.front().cconv == -1) {
+        if (pcvq.front().cconv == ast::C_FUNC_DEFAULT) {
             pcvq.front().cconv = parse_callconv_attrib(ls);
         }
     }
@@ -1518,7 +1520,7 @@ newlevel:
      * in short, in 'void (*foo(argl1))(argl2)', 'argl1' will be attached to
      * level 2, while 'argl2' will be stored in level 1 (the implicit one)
      */
-    int prevconv = -1;
+    uint32_t prevconv = ast::C_FUNC_DEFAULT;
     for (auto it = pcvq.rbegin();;) {
         plevel &clev = *it;
         if (!clev.is_term) { /* skip non-sentinels */
@@ -1533,7 +1535,7 @@ newlevel:
             clev.is_func = true;
             /* attribute style calling convention after paramlist */
             clev.cconv = parse_callconv_attrib(ls);
-            if (clev.cconv == -1) {
+            if (clev.cconv == ast::C_FUNC_DEFAULT) {
                 clev.cconv = prevconv;
             }
         } else if (ls.t.token == '[') {
@@ -1542,7 +1544,7 @@ newlevel:
             clev.is_arr = parse_array(ls, flags, clev.arrd);
             clev.flags = flags;
         }
-        if (!clev.is_func && (prevconv != -1)) {
+        if (!clev.is_func && (prevconv != ast::C_FUNC_DEFAULT)) {
             ls.syntax_error("calling convention on non-function declaration");
         }
         prevconv = clev.cconv;
@@ -1620,10 +1622,7 @@ newlevel:
         /* now attach the function or array or whatever */
         if (olev->is_func) {
             /* outer level has an arglist */
-            int fflags = olev->cconv;
-            if (fflags < 0) {
-                fflags = ast::C_FUNC_CDECL;
-            }
+            uint32_t fflags = olev->cconv;
             if (!olev->argl.empty() && (
                 olev->argl.back().type().type() == ast::C_BUILTIN_VOID
             )) {
@@ -1651,7 +1650,7 @@ newlevel:
             }
             while (!olev->arrd.empty()) {
                 size_t dim = olev->arrd.top().size;
-                int quals = olev->arrd.top().quals;
+                auto quals = olev->arrd.top().quals;
                 olev->arrd.pop();
                 ast::c_type atp{
                     std::move(tp), quals, dim,
@@ -1683,8 +1682,8 @@ enum type_signedness {
 
 static ast::c_type parse_typebase_core(lex_state &ls, bool *tdef, bool *extr) {
     /* left-side cv */
-    int quals = parse_cv(ls, tdef, extr);
-    int squals = 0;
+    uint32_t quals = parse_cv(ls, tdef, extr);
+    uint32_t squals = 0;
 
     /* parameterized types */
     if (ls.t.token == '$') {
@@ -2106,7 +2105,7 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
 
 static void parse_decl(lex_state &ls) {
     int dline = ls.line_number;
-    int cconv = parse_callconv_attrib(ls);
+    uint32_t cconv = parse_callconv_attrib(ls);
     bool tdef = false, extr = false;
     auto tpb = parse_typebase(ls, &tdef, &extr);
     bool first = true;
@@ -2118,7 +2117,7 @@ static void parse_decl(lex_state &ls) {
         }
         auto tp = parse_type_ptr(ls, tpb, &dname, !first);
         first = false;
-        if (cconv != -1) {
+        if (cconv != ast::C_FUNC_DEFAULT) {
             if (tp.type() != ast::C_BUILTIN_FUNC) {
                 ls.syntax_error("calling convention on non-function declaration");
             }

@@ -154,7 +154,9 @@ static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
 #if defined(FFI_WINDOWS_ABI) && (FFI_ARCH == FFI_ARCH_X86)
 static inline ffi_abi to_libffi_abi(int conv) {
     switch (conv) {
-        case AST::C_FUNC_CDECL:
+        case ast::C_FUNC_DEFAULT:
+            return FFI_DEFAULT_ABI;
+        case ast::C_FUNC_CDECL:
             return FFI_MS_CDECL;
         case ast::C_FUNC_FASTCALL:
             return FFI_FASTCALL;

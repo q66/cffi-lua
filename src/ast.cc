@@ -580,9 +580,9 @@ void c_function::do_serialize(
     o += "()";
 }
 
-c_type::c_type(c_function tp, int qual, bool cb):
+c_type::c_type(c_function tp, uint32_t qual, bool cb):
     p_fptr{new c_function{std::move(tp)}}, p_ttype{C_BUILTIN_FUNC},
-    p_flags{uint32_t(cb ? C_TYPE_CLOSURE : 0)}, p_cv{uint32_t(qual)}
+    p_flags{uint32_t(cb ? C_TYPE_CLOSURE : 0)}, p_cv{qual}
 {}
 
 void c_type::clear() {

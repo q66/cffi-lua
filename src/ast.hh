@@ -247,7 +247,8 @@ enum c_type_flags {
 };
 
 enum c_func_flags {
-    C_FUNC_CDECL = 0,
+    C_FUNC_DEFAULT = 0,
+    C_FUNC_CDECL,
     C_FUNC_FASTCALL,
     C_FUNC_STDCALL,
     C_FUNC_THISCALL,
@@ -504,43 +505,37 @@ struct c_record;
 struct c_enum;
 
 struct c_type: c_object {
-    c_type(c_builtin cbt, int qual):
-        p_ptr{nullptr}, p_ttype{uint32_t(cbt)},
-        p_flags{0}, p_cv{uint32_t(qual)}
+    c_type(c_builtin cbt, uint32_t qual):
+        p_ptr{nullptr}, p_ttype{uint32_t(cbt)}, p_flags{0}, p_cv{qual}
     {}
 
-    c_type(c_type tp, int qual, c_builtin cbt = C_BUILTIN_PTR):
+    c_type(c_type tp, uint32_t qual, c_builtin cbt = C_BUILTIN_PTR):
         p_ptr{new c_type{std::move(tp)}}, p_ttype{uint32_t(cbt)},
-        p_flags{0}, p_cv{uint32_t(qual)}
+        p_flags{0}, p_cv{qual}
     {}
 
-    c_type(c_type tp, int qual, size_t arrlen, int flags):
+    c_type(c_type tp, uint32_t qual, size_t arrlen, uint32_t flags):
         p_ptr{new c_type{std::move(tp)}}, p_asize{arrlen},
-        p_ttype{C_BUILTIN_ARRAY}, p_flags{uint32_t(flags)},
-        p_cv{uint32_t(qual)}
+        p_ttype{C_BUILTIN_ARRAY}, p_flags{flags}, p_cv{qual}
     {}
 
-    c_type(c_type const *ctp, int qual, c_builtin cbt = C_BUILTIN_PTR):
-        p_cptr{ctp}, p_ttype{uint32_t(cbt)}, p_flags{C_TYPE_WEAK},
-        p_cv{uint32_t(qual)}
+    c_type(c_type const *ctp, uint32_t qual, c_builtin cbt = C_BUILTIN_PTR):
+        p_cptr{ctp}, p_ttype{uint32_t(cbt)}, p_flags{C_TYPE_WEAK}, p_cv{qual}
     {}
 
-    c_type(c_function tp, int qual, bool cb = false);
+    c_type(c_function tp, uint32_t qual, bool cb = false);
 
-    c_type(c_function const *ctp, int qual, bool cb = false):
+    c_type(c_function const *ctp, uint32_t qual, bool cb = false):
         p_cfptr{ctp}, p_ttype{C_BUILTIN_FUNC},
-        p_flags{uint32_t(C_TYPE_WEAK | (cb ? C_TYPE_CLOSURE : 0))},
-        p_cv{uint32_t(qual)}
+        p_flags{uint32_t(C_TYPE_WEAK | (cb ? C_TYPE_CLOSURE : 0))}, p_cv{qual}
     {}
 
-    c_type(c_record const *ctp, int qual):
-        p_crec{ctp}, p_ttype{C_BUILTIN_RECORD},
-        p_flags{C_TYPE_WEAK}, p_cv{uint32_t(qual)}
+    c_type(c_record const *ctp, uint32_t qual):
+        p_crec{ctp}, p_ttype{C_BUILTIN_RECORD}, p_flags{C_TYPE_WEAK}, p_cv{qual}
     {}
 
-    c_type(c_enum const *ctp, int qual):
-        p_cenum{ctp}, p_ttype{C_BUILTIN_ENUM},
-        p_flags{C_TYPE_WEAK}, p_cv{uint32_t(qual)}
+    c_type(c_enum const *ctp, uint32_t qual):
+        p_cenum{ctp}, p_ttype{C_BUILTIN_ENUM}, p_flags{C_TYPE_WEAK}, p_cv{qual}
     {}
 
     c_type(c_type const &tp) {
@@ -777,7 +772,7 @@ private:
 };
 
 struct c_function: c_object {
-    c_function(c_type result, std::vector<c_param> params, int flags):
+    c_function(c_type result, std::vector<c_param> params, uint32_t flags):
         p_result{std::move(result)}, p_params{std::move(params)},
         p_flags{flags}
     {}
@@ -814,11 +809,11 @@ struct c_function: c_object {
         return !!(p_flags & C_FUNC_VARIADIC);
     }
 
-    int callconv() const {
+    uint32_t callconv() const {
         return p_flags & 0xF;
     }
 
-    void callconv(int conv) {
+    void callconv(uint32_t conv) {
         p_flags ^= callconv();
         p_flags |= conv & 0xFF;
     }
@@ -826,7 +821,7 @@ struct c_function: c_object {
 private:
     c_type p_result;
     std::vector<c_param> p_params;
-    int p_flags;
+    uint32_t p_flags;
     bool p_variadic;
 };
 
