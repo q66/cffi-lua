@@ -35,8 +35,6 @@ addons:
     update: true
 
 matrix:
-  allow_failures:
-    - env: CI_MAY_FAIL=1
   include:
     # x86_64 linux, test all lua versions under gcc + 5.3 under clang
     - os: linux
@@ -74,11 +72,11 @@ matrix:
     - os: linux
       arch: s390x
       compiler: gcc
-      env: LUA_VERSION=5.4.0 LUA_SRC=1 CC=gcc CXX=g++ CI_MAY_FAIL=1
+      env: LUA_VERSION=5.4.0 LUA_SRC=1 CC=gcc CXX=g++
     - os: linux
       arch: s390x
       compiler: clang
-      env: LUA_VERSION=5.4.0 LUA_SRC=1 CC=clang CXX=clang++ CI_MAY_FAIL=1
+      env: LUA_VERSION=5.4.0 LUA_SRC=1 CC=clang CXX=clang++
 
     # aarch64 linux, test gcc and clang, 5.3 only
     - os: linux
