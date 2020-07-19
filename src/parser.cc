@@ -1654,7 +1654,7 @@ newlevel:
                 olev->arrd.pop();
                 ast::c_type atp{
                     std::move(tp), quals, dim,
-                    (olev->arrd.empty() ? olev->flags : 0)
+                    (olev->arrd.empty() ? olev->flags : uint32_t(0))
                 };
                 tp = std::move(atp);
             }
