@@ -1219,42 +1219,6 @@ static uint32_t parse_callconv_ms(lex_state &ls) {
     return ast::C_FUNC_DEFAULT;
 }
 
-struct arrdim {
-    size_t size;
-    uint32_t quals;
-};
-
-/* FIXME: when in var declarations, all components must be complete */
-static bool parse_array(lex_state &ls, int &flags, std::stack<arrdim> &dims) {
-    flags = 0;
-    if (ls.t.token != '[') {
-        return false;
-    }
-    ls.get();
-    auto cv = parse_cv(ls);
-    if (ls.t.token == ']') {
-        flags |= ast::C_TYPE_NOSIZE;
-        dims.push({0, cv});
-        ls.get();
-    } else if (ls.t.token == '?') {
-        /* FIXME: this should only be available in cdata creation contexts */
-        flags |= ast::C_TYPE_VLA;
-        dims.push({0, cv});
-        ls.get();
-        check_next(ls, ']');
-    } else {
-        dims.push({get_arrsize(ls, parse_cexpr(ls)), cv});
-        check_next(ls, ']');
-    }
-    while (ls.t.token == '[') {
-        ls.get();
-        cv = parse_cv(ls);
-        dims.push({get_arrsize(ls, parse_cexpr(ls)), cv});
-        check_next(ls, ']');
-    }
-    return true;
-}
-
 static std::vector<ast::c_param> parse_paramlist(lex_state &ls) {
     int linenum = ls.line_number;
     ls.get();
@@ -1315,18 +1279,13 @@ done_params:
  */
 struct plevel {
     plevel():
-        cv{0}, flags{0}, is_term{false}, is_func{false}, is_ref{false},
-        is_arr{false}
-    {
-        new (&arrd) std::stack<arrdim>();
-    }
+        arrd{0}, cv{0}, flags{0}, is_term{false}, is_func{false},
+        is_ref{false}, is_arr{false}
+    {}
     ~plevel() {
         if (is_func) {
             using DT = std::vector<ast::c_param>;
             argl.~DT();
-        } else {
-            using DT = std::stack<arrdim>;
-            arrd.~DT();
         }
     }
     plevel(plevel &&v):
@@ -1336,13 +1295,13 @@ struct plevel {
         if (is_func) {
             new (&argl) std::vector<ast::c_param>(std::move(v.argl));
         } else {
-            new (&arrd) std::stack<arrdim>(std::move(v.arrd));
+            arrd = v.arrd;
         }
     }
 
     union {
         std::vector<ast::c_param> argl;
-        std::stack<arrdim> arrd;
+        size_t arrd;
     };
     uint32_t cv: 2;
     uint32_t flags: 6;
@@ -1364,6 +1323,49 @@ struct plevel {
  * calls
 */
 static thread_local std::vector<plevel> pcvq{};
+
+struct arrdim {
+    size_t size;
+    uint32_t quals;
+};
+
+static thread_local std::stack<arrdim> dimstack{};
+
+/* FIXME: when in var declarations, all components must be complete */
+static size_t parse_array(lex_state &ls, int &flags) {
+    flags = 0;
+    size_t ndims = 0;
+    if (ls.t.token != '[') {
+        return ndims;
+    }
+    ls.get();
+    auto cv = parse_cv(ls);
+    if (ls.t.token == ']') {
+        flags |= ast::C_TYPE_NOSIZE;
+        dimstack.push({0, cv});
+        ++ndims;
+        ls.get();
+    } else if (ls.t.token == '?') {
+        /* FIXME: this should only be available in cdata creation contexts */
+        flags |= ast::C_TYPE_VLA;
+        dimstack.push({0, cv});
+        ++ndims;
+        ls.get();
+        check_next(ls, ']');
+    } else {
+        dimstack.push({get_arrsize(ls, parse_cexpr(ls)), cv});
+        ++ndims;
+        check_next(ls, ']');
+    }
+    while (ls.t.token == '[') {
+        ls.get();
+        cv = parse_cv(ls);
+        dimstack.push({get_arrsize(ls, parse_cexpr(ls)), cv});
+        ++ndims;
+        check_next(ls, ']');
+    }
+    return ndims;
+}
 
 /* this attempts to implement the complete syntax of how types are parsed
  * in C; that means it covers pointers, function pointers, references
@@ -1561,14 +1563,12 @@ newlevel:
             --ridx;
             continue;
         }
-        using DT = std::stack<arrdim>;
         if (ls.t.token == '(') {
             /* we know it's a paramlist, since all starting '(' of levels
              * are already consumed since before
              */
             auto argl = parse_paramlist(ls);
             auto &clev = pcvq[ridx];
-            clev.arrd.~DT();
             new (&clev.argl) std::vector<ast::c_param>(std::move(argl));
             clev.is_func = true;
             /* attribute style calling convention after paramlist */
@@ -1579,11 +1579,10 @@ newlevel:
         } else if (ls.t.token == '[') {
             /* array dimensions may be multiple */
             int flags;
-            std::stack<arrdim> arrd{};
-            pcvq[ridx].is_arr = parse_array(ls, flags, arrd);
+            auto arrd = parse_array(ls, flags);
+            pcvq[ridx].is_arr = (arrd > 0);
             pcvq[ridx].flags = flags;
-            pcvq[ridx].arrd.~DT();
-            new (&pcvq[ridx].arrd) DT(std::move(arrd));
+            pcvq[ridx].arrd = arrd;
         }
         if (!pcvq[ridx].is_func && (prevconv != ast::C_FUNC_DEFAULT)) {
             ls.syntax_error("calling convention on non-function declaration");
@@ -1684,18 +1683,19 @@ newlevel:
             ast::c_function cf{std::move(tp), std::move(olev->argl), fflags};
             tp = ast::c_type{std::move(cf), 0};
         } else if (olev->is_arr) {
-            if ((tp.vla() || tp.unbounded()) && !olev->arrd.empty()) {
+            if ((tp.vla() || tp.unbounded()) && (olev->arrd > 0)) {
                 ls.syntax_error(
                     "only first bound of an array may have unknown size"
                 );
             }
-            while (!olev->arrd.empty()) {
-                size_t dim = olev->arrd.top().size;
-                auto quals = olev->arrd.top().quals;
-                olev->arrd.pop();
+            while (olev->arrd) {
+                size_t dim = dimstack.top().size;
+                auto quals = dimstack.top().quals;
+                dimstack.pop();
+                --olev->arrd;
                 ast::c_type atp{
                     std::move(tp), quals, dim,
-                    (olev->arrd.empty() ? olev->flags : uint32_t(0))
+                    (!olev->arrd ? olev->flags : uint32_t(0))
                 };
                 tp = std::move(atp);
             }
