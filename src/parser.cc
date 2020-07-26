@@ -1317,10 +1317,33 @@ struct plevel {
     plevel():
         cv{0}, flags{0}, is_term{false}, is_func{false}, is_ref{false},
         is_arr{false}
-    {}
+    {
+        new (&arrd) std::stack<arrdim>();
+    }
+    ~plevel() {
+        if (is_func) {
+            using DT = std::vector<ast::c_param>;
+            argl.~DT();
+        } else {
+            using DT = std::stack<arrdim>;
+            arrd.~DT();
+        }
+    }
+    plevel(plevel &&v):
+        cv{v.cv}, flags{v.flags}, cconv{v.cconv}, is_term{v.is_term},
+        is_func{v.is_func}, is_ref{v.is_ref}, is_arr{v.is_arr}
+    {
+        if (is_func) {
+            new (&argl) std::vector<ast::c_param>(std::move(v.argl));
+        } else {
+            new (&arrd) std::stack<arrdim>(std::move(v.arrd));
+        }
+    }
 
-    std::vector<ast::c_param> argl{};
-    std::stack<arrdim> arrd{};
+    union {
+        std::vector<ast::c_param> argl;
+        std::stack<arrdim> arrd;
+    };
     uint32_t cv: 2;
     uint32_t flags: 6;
     uint32_t cconv: 6;
@@ -1342,9 +1365,7 @@ struct plevel {
 */
 static thread_local std::vector<plevel> pcvq{};
 
-/* FIXME: optimize, right now this uses more memory than necessary
- *
- * this attempts to implement the complete syntax of how types are parsed
+/* this attempts to implement the complete syntax of how types are parsed
  * in C; that means it covers pointers, function pointers, references
  * and arrays, including hopefully correct parenthesization rules and
  * binding of pointers/references and cv qualifiers...
@@ -1540,13 +1561,15 @@ newlevel:
             --ridx;
             continue;
         }
+        using DT = std::stack<arrdim>;
         if (ls.t.token == '(') {
             /* we know it's a paramlist, since all starting '(' of levels
              * are already consumed since before
              */
             auto argl = parse_paramlist(ls);
             auto &clev = pcvq[ridx];
-            clev.argl = std::move(argl);
+            clev.arrd.~DT();
+            new (&clev.argl) std::vector<ast::c_param>(std::move(argl));
             clev.is_func = true;
             /* attribute style calling convention after paramlist */
             clev.cconv = parse_callconv_attrib(ls);
@@ -1559,7 +1582,8 @@ newlevel:
             std::stack<arrdim> arrd{};
             pcvq[ridx].is_arr = parse_array(ls, flags, arrd);
             pcvq[ridx].flags = flags;
-            pcvq[ridx].arrd = std::move(arrd);
+            pcvq[ridx].arrd.~DT();
+            new (&pcvq[ridx].arrd) DT(std::move(arrd));
         }
         if (!pcvq[ridx].is_func && (prevconv != ast::C_FUNC_DEFAULT)) {
             ls.syntax_error("calling convention on non-function declaration");
