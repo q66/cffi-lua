@@ -1,5 +1,6 @@
 #include <cstring>
 #include <cctype>
+#include <cstdint>
 #include <cassert>
 
 #include <stack>
@@ -1329,6 +1330,18 @@ struct plevel {
     uint32_t is_arr: 1;
 };
 
+/* first we define a list containing 'levels'... each level denotes one
+ * matched pair of parens, except the implicit default level which is always
+ * added; new level is delimited by a sentinel value, and the elements past
+ * the sentinel can specify pointers and references
+ *
+ * this is a thread local value; it could be defined within the parse_type_ptr
+ * call but we don't want to constantly allocate and deallocate, so just create
+ * it once per thread, its resources will be reused by subsequent and recursive
+ * calls
+*/
+static thread_local std::vector<plevel> pcvq{};
+
 /* FIXME: optimize, right now this uses more memory than necessary
  *
  * this attempts to implement the complete syntax of how types are parsed
@@ -1421,13 +1434,12 @@ static ast::c_type parse_type_ptr(
      *
      * this is enough background, let's parse:
      *
-     * first we define a double ended queue containing 'levels'... each level
-     * denotes one matched pair of parens, except the implicit default level
-     * which is always added; new level is delimited by a sentinel value,
-     * and the elements past the sentinel can specify pointers and references
-     *
+     * first we save the size of the level list, that will denote the boundary
+     * of this specific call - it will be the first index we can access from
+     * here - this is because this function can be recursive, and we can't have
+     * inner calls overwriting stuff that belongs to the outer calls
      */
-    std::vector<plevel> pcvq;
+    auto pidx = intptr_t(pcvq.size());
     bool nolev = true;
     /* normally we'd consume the '(', but remember, first level is implicit */
     goto newlevel;
@@ -1480,13 +1492,15 @@ newlevel:
             break;
         }
     } while (ls.t.token == '(');
+    /* this function doesn't change the list past this, so save it */
+    auto tidx = intptr_t(pcvq.size());
     /* the most basic special case when there are no (),
      * calling convention can go before the name
      */
     if (nolev) {
-        pcvq.front().cconv = parse_callconv_ms(ls);
-        if (pcvq.front().cconv == ast::C_FUNC_DEFAULT) {
-            pcvq.front().cconv = parse_callconv_attrib(ls);
+        pcvq[pidx].cconv = parse_callconv_ms(ls);
+        if (pcvq[pidx].cconv == ast::C_FUNC_DEFAULT) {
+            pcvq[pidx].cconv = parse_callconv_attrib(ls);
         }
     }
     /* if 'fpname' was passed, it means we might want to handle a named type
@@ -1521,17 +1535,18 @@ newlevel:
      * level 2, while 'argl2' will be stored in level 1 (the implicit one)
      */
     uint32_t prevconv = ast::C_FUNC_DEFAULT;
-    for (auto it = pcvq.rbegin();;) {
-        plevel &clev = *it;
-        if (!clev.is_term) { /* skip non-sentinels */
-            ++it;
+    for (intptr_t ridx = tidx - 1;;) {
+        if (!pcvq[ridx].is_term) { /* skip non-sentinels */
+            --ridx;
             continue;
         }
         if (ls.t.token == '(') {
             /* we know it's a paramlist, since all starting '(' of levels
              * are already consumed since before
              */
-            clev.argl = parse_paramlist(ls);
+            auto argl = parse_paramlist(ls);
+            auto &clev = pcvq[ridx];
+            clev.argl = std::move(argl);
             clev.is_func = true;
             /* attribute style calling convention after paramlist */
             clev.cconv = parse_callconv_attrib(ls);
@@ -1541,16 +1556,18 @@ newlevel:
         } else if (ls.t.token == '[') {
             /* array dimensions may be multiple */
             int flags;
-            clev.is_arr = parse_array(ls, flags, clev.arrd);
-            clev.flags = flags;
+            std::stack<arrdim> arrd{};
+            pcvq[ridx].is_arr = parse_array(ls, flags, arrd);
+            pcvq[ridx].flags = flags;
+            pcvq[ridx].arrd = std::move(arrd);
         }
-        if (!clev.is_func && (prevconv != ast::C_FUNC_DEFAULT)) {
+        if (!pcvq[ridx].is_func && (prevconv != ast::C_FUNC_DEFAULT)) {
             ls.syntax_error("calling convention on non-function declaration");
         }
-        prevconv = clev.cconv;
-        ++it;
+        prevconv = pcvq[ridx].cconv;
+        --ridx;
         /* special case of the implicit level, it's not present in syntax */
-        if (it == pcvq.rend()) {
+        if (ridx < pidx) {
             break;
         }
         check_next(ls, ')');
@@ -1589,8 +1606,8 @@ newlevel:
      * and finally bind level 3's '*' to it, which gets us the final type,
      * which is a pointer to a function returning a pointer to a function.
      */
-    plevel *olev = &pcvq.front();
-    for (auto it = pcvq.begin() + 1;; ++it) {
+    plevel *olev = &pcvq[pidx];
+    for (intptr_t cidx = pidx + 1;; ++cidx) {
         /* for the implicit level, its pointers/ref are bound to current 'tp',
          * as there is definitely no outer arglist or anything, and we need
          * to make sure return types for functions are properly built, e.g.
@@ -1604,20 +1621,20 @@ newlevel:
          * 'tp' at the time, which will be a new thing if an arglist is there,
          * or the previous type if not
          */
-        while ((it != pcvq.end()) && !it->is_term) {
+        while ((cidx < tidx) && !pcvq[cidx].is_term) {
             /* references are trailing, we can't make pointers
              * to them nor we can make references to references
              */
             if (tp.is_ref()) {
                 ls.syntax_error("references must be trailing");
             }
-            if (it->is_ref) {
+            if (pcvq[cidx].is_ref) {
                 tp.add_ref();
             } else {
-                ast::c_type ntp{std::move(tp), it->cv, ast::C_BUILTIN_PTR};
+                ast::c_type ntp{std::move(tp), pcvq[cidx].cv, ast::C_BUILTIN_PTR};
                 tp = std::move(ntp);
             }
-            ++it;
+            ++cidx;
         }
         /* now attach the function or array or whatever */
         if (olev->is_func) {
@@ -1659,10 +1676,10 @@ newlevel:
                 tp = std::move(atp);
             }
         }
-        if (it == pcvq.end()) {
+        if (cidx >= tidx) {
             break;
         }
-        olev = &*it;
+        olev = &pcvq[cidx];
     }
     /* one last thing: if plain void type is not allowed in this context
      * and we nevertheless got it, we need to error
@@ -1672,6 +1689,8 @@ newlevel:
     ) {
         ls.syntax_error("void type in forbidden context");
     }
+    /* shrink it back to what it was, these resources can be reused later */
+    pcvq.resize(pidx);
     return tp;
 }
 
