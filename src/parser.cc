@@ -1280,7 +1280,7 @@ done_params:
 struct plevel {
     plevel():
         arrd{0}, cv{0}, flags{0}, is_term{false}, is_func{false},
-        is_ref{false}, is_arr{false}
+        is_ref{false}
     {}
     ~plevel() {
         if (is_func) {
@@ -1290,7 +1290,7 @@ struct plevel {
     }
     plevel(plevel &&v):
         cv{v.cv}, flags{v.flags}, cconv{v.cconv}, is_term{v.is_term},
-        is_func{v.is_func}, is_ref{v.is_ref}, is_arr{v.is_arr}
+        is_func{v.is_func}, is_ref{v.is_ref}
     {
         if (is_func) {
             new (&argl) std::vector<ast::c_param>(std::move(v.argl));
@@ -1309,7 +1309,6 @@ struct plevel {
     uint32_t is_term: 1;
     uint32_t is_func: 1;
     uint32_t is_ref: 1;
-    uint32_t is_arr: 1;
 };
 
 /* first we define a list containing 'levels'... each level denotes one
@@ -1579,10 +1578,8 @@ newlevel:
         } else if (ls.t.token == '[') {
             /* array dimensions may be multiple */
             int flags;
-            auto arrd = parse_array(ls, flags);
-            pcvq[ridx].is_arr = (arrd > 0);
+            pcvq[ridx].arrd = parse_array(ls, flags);
             pcvq[ridx].flags = flags;
-            pcvq[ridx].arrd = arrd;
         }
         if (!pcvq[ridx].is_func && (prevconv != ast::C_FUNC_DEFAULT)) {
             ls.syntax_error("calling convention on non-function declaration");
@@ -1682,8 +1679,8 @@ newlevel:
             }
             ast::c_function cf{std::move(tp), std::move(olev->argl), fflags};
             tp = ast::c_type{std::move(cf), 0};
-        } else if (olev->is_arr) {
-            if ((tp.vla() || tp.unbounded()) && (olev->arrd > 0)) {
+        } else if (olev->arrd) {
+            if (tp.vla() || tp.unbounded()) {
                 ls.syntax_error(
                     "only first bound of an array may have unknown size"
                 );
