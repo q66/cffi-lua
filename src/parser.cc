@@ -1323,11 +1323,14 @@ struct plevel {
 */
 static thread_local std::vector<plevel> pcvq{};
 
+/* this stack stores whatever parse_array below parses, the number of elements
+ * per single parse_type_ptr call is stored above in the level struct; each
+ * level with non-zero arrd will pop off arrd items
+ */
 struct arrdim {
     size_t size;
     uint32_t quals;
 };
-
 static thread_local std::stack<arrdim> dimstack{};
 
 /* FIXME: when in var declarations, all components must be complete */
