@@ -31,13 +31,7 @@ as user friendly as LuaJIT's and doesn't have portability issues.
 
 ## Current status
 
-**The project is currently in alpha state.** The core featureset is done,
-however some things are missing, and the codebase is not optimal.
-
-It is also not battle tested and I would advise against using it in production
-for now.
-
-See `STATUS.md` for a detailed/exhaustive listing.
+See `STATUS.md`.
 
 ## Notable differences from LuaJIT
 
