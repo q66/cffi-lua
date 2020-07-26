@@ -3,8 +3,8 @@
 #include <cassert>
 
 #include <stack>
-#include <deque>
 #include <string>
+#include <vector>
 #include <unordered_map>
 #include <utility>
 #include <stdexcept>
@@ -1427,7 +1427,7 @@ static ast::c_type parse_type_ptr(
      * and the elements past the sentinel can specify pointers and references
      *
      */
-    std::deque<plevel> pcvq;
+    std::vector<plevel> pcvq;
     bool nolev = true;
     /* normally we'd consume the '(', but remember, first level is implicit */
     goto newlevel;
