@@ -35,6 +35,19 @@ addons:
 
 matrix:
   include:
+    # windows, visual studio 2017, all versions
+    - os: windows
+      env: LUA_VERSION="5.4.0 5.3.5 5.2.4 5.1.5" FFI_TOOLCHAIN=msvc
+
+    # windows, MSYS2 with mingw-w64-x86_64-gcc, 5.3 only
+    - os: windows
+      env: LUA_VERSION=5.3 FFI_TOOLCHAIN=msys2
+
+    # os x, clang, 5.3 only
+    - os: osx
+      compiler: clang
+      env: LUA_VERSION=5.3 CC=clang CXX=clang++
+
     # x86_64 linux, test all lua versions under gcc + 5.4 under clang
     - os: linux
       arch: amd64
@@ -86,19 +99,6 @@ matrix:
       arch: arm64
       compiler: clang
       env: LUA_VERSION=5.4.0 LUA_SRC=1 CC=clang CXX=clang++
-
-    # os x, clang, 5.3 only
-    - os: osx
-      compiler: clang
-      env: LUA_VERSION=5.3 CC=clang CXX=clang++
-
-    # windows, visual studio 2017, all versions
-    - os: windows
-      env: LUA_VERSION="5.4.0 5.3.5 5.2.4 5.1.5" FFI_TOOLCHAIN=msvc
-
-    # windows, MSYS2 with mingw-w64-x86_64-gcc, 5.3 only
-    - os: windows
-      env: LUA_VERSION=5.3 FFI_TOOLCHAIN=msys2
 
 before_install:
   - |
@@ -195,15 +195,19 @@ before_script:
           popd
 
           for lua_ver in ${LUA_VERSION}; do
-              local lua_maj=${lua_ver:0:3}
-              lua_maj=${lua_maj/./}
+              local lua_dmaj=${lua_ver:0:3}
+              local lua_maj=${lua_dmaj/./}
               mkdir deps${lua_maj}
 
               # lua from luabinaries
               wget https://downloads.sourceforge.net/project/luabinaries/${lua_ver}/Windows%20Libraries/Dynamic/lua-${lua_ver}_${lua_build}.zip || exit 1
               cd deps${lua_maj}
               7z x ../lua-${lua_ver}_${lua_build}.zip || exit 1
-              mv lua${lua_maj}.lib liblua.lib
+              if [ -f "lua${lua_dmaj}.lib" ]; then
+                  mv lua${lua_dmaj}.lib liblua.lib
+              else
+                  mv lua${lua_maj}.lib liblua.lib
+              fi
               cd ..
 
               cp libffi/include/ffi.h deps${lua_maj}/include
