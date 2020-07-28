@@ -35,7 +35,7 @@ addons:
 
 matrix:
   include:
-    # x86_64 linux, test all lua versions under gcc + 5.3 under clang
+    # x86_64 linux, test all lua versions under gcc + 5.4 under clang
     - os: linux
       arch: amd64
       compiler: gcc
@@ -57,7 +57,7 @@ matrix:
       compiler: clang
       env: LUA_VERSION=5.4.0 LUA_SRC=1 CC=clang CXX=clang++
 
-    # ppc64le linux, test gcc and clang, 5.3 only
+    # ppc64le linux, test gcc and clang, 5.4 only
     - os: linux
       arch: ppc64le
       compiler: gcc
@@ -67,7 +67,7 @@ matrix:
       compiler: clang
       env: LUA_VERSION=5.4.0 LUA_SRC=1 CC=clang CXX=clang++
 
-    # s390x linux, test gcc and clang, 5.3 only
+    # s390x linux, test gcc and clang, 5.4 only
     - os: linux
       arch: s390x
       compiler: gcc
@@ -77,7 +77,7 @@ matrix:
       compiler: clang
       env: LUA_VERSION=5.4.0 LUA_SRC=1 CC=clang CXX=clang++
 
-    # aarch64 linux, test gcc and clang, 5.3 only
+    # aarch64 linux, test gcc and clang, 5.4 only
     - os: linux
       arch: arm64
       compiler: gcc
@@ -92,9 +92,9 @@ matrix:
       compiler: clang
       env: LUA_VERSION=5.3 CC=clang CXX=clang++
 
-    # windows, visual studio 2017, 5.3 only
+    # windows, visual studio 2017, all versions
     - os: windows
-      env: LUA_VERSION=5.3 FFI_TOOLCHAIN=msvc
+      env: LUA_VERSION=all FFI_TOOLCHAIN=msvc
 
     # windows, MSYS2 with mingw-w64-x86_64-gcc, 5.3 only
     - os: windows
@@ -175,20 +175,9 @@ before_script:
       fi
   - |
       if [ "$FFI_TOOLCHAIN" == "msvc" ]; then
-          mkdir deps
-
-          local lua_maj="53"
-          local lua_ver="5.3.5"
           local lua_build="Win64_dll15_lib"
           local ffi_ver="3.3"
           local ffi_build="vc15_x64"
-
-          # lua from luabinaries
-          wget https://downloads.sourceforge.net/project/luabinaries/${lua_ver}/Windows%20Libraries/Dynamic/lua-${lua_ver}_${lua_build}.zip || exit 1
-          cd deps
-          7z x ../lua-${lua_ver}_${lua_build}.zip || exit 1
-          mv lua${lua_maj}.lib liblua.lib
-          cd ..
 
           # build static libffi ourselves, for our toolchain
           wget https://github.com/winlibs/libffi/archive/libffi-${ffi_ver}.zip || exit 1
@@ -199,29 +188,47 @@ before_script:
           # need to run everything in the windows cmd.exe shell...
           cmd.exe //C 'C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat' amd64 '&&' \
           msbuild.exe /property:Configuration=Release
-          cp x64/Release/libffi.lib ../../../deps || exit 1
+          cp x64/Release/libffi.lib ../../.. || exit 1
           popd
 
-          cp libffi/include/ffi.h deps/include
-          cp libffi/src/x86/ffitarget.h deps/include
+          for lua_ver in 5.4.0 5.3.5 5.2.4 5.1.5; do
+              local lua_maj=${${lua_ver:0:3}/./}
+              mkdir deps${lua_maj}
+
+              # lua from luabinaries
+              wget https://downloads.sourceforge.net/project/luabinaries/${lua_ver}/Windows%20Libraries/Dynamic/lua-${lua_ver}_${lua_build}.zip || exit 1
+              cd deps${lua_maj}
+              7z x ../lua-${lua_ver}_${lua_build}.zip || exit 1
+              mv lua${lua_maj}.lib liblua.lib
+              cd ..
+
+              cp libffi/include/ffi.h deps${lua_maj}/include
+              cp libffi/src/x86/ffitarget.h deps${lua_maj}/include
+              cp libffi.lib deps${lua_maj}
+          done
       fi
 
 script:
-  - mkdir build && cd build
   - |
       if [ "$TRAVIS_OS_NAME" == "osx" ]; then
           export PKG_CONFIG_PATH="/usr/local/opt/libffi/lib/pkgconfig"
       fi
   - |
       if [ "$FFI_TOOLCHAIN" == "msvc" ]; then
-          cmd.exe //C 'C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat' amd64 '&&' \
-          meson .. -Dlua_version=vendor -Dlibffi=vendor -Dshared_lua=true '&&' \
-          ninja all '&&' ninja test
+          for lua_maj in 54 53 52 51; do
+              mkdir build${lua_maj} && cd build${lua_maj}
+              cmd.exe //C 'C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat' amd64 '&&' \
+              meson .. -Dlua_version=vendor -Dlibffi=vendor -Dshared_lua=true -Ddeps_dir=deps${lua_maj} '&&' \
+              ninja all '&&' ninja test || exit 1
+              cd ..
+          done
       elif [ -n "$LUA_SRC" ]; then
+          mkdir build && cd build
           meson .. -Dlua_version=vendor -Dshared_libffi=true || exit 1
           ninja all || exit 1
           ninja test
       else
+          mkdir build && cd build
           meson .. -Dlua_version="${LUA_VERSION}" \
               -Dshared_lua=true -Dshared_libffi=true || exit 1
           ninja all || exit 1
