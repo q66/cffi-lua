@@ -43,7 +43,7 @@ add_global_arguments('-DHAVE_CONFIG_H=1', language: 'cpp')
 
 # Vendor library path; used to find libs and also added to PATH for Windows
 
-deps_path = 'deps'
+deps_path = get_option('deps_dir')
 deps_libs = [
     join_paths(meson.source_root(), deps_path),
     join_paths(meson.build_root(), deps_path)

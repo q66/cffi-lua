@@ -27,3 +27,9 @@ option('shared_libffi',
     value: 'false',
     description: 'Assume import library for libffi (Windows only)'
 )
+
+option('deps_dir',
+    type: 'string',
+    value: 'deps',
+    description: 'The name of vendored dependencies directory'
+)
