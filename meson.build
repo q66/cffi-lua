@@ -118,10 +118,6 @@ endif
 
 # These are Windows only
 
-if get_option('shared_lua')
-    config_h.set10('HAVE_LUA_DLLIMPORT', true)
-endif
-
 if get_option('shared_libffi')
     config_h.set10('HAVE_LIBFFI_DLLIMPORT', true)
 endif

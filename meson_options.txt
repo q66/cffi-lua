@@ -16,12 +16,6 @@ option('lua_install_path',
     description: 'The install path for the Lua module'
 )
 
-option('shared_lua',
-    type: 'boolean',
-    value: 'false',
-    description: 'Assume import library for Lua (Windows only)'
-)
-
 option('shared_libffi',
     type: 'boolean',
     value: 'false',

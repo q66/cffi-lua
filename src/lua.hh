@@ -11,7 +11,8 @@
 #pragma GCC diagnostic ignored "-Wold-style-cast"
 #endif
 
-#if defined(FFI_WINDOWS_ABI) && defined(HAVE_LUA_DLLIMPORT)
+/* force lua API to be marked with dllimport */
+#if defined(FFI_WINDOWS_ABI)
 #define LUA_BUILD_AS_DLL
 #endif
 
