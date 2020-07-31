@@ -33,3 +33,9 @@ option('static',
     value: 'false',
     description: 'Build a static library, not a module'
 )
+
+option('tests',
+    type: 'boolean',
+    value: 'true',
+    description: 'Whether to build tests'
+)

@@ -196,4 +196,6 @@ endif
 runner_inc = include_directories('src')
 current_inc = include_directories('.')
 
-subdir('tests')
+if get_option('tests')
+    subdir('tests')
+endif
