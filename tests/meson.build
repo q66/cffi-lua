@@ -1,8 +1,17 @@
 # Test suite definitions
 
+runner_link = []
+runner_cargs = []
+if get_option('static')
+    runner_link += [cffi]
+    runner_cargs += ['-DCFFI_STATIC']
+endif
+
 runner = executable('runner', 'runner.cc',
     include_directories: [current_inc, runner_inc] + extra_inc,
     dependencies: [dl_lib, lua_dep],
+    link_with: runner_link,
+    cpp_args: runner_cargs,
     export_dynamic: true
 )
 
@@ -41,7 +50,7 @@ foreach tcase: test_cases
             meson.build_root(),
             join_paths(meson.current_source_dir(), tcase[1] + '.lua')
         ],
-        should_fail: tcase[2], depends: cffi_mod,
+        should_fail: tcase[2], depends: cffi,
         env: penv
     )
 endforeach

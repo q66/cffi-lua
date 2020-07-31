@@ -3,8 +3,7 @@
 project('cffi-lua', ['cpp'],
     version: '0.1.0',
     default_options: [
-        'buildtype=debugoptimized', 'cpp_std=c++14', 'warning_level=3',
-        'b_lundef=false'
+        'buildtype=debugoptimized', 'cpp_std=c++14', 'warning_level=3'
     ],
     meson_version: '>=0.50'
 )
@@ -49,7 +48,7 @@ deps_libs = [
     join_paths(meson.source_root(), deps_path),
     join_paths(meson.build_root(), deps_path)
 ]
-extra_inc = [include_directories('include')]
+extra_inc = []
 
 # Lua dependency checks
 
@@ -157,7 +156,8 @@ cffi_src = [
     'src/parser.cc',
     'src/ast.cc',
     'src/lib.cc',
-    'src/ffi.cc'
+    'src/ffi.cc',
+    'src/main.cc'
 ]
 
 # avoid linking module against lua except on windows where it's needed
@@ -169,73 +169,31 @@ endif
 
 cffi_deps = [dl_lib, ffi_dep, lua_pdep]
 
-cffi_core = static_library(
-    'cffi-core', cffi_src,
-    pic: true,
-    dependencies: cffi_deps,
-    include_directories: extra_inc
-)
+if get_option('static')
+    cffi = static_library('cffi-lua-@0@'.format(luaver_str),
+        cffi_src,
+        install: true,
+        pic: true,
+        dependencies: cffi_deps,
+        include_directories: extra_inc
+    )
+else
+    lua_modpath = get_option('lua_install_path')
+    if lua_modpath == 'auto'
+        lua_modpath = join_paths(get_option('libdir'), 'lua', '@0@')
+    endif
 
-cffi_lib_s = static_library('cffi-lua-@0@'.format(luaver_str),
-    ['src/main.cc'],
-    install: true,
-    pic: true,
-    dependencies: cffi_deps,
-    link_whole: [cffi_core],
-    include_directories: extra_inc
-)
-
-# the soname can remain the same forever, the API/ABI will not change
-# (it's a single function and its interface is defined for the Lua version)
-cffi_lib_d = shared_library('cffi-lua-@0@'.format(luaver_str),
-    ['src/main.cc'],
-    version: '1.0.0',
-    install: true,
-    dependencies: cffi_deps,
-    link_whole: [cffi_core],
-    cpp_args: ['-DFFI_BUILD_DLL'],
-    include_directories: extra_inc
-)
-
-lua_modpath = get_option('lua_install_path')
-if lua_modpath == 'auto'
-    lua_modpath = join_paths(get_option('libdir'), 'lua', '@0@')
+    cffi = shared_module('cffi',
+        cffi_src,
+        install: true,
+        install_dir: lua_modpath.format(luaver_str),
+        name_prefix: '',
+        name_suffix: plugin_suffix,
+        dependencies: cffi_deps,
+        cpp_args: ['-DFFI_BUILD_DLL'],
+        include_directories: extra_inc
+    )
 endif
-
-cffi_mod = shared_module('cffi',
-    ['src/main.cc'],
-    install: true,
-    install_dir: lua_modpath.format(luaver_str),
-    name_prefix: '',
-    name_suffix: plugin_suffix,
-    dependencies: cffi_deps,
-    link_whole: [cffi_core],
-    cpp_args: ['-DFFI_BUILD_DLL'],
-    include_directories: extra_inc
-)
-
-# Public API
-
-cffi_lib_i = 'cffi-lua-@0@'.format(luaver_str)
-
-pub_config_h = configuration_data()
-pub_config_h.set('CFFI_LUA_LUA_VERSION', luaver_num)
-
-configure_file(output: 'cffi-lua-config.h',
-    input: 'include/cffi-lua-config.h.in',
-    install: true,
-    install_dir: join_paths(get_option('includedir'), cffi_lib_i),
-    configuration: pub_config_h
-)
-
-install_headers('include/cffi-lua.h',
-    subdir: cffi_lib_i
-)
-
-# Pkg-config file for the library
-
-pkgc = import('pkgconfig')
-pkgc.generate(cffi_lib_d, subdirs: [cffi_lib_i])
 
 # Tests
 

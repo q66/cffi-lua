@@ -22,6 +22,10 @@
 #  endif
 #endif
 
+#ifdef CFFI_STATIC
+extern "C" int luaopen_cffi(lua_State *L);
+#endif
+
 /* Export some stdio APIs so they're always available; the actual availability
  * of these APIs may vary based on OS, e.g. on Windows stdio APIs are generally
  * inlined so we can't rely on them being exported dynamically...
@@ -61,6 +65,12 @@ int main(int argc, char **argv) {
     luaL_openlibs(L);
     /* we need a controlled environment */
     lua_getglobal(L, "package");
+#ifdef CFFI_STATIC
+    lua_getfield(L, -1, "preload");
+    lua_pushcfunction(L, luaopen_cffi);
+    lua_setfield(L, -2, "cffi");
+    lua_pop(L, 1);
+#else
     lua_pushstring(L, argv[1]);
     lua_pushstring(L, LUA_DIRSEP);
 #ifdef FFI_WINDOWS_ABI
@@ -70,6 +80,8 @@ int main(int argc, char **argv) {
 #endif
     lua_concat(L, 3);
     lua_setfield(L, -2, "cpath");
+#endif
+    lua_pop(L, 1);
 
     /* this will be useful */
     lua_pushcfunction(L, [](lua_State *LL) -> int {

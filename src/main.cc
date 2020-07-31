@@ -10,12 +10,23 @@
 
 #include "lua.hh"
 
-#ifdef FFI_BUILD_DLL
-#  define CFFI_LUA_DLL
+#if defined(__CYGWIN__) || (defined(_WIN32) && !defined(_XBOX_VER))
+#  ifdef CFFI_LUA_DLL
+#    ifdef CFFI_LUA_BUILD
+#      define CFFI_LUA_EXPORT __declspec(dllexport)
+#    else
+#      define CFFI_LUA_EXPORT __declspec(dllimport)
+#    endif
+#  else
+#    define CFFI_LUA_EXPORT
+#  endif
+#else
+#  if defined(__GNUC__) && (__GNUC__ >= 4)
+#    define CFFI_LUA_EXPORT __attribute__((visibility("default")))
+#  else
+#    define CFFI_LUA_EXPORT
+#  endif
 #endif
-#define CFFI_LUA_BUILD
-
-#include <cffi-lua.h>
 
 void ffi_module_open(lua_State *L);
 

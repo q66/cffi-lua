@@ -33,3 +33,9 @@ option('deps_dir',
     value: 'deps',
     description: 'The name of vendored dependencies directory'
 )
+
+option('static',
+    type: 'boolean',
+    value: 'false',
+    description: 'Build a static library, not a module'
+)

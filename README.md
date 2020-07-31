@@ -93,19 +93,18 @@ will need to explicitly set the version with e.g. `-Dlua_version=5.2`
 passed to `meson`. You will also need to do this if you with to compile
 for a different Lua version than your default `lua.pc` provides.
 
-Three components will be built: a module, a shared library and a static
-library. The module does not depend on the libraries, it can be used
-alone. The libraries exist for the purpose of linking your program or
-library directly against them, so you can embed Lua with an FFI inside
-without worrying about Lua having to load the library. You can choose
-either dynamic or static version for that.
+By default, a Lua loadable module will be built. This module can be installed
+in a path that Lua expects. On Unix-like systems, the `ninja install` target
+can do that.
 
-If you wish to use the library version, it is called `libcffi-lua-VER.so`
-on Unix-like systems (`dylib` on macOS) and `cffi-lua-VER.so` on Windows,
-where `VER` is the Lua version (e.g. `5.2`). It has a stable API and ABI
-with just one exported symbol, `luaopen_cffi`, which matches the standard
-Lua module ABI. You can call it from your code and it will leave the
-module table on the Lua stack.
+There is also an option to build a static library, by passing `-Dstatic=true`
+to `meson`. This is mainly intended for either application usages that will
+embed the FFI, or for various specialized platforms that do not support
+shared libraries or don't have a version of Lua configured to support modules.
+This version is usually not meant to be distributed. To use the static version,
+you will need to declare the `luaopen_cffi` symbol with the usual Lua function
+signature, `lua_pushcfunction` it on the stack and for example store it in
+`package.preload`.
 
 You can also pass `luajit` to `-Dlua_version` to build against LuaJIT (it
 will use `luajit.pc` then). Additionally, if you have a different Lua
@@ -215,14 +214,8 @@ for `lua_version` and `libffi`.
 $ ninja install
 ```
 
-This will install the following components:
-
-- The Lua module
-- The shared library
-- The static library
-- A `pkg-config` `.pc` file for the library
-
-See the section above for what these libraries mean.
+This will install either the module or the static library depending on how
+you have configured the build.
 
 By default, the Lua module will install in `$(libdir)/lua/$(luaver)`, e.g.
 `/usr/lib/lua/5.2`. This is the default for most Lua installations. You can
@@ -233,9 +226,6 @@ performed.
 
 The goal of this is to make sure the module will be installed in a location
 contained in your Lua's `package.cpath`.
-
-The `pkg-config` file is called `cffi-lua-VER.pc`, with `VER` being the Lua
-version (e.g. `5.2`).
 
 ## Testing
 
