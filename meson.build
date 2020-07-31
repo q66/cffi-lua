@@ -3,7 +3,8 @@
 project('cffi-lua', ['cpp'],
     version: '0.1.0',
     default_options: [
-        'buildtype=debugoptimized', 'cpp_std=c++14', 'warning_level=3'
+        'buildtype=debugoptimized', 'cpp_std=c++14', 'warning_level=3',
+        'b_lundef=false'
     ],
     meson_version: '>=0.50'
 )
@@ -159,7 +160,14 @@ cffi_src = [
     'src/ffi.cc'
 ]
 
-cffi_deps = [dl_lib, ffi_dep, lua_dep]
+# avoid linking module against lua except on windows where it's needed
+if host_machine.system() == 'windows'
+    lua_pdep = lua_dep
+else
+    lua_pdep = lua_dep.partial_dependency(compile_args: true, includes: true)
+endif
+
+cffi_deps = [dl_lib, ffi_dep, lua_pdep]
 
 cffi_core = static_library(
     'cffi-core', cffi_src,
