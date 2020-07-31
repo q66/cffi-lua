@@ -12,11 +12,7 @@
 
 #if defined(__CYGWIN__) || (defined(_WIN32) && !defined(_XBOX_VER))
 #  ifdef CFFI_LUA_DLL
-#    ifdef CFFI_LUA_BUILD
-#      define CFFI_LUA_EXPORT __declspec(dllexport)
-#    else
-#      define CFFI_LUA_EXPORT __declspec(dllimport)
-#    endif
+#    define CFFI_LUA_EXPORT __declspec(dllexport)
 #  else
 #    define CFFI_LUA_EXPORT
 #  endif
