@@ -190,7 +190,7 @@ else
         name_prefix: '',
         name_suffix: plugin_suffix,
         dependencies: cffi_deps,
-        cpp_args: ['-DFFI_BUILD_DLL'],
+        cpp_args: ['-DCFFI_LUA_DLL'],
         include_directories: extra_inc
     )
 endif
