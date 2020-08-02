@@ -110,11 +110,8 @@ static void init_kwmap() {
     }
 }
 
-struct lex_state_error: public std::runtime_error {
-    lex_state_error(std::string const &str, int tok, int lnum):
-        std::runtime_error{str}, token{tok}, line_number{lnum}
-    {}
-
+struct lex_state_error {
+    std::string what;
     int token;
     int line_number;
 };
@@ -190,7 +187,7 @@ struct lex_state {
             std::string msg = "'";
             msg += e.obj->name();
             msg += "' redefined";
-            throw lex_state_error{msg, -1, lnum};
+            throw lex_state_error{util::move(msg), -1, lnum};
         }
     }
 
@@ -2231,11 +2228,11 @@ void parse(lua_State *L, char const *input, char const *iend, int paridx) {
     } catch (lex_state_error const &e) {
         if (e.token > 0) {
             luaL_error(
-                L, "input:%d: %s near '%s'", e.line_number, e.what(),
+                L, "input:%d: %s near '%s'", e.line_number, e.what.c_str(),
                 token_to_str(e.token).c_str()
             );
         } else {
-            luaL_error(L, "input:%d: %s", e.line_number, e.what());
+            luaL_error(L, "input:%d: %s", e.line_number, e.what.c_str());
         }
     }
 }
@@ -2255,10 +2252,10 @@ ast::c_type parse_type(
     } catch (lex_state_error const &e) {
         if (e.token > 0) {
             luaL_error(
-                L, "%s near '%s'", e.what(), token_to_str(e.token).c_str()
+                L, "%s near '%s'", e.what.c_str(), token_to_str(e.token).c_str()
             );
         } else {
-            luaL_error(L, "%s", e.what());
+            luaL_error(L, "%s", e.what.c_str());
         }
     }
     /* unreachable */
@@ -2281,10 +2278,10 @@ ast::c_expr_type parse_number(
     } catch (lex_state_error const &e) {
         if (e.token > 0) {
             luaL_error(
-                L, "%s near '%s'", e.what(), token_to_str(e.token).c_str()
+                L, "%s near '%s'", e.what.c_str(), token_to_str(e.token).c_str()
             );
         } else {
-            luaL_error(L, "%s", e.what());
+            luaL_error(L, "%s", e.what.c_str());
         }
     }
     /* unreachable */
