@@ -109,7 +109,6 @@ static void init_kwmap() {
 }
 
 struct lex_state_error {
-    char const *msg;
     int token;
     int line_number;
 };
@@ -174,7 +173,7 @@ struct lex_state {
         p_buf.clear();
         p_buf.reserve(msg.size() + 1);
         memcpy(&p_buf[0], msg.c_str(), msg.size() + 1);
-        throw lex_state_error{&p_buf[0], tok, line_number};
+        throw lex_state_error{tok, line_number};
     }
 
     void syntax_error(std::string const &msg) {
@@ -192,7 +191,7 @@ struct lex_state {
             sp[0] = '\'';
             memcpy(&sp[1], e.obj->name(), nlen);
             memcpy(&sp[nlen + 1], "' redefined", sizeof("' redefined"));
-            throw lex_state_error{sp, -1, lnum};
+            throw lex_state_error{-1, lnum};
         }
     }
 
@@ -2237,11 +2236,11 @@ void parse(lua_State *L, char const *input, char const *iend, int paridx) {
     } catch (lex_state_error const &e) {
         if (e.token > 0) {
             luaL_error(
-                L, "input:%d: %s near '%s'", e.line_number, e.msg,
+                L, "input:%d: %s near '%s'", e.line_number, ls.getbuf(),
                 token_to_str(e.token).c_str()
             );
         } else {
-            luaL_error(L, "input:%d: %s", e.line_number, e.msg);
+            luaL_error(L, "input:%d: %s", e.line_number, ls.getbuf());
         }
     }
 }
@@ -2260,9 +2259,11 @@ ast::c_type parse_type(
         return tp;
     } catch (lex_state_error const &e) {
         if (e.token > 0) {
-            luaL_error(L, "%s near '%s'", e.msg, token_to_str(e.token).c_str());
+            luaL_error(
+                L, "%s near '%s'", ls.getbuf(), token_to_str(e.token).c_str()
+            );
         } else {
-            luaL_error(L, "%s", e.msg);
+            luaL_error(L, "%s", ls.getbuf());
         }
     }
     /* unreachable */
@@ -2284,9 +2285,11 @@ ast::c_expr_type parse_number(
         return ls.t.numtag;
     } catch (lex_state_error const &e) {
         if (e.token > 0) {
-            luaL_error(L, "%s near '%s'", e.msg, token_to_str(e.token).c_str());
+            luaL_error(
+                L, "%s near '%s'", ls.getbuf(), token_to_str(e.token).c_str()
+            );
         } else {
-            luaL_error(L, "%s", e.msg);
+            luaL_error(L, "%s", ls.getbuf());
         }
     }
     /* unreachable */
