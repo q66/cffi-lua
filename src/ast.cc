@@ -49,7 +49,7 @@ static int get_rank(c_expr_type type) {
 static bool is_signed(c_expr_type type) {
     switch (type) {
         case c_expr_type::CHAR:
-            return std::numeric_limits<char>::is_signed;
+            return util::is_signed<char>::value;
         case c_expr_type::INT:
         case c_expr_type::LONG:
         case c_expr_type::LLONG:

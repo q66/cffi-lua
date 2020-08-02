@@ -497,7 +497,7 @@ static inline ast::c_expr_type check_arith_expr(
             "invalid lua_Integer format"
         );
         if (lua_isinteger(L, idx)) {
-            if (std::is_signed<lua_Integer>::value) {
+            if (util::is_signed<lua_Integer>::value) {
                 if (sizeof(lua_Integer) <= sizeof(int)) {
                     iv.i = int(lua_tointeger(L, idx));
                     return ast::c_expr_type::INT;
@@ -534,7 +534,7 @@ static inline ast::c_expr_type check_arith_expr(
         );
         auto n = luaL_checknumber(L, idx);
         if (std::is_integral<lua_Number>::value) {
-            if (std::is_signed<lua_Number>::value) {
+            if (util::is_signed<lua_Number>::value) {
                 if (sizeof(lua_Number) <= sizeof(int)) {
                     iv.i = int(n);
                     return ast::c_expr_type::INT;

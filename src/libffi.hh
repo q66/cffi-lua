@@ -11,6 +11,7 @@
 #include <limits>
 
 #include "platform.hh"
+#include "util.hh"
 
 /* Force static linkage against libffi on Windows unless overridden */
 #if defined(FFI_WINDOWS_ABI) && !defined(HAVE_LIBFFI_DLLIMPORT)
@@ -37,7 +38,7 @@ namespace ffi {
 namespace detail {
     template<typename T>
     static inline ffi_type *ffi_int() {
-        bool is_signed = std::numeric_limits<T>::is_signed;
+        bool is_signed = util::is_signed<T>::value;
         switch (sizeof(T)) {
             case 8:
                 return is_signed ? &ffi_type_sint64 : &ffi_type_uint64;

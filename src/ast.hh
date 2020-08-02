@@ -208,19 +208,19 @@ namespace detail {
 
     template<> struct builtin_v_base<wchar_t> {
         static constexpr c_builtin value =
-            std::numeric_limits<wchar_t>::is_signed
+            util::is_signed<wchar_t>::value
                 ? builtin_v_base<eq_type<wchar_t>>::value
                 : builtin_v_base<std::make_unsigned_t<eq_type<wchar_t>>>::value;
     };
     template<> struct builtin_v_base<char16_t> {
         static constexpr c_builtin value =
-            std::numeric_limits<char16_t>::is_signed
+            util::is_signed<char16_t>::value
                 ? builtin_v_base<eq_type<char16_t>>::value
                 : builtin_v_base<std::make_unsigned_t<eq_type<char16_t>>>::value;
     };
     template<> struct builtin_v_base<char32_t> {
         static constexpr c_builtin value =
-            std::numeric_limits<char32_t>::is_signed
+            util::is_signed<char32_t>::value
                 ? builtin_v_base<eq_type<char16_t>>::value
                 : builtin_v_base<std::make_unsigned_t<eq_type<char32_t>>>::value;
     };

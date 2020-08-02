@@ -8,6 +8,7 @@
 #include "lib.hh"
 #include "lua.hh"
 #include "ffi.hh"
+#include "util.hh"
 
 /* sets up the metatable for library, i.e. the individual namespaces
  * of loaded shared libraries as well as the primary C namespace.
@@ -629,7 +630,7 @@ struct cdata_meta {
 
     template<typename T>
     static T powimp(T base, T exp) {
-        if (std::is_signed<T>::value && (exp < 0)) {
+        if (util::is_signed<T>::value && (exp < 0)) {
             return 0;
         }
         T ret = 1;
