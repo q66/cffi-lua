@@ -43,29 +43,29 @@ using conditional_t = typename detail::conditional<B, T, F>::type;
 /* move semantics */
 
 template<typename T>
-constexpr remove_ref_t<T> &&move(T &&v) noexcept {
+constexpr inline remove_ref_t<T> &&move(T &&v) noexcept {
     return static_cast<remove_ref_t<T> &&>(v);
 }
 
 template<typename T>
-constexpr T &&forward(remove_ref_t<T> &v) noexcept {
+constexpr inline T &&forward(remove_ref_t<T> &v) noexcept {
     return static_cast<T &&>(v);
 }
 
 template<typename T>
-constexpr T &&forward(remove_ref_t<T> &&v) noexcept {
+constexpr inline T &&forward(remove_ref_t<T> &&v) noexcept {
     return static_cast<T &&>(v);
 }
 
 template<typename T, typename U = T>
-constexpr T exchange(T &v, U &&nv) {
+constexpr inline T exchange(T &v, U &&nv) {
     T ov = move(v);
     v = forward<U>(nv);
     return ov;
 }
 
 template<typename T>
-void swap(T &a, T &b) {
+inline void swap(T &a, T &b) {
     auto o = move(a);
     a = move(b);
     b = move(o);
