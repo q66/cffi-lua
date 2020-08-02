@@ -1131,8 +1131,8 @@ private:
     bool p_opaque = true;
 };
 
-struct redefine_error: public std::runtime_error {
-    using std::runtime_error::runtime_error;
+struct redefine_error {
+    c_object const *obj;
 };
 
 struct decl_store {

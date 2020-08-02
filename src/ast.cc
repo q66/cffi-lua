@@ -1099,15 +1099,15 @@ void c_record::set_fields(util::vector<field> fields) {
 /* decl store implementation, with overlaying for staging */
 
 void decl_store::add(c_object *decl) {
-    if (lookup(decl->name())) {
+    auto *oldecl = lookup(decl->name());
+    if (oldecl) {
         auto ot = decl->obj_type();
         if (
             (ot != ast::c_object_type::VARIABLE) &&
             (ot != ast::c_object_type::TYPEDEF)
         ) {
-            redefine_error rd{decl->name()};
             delete decl;
-            throw rd;
+            throw redefine_error{oldecl};
         } else {
             /* redefinitions of vars and funcs are okay
              * luajit doesn't check them so we don't either

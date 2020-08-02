@@ -188,7 +188,7 @@ struct lex_state {
             p_dstore.add(obj);
         } catch (ast::redefine_error const &e) {
             std::string msg = "'";
-            msg += e.what();
+            msg += e.obj->name();
             msg += "' redefined";
             throw lex_state_error{msg, -1, lnum};
         }
