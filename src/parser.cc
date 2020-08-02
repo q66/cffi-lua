@@ -10,7 +10,6 @@
 #include <utility>
 #include <stdexcept>
 #include <memory>
-#include <limits>
 
 #include "parser.hh"
 #include "ast.hh"
@@ -311,7 +310,7 @@ private:
     template<typename T>
     bool check_int_fits(unsigned long long val) {
         using U = unsigned long long;
-        return (val <= U(std::numeric_limits<T>::max()));
+        return (val <= U(~T(0)));
     }
 
     /* this doesn't deal with stuff like negative values at all, that's
@@ -1114,7 +1113,7 @@ static size_t get_arrsize(lex_state &ls, ast::c_expr const &exp) {
 
 done:
     using ULL = unsigned long long;
-    if (uval > ULL(std::numeric_limits<size_t>::max())) {
+    if (uval > ULL(~size_t(0))) {
         ls.syntax_error("array size too big");
     }
     return size_t(uval);
