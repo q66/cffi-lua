@@ -57,6 +57,8 @@ constexpr inline T &&forward(remove_ref_t<T> &&v) noexcept {
     return static_cast<T &&>(v);
 }
 
+/* assorted utils */
+
 template<typename T, typename U = T>
 constexpr inline T exchange(T &v, U &&nv) {
     T ov = move(v);
@@ -69,6 +71,16 @@ inline void swap(T &a, T &b) {
     auto o = move(a);
     a = move(b);
     b = move(o);
+}
+
+template<typename T>
+inline T min(T a, T b) {
+    return (a < b) ? a : b;
+}
+
+template<typename T>
+inline T max(T a, T b) {
+    return (a > b) ? a : b;
 }
 
 /* vector */

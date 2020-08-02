@@ -339,7 +339,7 @@ int call_cif(cdata<fdata> &fud, lua_State *L, size_t largs) {
     void *rval = fdata_retval(fud.val);
 
     if (func.variadic()) {
-        targs = std::max(largs, nargs);
+        targs = util::max(largs, nargs);
         if (!prepare_cif_var(L, fud, targs, nargs)) {
             luaL_error(L, "unexpected failure setting up '%s'", func.name());
         }
