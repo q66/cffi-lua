@@ -407,7 +407,7 @@ template<typename T>
 static inline bool test_arith(lua_State *L, int idx, T &out) {
     auto *cd = testcdata<arg_stor_t>(L, idx);
     if (!cd) {
-        if (std::is_integral<T>::value) {
+        if (util::is_int<T>::value) {
             if (lua_type(L, idx) == LUA_TNUMBER) {
                 out = T(lua_tointeger(L, idx));
                 return true;
@@ -477,7 +477,7 @@ static inline T check_arith(lua_State *L, int idx) {
     T outv{};
     if (!test_arith<T>(L, idx, outv)) {
         lua::type_error(
-            L, idx, std::is_integral<T>::value ? "integer" : "number"
+            L, idx, util::is_int<T>::value ? "integer" : "number"
         );
     }
     return outv;
@@ -525,13 +525,13 @@ static inline ast::c_expr_type check_arith_expr(
         }
 #endif
         static_assert(
-            std::is_integral<lua_Number>::value
+            util::is_int<lua_Number>::value
                 ? (sizeof(lua_Number) <= sizeof(long long))
                 : (sizeof(lua_Number) <= sizeof(long double)),
             "invalid lua_Number format"
         );
         auto n = luaL_checknumber(L, idx);
-        if (std::is_integral<lua_Number>::value) {
+        if (util::is_int<lua_Number>::value) {
             if (util::is_signed<lua_Number>::value) {
                 if (sizeof(lua_Number) <= sizeof(int)) {
                     iv.i = int(n);

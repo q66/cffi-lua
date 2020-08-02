@@ -24,11 +24,6 @@ namespace detail {
 
 template<typename T> using remove_ref_t = typename detail::remove_ref<T>::type;
 
-template<typename T>
-struct is_signed {
-    static constexpr bool value = std::is_signed<T>::value;
-};
-
 namespace detail {
     template<bool B, typename T, typename F>
     struct conditional { using type = T; };
@@ -39,6 +34,31 @@ namespace detail {
 
 template<bool B, typename T, typename F>
 using conditional_t = typename detail::conditional<B, T, F>::type;
+
+template<typename T>
+struct is_int {
+    static constexpr bool value = std::is_integral<T>::value;
+};
+
+template<typename T>
+struct is_float {
+    static constexpr bool value = std::is_floating_point<T>::value;
+};
+
+template<typename T>
+struct is_arith {
+    static constexpr bool value = is_int<T>::value || is_float<T>::value;
+};
+
+template<typename T, bool = is_arith<T>::value>
+struct is_signed {
+    static constexpr bool value = T(-1) < T(0);
+};
+
+template<typename T>
+struct is_signed<T, false> {
+    static constexpr bool value = false;
+};
 
 /* move semantics */
 

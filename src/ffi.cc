@@ -806,7 +806,7 @@ ptr_ref:
         return nullptr;
     }
     /* must not be floating point */
-    if (!std::is_integral<T>::value) {
+    if (!util::is_int<T>::value) {
         fail_convert_cd(L, cd, tp);
         return nullptr;
     }
