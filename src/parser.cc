@@ -109,7 +109,7 @@ static void init_kwmap() {
 }
 
 struct lex_state_error {
-    std::string what;
+    char const *msg;
     int token;
     int line_number;
 };
@@ -170,11 +170,14 @@ struct lex_state {
         return (lahead.token = lex(t));
     }
 
-    void lex_error(std::string const &msg, int tok) const {
-        throw lex_state_error{msg, tok, line_number};
+    void lex_error(std::string const &msg, int tok) {
+        p_buf.clear();
+        p_buf.reserve(msg.size() + 1);
+        memcpy(&p_buf[0], msg.c_str(), msg.size() + 1);
+        throw lex_state_error{&p_buf[0], tok, line_number};
     }
 
-    void syntax_error(std::string const &msg) const {
+    void syntax_error(std::string const &msg) {
         lex_error(msg, t.token);
     }
 
@@ -182,10 +185,14 @@ struct lex_state {
         try {
             p_dstore.add(obj);
         } catch (ast::redefine_error const &e) {
-            std::string msg = "'";
-            msg += e.obj->name();
-            msg += "' redefined";
-            throw lex_state_error{util::move(msg), -1, lnum};
+            p_buf.clear();
+            auto nlen = strlen(e.obj->name());
+            p_buf.reserve(nlen + sizeof("'' redefined"));
+            char *sp = &p_buf[0];
+            sp[0] = '\'';
+            memcpy(&sp[1], e.obj->name(), nlen);
+            memcpy(&sp[nlen + 1], "' redefined", sizeof("' redefined"));
+            throw lex_state_error{sp, -1, lnum};
         }
     }
 
@@ -2221,8 +2228,8 @@ void parse(lua_State *L, char const *input, char const *iend, int paridx) {
     if (!iend) {
         iend = input + strlen(input);
     }
+    lex_state ls{L, input, iend, PARSE_MODE_DEFAULT, paridx};
     try {
-        lex_state ls{L, input, iend, PARSE_MODE_DEFAULT, paridx};
         /* read first token */
         ls.get();
         parse_decls(ls);
@@ -2230,11 +2237,11 @@ void parse(lua_State *L, char const *input, char const *iend, int paridx) {
     } catch (lex_state_error const &e) {
         if (e.token > 0) {
             luaL_error(
-                L, "input:%d: %s near '%s'", e.line_number, e.what.c_str(),
+                L, "input:%d: %s near '%s'", e.line_number, e.msg,
                 token_to_str(e.token).c_str()
             );
         } else {
-            luaL_error(L, "input:%d: %s", e.line_number, e.what.c_str());
+            luaL_error(L, "input:%d: %s", e.line_number, e.msg);
         }
     }
 }
@@ -2245,19 +2252,17 @@ ast::c_type parse_type(
     if (!iend) {
         iend = input + strlen(input);
     }
+    lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF, paridx};
     try {
-        lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF, paridx};
         ls.get();
         auto tp = parse_type(ls);
         ls.commit();
         return tp;
     } catch (lex_state_error const &e) {
         if (e.token > 0) {
-            luaL_error(
-                L, "%s near '%s'", e.what.c_str(), token_to_str(e.token).c_str()
-            );
+            luaL_error(L, "%s near '%s'", e.msg, token_to_str(e.token).c_str());
         } else {
-            luaL_error(L, "%s", e.what.c_str());
+            luaL_error(L, "%s", e.msg);
         }
     }
     /* unreachable */
@@ -2270,8 +2275,8 @@ ast::c_expr_type parse_number(
     if (!iend) {
         iend = input + strlen(input);
     }
+    lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF};
     try {
-        lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF};
         ls.get();
         check(ls, TOK_INTEGER);
         v = ls.t.value;
@@ -2279,11 +2284,9 @@ ast::c_expr_type parse_number(
         return ls.t.numtag;
     } catch (lex_state_error const &e) {
         if (e.token > 0) {
-            luaL_error(
-                L, "%s near '%s'", e.what.c_str(), token_to_str(e.token).c_str()
-            );
+            luaL_error(L, "%s near '%s'", e.msg, token_to_str(e.token).c_str());
         } else {
-            luaL_error(L, "%s", e.what.c_str());
+            luaL_error(L, "%s", e.msg);
         }
     }
     /* unreachable */
