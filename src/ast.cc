@@ -984,7 +984,7 @@ size_t c_record::iter_fields(bool (*cb)(
     return base;
 }
 
-void c_record::set_fields(std::vector<field> fields) {
+void c_record::set_fields(util::vector<field> fields) {
     assert(p_fields.empty());
     assert(!p_elements);
 
@@ -1128,8 +1128,8 @@ void decl_store::commit() {
     /* reserve all space at once */
     p_base->p_dlist.reserve(p_base->p_dlist.size() + p_dlist.size());
     /* move all */
-    for (auto &u: p_dlist) {
-        p_base->p_dlist.push_back(util::move(u));
+    for (size_t i = 0; i < p_dlist.size(); ++i) {
+        p_base->p_dlist.push_back(util::move(p_dlist[i]));
     }
     /* set up mappings in base */
     for (auto const &p: p_dmap) {

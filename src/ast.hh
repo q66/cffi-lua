@@ -11,7 +11,6 @@
 #include "util.hh"
 
 #include <string>
-#include <vector>
 #include <unordered_map>
 #include <memory>
 #include <stdexcept>
@@ -771,7 +770,7 @@ private:
 };
 
 struct c_function: c_object {
-    c_function(c_type result, std::vector<c_param> params, uint32_t flags):
+    c_function(c_type result, util::vector<c_param> params, uint32_t flags):
         p_result{util::move(result)}, p_params{util::move(params)},
         p_flags{flags}
     {}
@@ -790,7 +789,7 @@ struct c_function: c_object {
         return p_result;
     }
 
-    std::vector<c_param> const &params() const {
+    util::vector<c_param> const &params() const {
         return p_params;
     }
 
@@ -819,7 +818,7 @@ struct c_function: c_object {
 
 private:
     c_type p_result;
-    std::vector<c_param> p_params;
+    util::vector<c_param> p_params;
     uint32_t p_flags;
     bool p_variadic;
 };
@@ -952,7 +951,7 @@ struct c_record: c_object {
         c_type type;
     };
 
-    c_record(std::string ename, std::vector<field> fields, bool is_uni = false):
+    c_record(std::string ename, util::vector<field> fields, bool is_uni = false):
         p_name{util::move(ename)}, p_uni{is_uni}
     {
         set_fields(util::move(fields));
@@ -1028,7 +1027,7 @@ struct c_record: c_object {
     }
 
     /* it is the responsibility of the caller to ensure we're not redefining */
-    void set_fields(std::vector<field> fields);
+    void set_fields(util::vector<field> fields);
 
     void metatype(int mt, int mf) {
         p_metatype = mt;
@@ -1057,7 +1056,7 @@ private:
     ), void *data, size_t base, bool &end) const;
 
     std::string p_name;
-    std::vector<field> p_fields{};
+    util::vector<field> p_fields{};
     std::unique_ptr<ffi_type *[]> p_elements{};
     std::unique_ptr<ffi_type *[]> p_felems{};
     ffi_type p_ffi_type{};
@@ -1077,7 +1076,7 @@ struct c_enum: c_object {
         int value; /* FIXME: make a c_expr */
     };
 
-    c_enum(std::string ename, std::vector<field> fields):
+    c_enum(std::string ename, util::vector<field> fields):
         p_name{util::move(ename)}
     {
         set_fields(util::move(fields));
@@ -1100,7 +1099,7 @@ struct c_enum: c_object {
         return p_name.c_str();
     }
 
-    std::vector<field> const &fields() const {
+    util::vector<field> const &fields() const {
         return p_fields;
     }
 
@@ -1118,7 +1117,7 @@ struct c_enum: c_object {
     }
 
     /* it is the responsibility of the caller to ensure we're not redefining */
-    void set_fields(std::vector<field> fields) {
+    void set_fields(util::vector<field> fields) {
         assert(p_fields.empty());
         assert(p_opaque);
 
@@ -1128,7 +1127,7 @@ struct c_enum: c_object {
 
 private:
     std::string p_name;
-    std::vector<field> p_fields{};
+    util::vector<field> p_fields{};
     bool p_opaque = true;
 };
 
@@ -1164,7 +1163,7 @@ struct decl_store {
     }
 private:
     decl_store *p_base = nullptr;
-    std::vector<std::unique_ptr<c_object>> p_dlist{};
+    util::vector<std::unique_ptr<c_object>> p_dlist{};
     std::unordered_map<
         char const *, c_object *, util::str_hash, util::str_equal
     > p_dmap{};

@@ -5,7 +5,6 @@
 
 #include <stack>
 #include <string>
-#include <vector>
 #include <unordered_map>
 #include <utility>
 #include <stdexcept>
@@ -730,7 +729,7 @@ cont:
                     do {
                         p_buf.push_back(next_char());
                     } while (isalnum(current) || (current == '_'));
-                    std::string name{p_buf.begin(), p_buf.end()};
+                    std::string name{&p_buf[0], &p_buf[p_buf.size()]};
                     /* could be a keyword? */
                     auto kwit = keyword_map.find(name.c_str());
                     tok.value_s = util::move(name);
@@ -755,7 +754,7 @@ cont:
     char const *stream;
     char const *send;
 
-    std::vector<char> p_buf;
+    util::vector<char> p_buf;
     ast::decl_store p_dstore;
 
 public:
@@ -1219,11 +1218,11 @@ static uint32_t parse_callconv_ms(lex_state &ls) {
     return ast::C_FUNC_DEFAULT;
 }
 
-static std::vector<ast::c_param> parse_paramlist(lex_state &ls) {
+static util::vector<ast::c_param> parse_paramlist(lex_state &ls) {
     int linenum = ls.line_number;
     ls.get();
 
-    std::vector<ast::c_param> params;
+    util::vector<ast::c_param> params;
 
     if (ls.t.token == TOK_void) {
         if (ls.lookahead() == ')') {
@@ -1284,7 +1283,7 @@ struct plevel {
     {}
     ~plevel() {
         if (is_func) {
-            using DT = std::vector<ast::c_param>;
+            using DT = util::vector<ast::c_param>;
             argl.~DT();
         }
     }
@@ -1293,14 +1292,14 @@ struct plevel {
         is_func{v.is_func}, is_ref{v.is_ref}
     {
         if (is_func) {
-            new (&argl) std::vector<ast::c_param>(util::move(v.argl));
+            new (&argl) util::vector<ast::c_param>(util::move(v.argl));
         } else {
             arrd = v.arrd;
         }
     }
 
     union {
-        std::vector<ast::c_param> argl;
+        util::vector<ast::c_param> argl;
         size_t arrd;
     };
     uint32_t cv: 2;
@@ -1321,7 +1320,7 @@ struct plevel {
  * it once per thread, its resources will be reused by subsequent and recursive
  * calls
 */
-static thread_local std::vector<plevel> pcvq{};
+static thread_local util::vector<plevel> pcvq{};
 
 /* this stack stores whatever parse_array below parses, the number of elements
  * per single parse_type_ptr call is stored above in the level struct; each
@@ -1571,7 +1570,7 @@ newlevel:
              */
             auto argl = parse_paramlist(ls);
             auto &clev = pcvq[ridx];
-            new (&clev.argl) std::vector<ast::c_param>(util::move(argl));
+            new (&clev.argl) util::vector<ast::c_param>(util::move(argl));
             clev.is_func = true;
             /* attribute style calling convention after paramlist */
             clev.cconv = parse_callconv_attrib(ls);
@@ -1982,7 +1981,7 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
 
     mode_error();
 
-    std::vector<ast::c_record::field> fields;
+    util::vector<ast::c_record::field> fields;
 
     while (ls.t.token != '}') {
         ast::c_type tpb{ast::C_BUILTIN_INVALID, 0};
@@ -2080,7 +2079,7 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
 
     mode_error();
 
-    std::vector<ast::c_enum::field> fields;
+    util::vector<ast::c_enum::field> fields;
 
     while (ls.t.token != '}') {
         int eln = ls.line_number;
