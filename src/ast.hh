@@ -185,16 +185,16 @@ namespace detail {
     };
 
     /* need this hack because some toolchains are garbage */
-    template<typename T> using eq_type = std::conditional_t<
+    template<typename T> using eq_type = util::conditional_t<
         sizeof(T) == sizeof(char),
         signed char,
-        std::conditional_t<
+        util::conditional_t<
             sizeof(T) == sizeof(short),
             short,
-            std::conditional_t<
+            util::conditional_t<
                 sizeof(T) == sizeof(int),
                 int,
-                std::conditional_t<
+                util::conditional_t<
                     sizeof(T) == sizeof(long),
                     long,
                     long long

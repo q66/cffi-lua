@@ -29,6 +29,17 @@ struct is_signed {
     static constexpr bool value = std::is_signed<T>::value;
 };
 
+namespace detail {
+    template<bool B, typename T, typename F>
+    struct conditional { using type = T; };
+
+    template<typename T, typename F>
+    struct conditional<false, T, F> { using type = F; };
+}
+
+template<bool B, typename T, typename F>
+using conditional_t = typename detail::conditional<B, T, F>::type;
+
 /* move semantics */
 
 template<typename T>
