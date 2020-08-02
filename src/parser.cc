@@ -89,7 +89,6 @@ static char const *tokens[] = {
 struct lex_token {
     int token = -1;
     ast::c_expr_type numtag = ast::c_expr_type::INVALID;
-    std::string value_s;
     ast::c_value value{};
 };
 
@@ -228,7 +227,8 @@ struct lex_state {
         }
         /* replace $ with name */
         t.token = TOK_NAME;
-        t.value_s = std::string{str, str + len};
+        p_buf.reserve(len + 1);
+        memcpy(&p_buf[0], str, len + 1);
         ++p_pidx;
     }
 
@@ -263,6 +263,10 @@ struct lex_state {
         get(); /* consume $ */
         ++p_pidx;
         return ct;
+    }
+
+    char const *getbuf() const {
+        return &p_buf[0];
     }
 
 private:
@@ -705,7 +709,7 @@ cont:
                     }
                 }
                 next_char();
-                tok.value_s = std::string{&p_buf[0], p_buf.size()};
+                p_buf.push_back('\0');
                 return TOK_STRING;
             }
             /* single-char tokens, number literals, keywords, names */
@@ -725,10 +729,9 @@ cont:
                     do {
                         p_buf.push_back(next_char());
                     } while (isalnum(current) || (current == '_'));
-                    std::string name{&p_buf[0], &p_buf[p_buf.size()]};
+                    p_buf.push_back('\0');
                     /* could be a keyword? */
-                    auto kwit = keyword_map.find(name.c_str());
-                    tok.value_s = util::move(name);
+                    auto kwit = keyword_map.find(&p_buf[0]);
                     if (kwit != keyword_map.end()) {
                         return TOK_NAME + kwit->second;
                     }
@@ -936,10 +939,10 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
         }
         case TOK_NAME: {
             ast::c_expr ret;
-            auto *o = ls.lookup(ls.t.value_s.c_str());
+            auto *o = ls.lookup(ls.getbuf());
             if (!o || (o->obj_type() != ast::c_object_type::CONSTANT)) {
                 std::string buf = "unknown constant '";
-                buf += ls.t.value_s;
+                buf += ls.getbuf();
                 buf += "'";
                 ls.syntax_error(buf);
             }
@@ -1177,13 +1180,13 @@ static uint32_t parse_callconv_attrib(lex_state &ls) {
     check_next(ls, TOK_ATTRIBB);
     int conv = -1;
     check(ls, TOK_NAME);
-    if (ls.t.value_s == "cdecl") {
+    if (!strcmp(ls.getbuf(), "cdecl")) {
         conv = ast::C_FUNC_CDECL;
-    } else if (ls.t.value_s == "fastcall") {
+    } else if (!strcmp(ls.getbuf(), "fastcall")) {
         conv = ast::C_FUNC_FASTCALL;
-    } else if (ls.t.value_s == "stdcall") {
+    } else if (!strcmp(ls.getbuf(), "stdcall")) {
         conv = ast::C_FUNC_STDCALL;
-    } else if (ls.t.value_s == "thiscall") {
+    } else if (!strcmp(ls.getbuf(), "thiscall")) {
         conv = ast::C_FUNC_THISCALL;
     } else {
         ls.syntax_error("invalid calling convention");
@@ -1535,7 +1538,7 @@ newlevel:
              * parsing a typedef or a prototype, this will be the name
              */
             check(ls, TOK_NAME);
-            *fpname = ls.t.value_s;
+            *fpname = ls.getbuf();
             ls.get();
         } else {
             *fpname = "?";
@@ -1767,11 +1770,11 @@ static ast::c_type parse_typebase_core(lex_state &ls, bool *tdef, bool *extr) {
 qualified:
     if (ls.t.token == TOK_NAME) {
         /* typedef, struct, enum, var, etc. */
-        auto *decl = ls.lookup(ls.t.value_s.c_str());
+        auto *decl = ls.lookup(ls.getbuf());
         if (!decl) {
             std::string buf;
             buf += "undeclared symbol '";
-            buf += ls.t.value_s;
+            buf += ls.getbuf();
             buf += "'";
             ls.syntax_error(buf);
         }
@@ -1796,7 +1799,7 @@ qualified:
             default: {
                 std::string buf;
                 buf += "symbol '";
-                buf += ls.t.value_s;
+                buf += ls.getbuf();
                 buf += "' is not a type";
                 ls.syntax_error(buf);
                 break;
@@ -1947,7 +1950,7 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
     std::string sname = is_uni ? "union " : "struct ";
     ls.param_maybe_name();
     if (ls.t.token == TOK_NAME) {
-        sname += ls.t.value_s;
+        sname += ls.getbuf();
         ls.get();
         named = true;
     } else {
@@ -2047,7 +2050,7 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
     std::string ename = "enum ";
     ls.param_maybe_name();
     if (ls.t.token == TOK_NAME) {
-        ename += ls.t.value_s;
+        ename += ls.getbuf();
         ls.get();
         named = true;
     } else {
@@ -2081,7 +2084,7 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
         int eln = ls.line_number;
         ls.param_maybe_name();
         check(ls, TOK_NAME);
-        std::string fname = ls.t.value_s;
+        std::string fname = ls.getbuf();
         ls.get();
         if (ls.t.token == '=') {
             ls.get();
@@ -2186,10 +2189,10 @@ static void parse_decl(lex_state &ls) {
             int lnum = ls.line_number;
             check_next(ls, '(');
             check(ls, TOK_STRING);
-            if (ls.t.value_s.empty()) {
+            if (ls.getbuf()[0] == '\0') {
                 ls.syntax_error("empty symbol name");
             }
-            sym = util::move(ls.t.value_s);
+            sym = ls.getbuf();
             ls.get();
             check_match(ls, ')', '(', lnum);
         }
