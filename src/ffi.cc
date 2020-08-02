@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "platform.hh"
+#include "util.hh"
 #include "ffi.hh"
 
 namespace ffi {
@@ -231,7 +232,7 @@ static void make_cdata_func(
      */
     ast::c_type funct{&func, 0, funp == nullptr};
     auto &fud = newcdata<fdata>(
-        L, fptr ? ast::c_type{std::move(funct), 0} : std::move(funct),
+        L, fptr ? ast::c_type{util::move(funct), 0} : util::move(funct),
         func.variadic() ? sizeof(void *) : (
             sizeof(arg_stor_t) * nargs + sizeof(void *) * nargs * 2
         )
@@ -363,7 +364,7 @@ int call_cif(cdata<fdata> &fud, lua_State *L, size_t largs) {
             memcpy(&pvals[i], &cd.val, sizeof(void *));
             continue;
         }
-        vals[i] = from_lua(L, std::move(tp), &pvals[i], i + 2, rsz, RULE_PASS);
+        vals[i] = from_lua(L, util::move(tp), &pvals[i], i + 2, rsz, RULE_PASS);
     }
 
     ffi_call(&fud.val.cif, fud.val.sym, rval, vals);

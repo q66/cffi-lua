@@ -8,6 +8,7 @@
 
 #include "lua.hh"
 #include "libffi.hh"
+#include "util.hh"
 
 #include <type_traits>
 #include <limits>
@@ -510,12 +511,12 @@ struct c_type: c_object {
     {}
 
     c_type(c_type tp, uint32_t qual, c_builtin cbt = C_BUILTIN_PTR):
-        p_ptr{new c_type{std::move(tp)}}, p_ttype{uint32_t(cbt)},
+        p_ptr{new c_type{util::move(tp)}}, p_ttype{uint32_t(cbt)},
         p_flags{0}, p_cv{qual}
     {}
 
     c_type(c_type tp, uint32_t qual, size_t arrlen, uint32_t flags):
-        p_ptr{new c_type{std::move(tp)}}, p_asize{arrlen},
+        p_ptr{new c_type{util::move(tp)}}, p_asize{arrlen},
         p_ttype{C_BUILTIN_ARRAY}, p_flags{flags}, p_cv{qual}
     {}
 
@@ -741,7 +742,7 @@ private:
 
 struct c_param: c_object {
     c_param(std::string pname, c_type type):
-        p_name{std::move(pname)}, p_type{std::move(type)}
+        p_name{util::move(pname)}, p_type{util::move(type)}
     {}
 
     c_object_type obj_type() const {
@@ -773,7 +774,7 @@ private:
 
 struct c_function: c_object {
     c_function(c_type result, std::vector<c_param> params, uint32_t flags):
-        p_result{std::move(result)}, p_params{std::move(params)},
+        p_result{util::move(result)}, p_params{util::move(params)},
         p_flags{flags}
     {}
 
@@ -827,8 +828,8 @@ private:
 
 struct c_variable: c_object {
     c_variable(std::string vname, std::string sym, c_type vtype):
-        p_name{std::move(vname)}, p_sname{std::move(sym)},
-        p_type{std::move(vtype)}
+        p_name{util::move(vname)}, p_sname{util::move(sym)},
+        p_type{util::move(vtype)}
     {}
 
     c_object_type obj_type() const {
@@ -870,7 +871,7 @@ private:
 
 struct c_constant: c_object {
     c_constant(std::string cname, c_type ctype, c_value const &cval):
-        p_name{std::move(cname)}, p_type{std::move(ctype)}, p_value{cval}
+        p_name{util::move(cname)}, p_type{util::move(ctype)}, p_value{cval}
     {}
 
     c_object_type obj_type() const {
@@ -909,7 +910,7 @@ private:
 
 struct c_typedef: c_object {
     c_typedef(std::string aname, c_type btype):
-        p_name{std::move(aname)}, p_type{std::move(btype)}
+        p_name{util::move(aname)}, p_type{util::move(btype)}
     {}
 
     c_object_type obj_type() const {
@@ -946,7 +947,7 @@ private:
 struct c_record: c_object {
     struct field {
         field(std::string nm, c_type &&tp):
-            name{std::move(nm)}, type(std::move(tp))
+            name{util::move(nm)}, type(util::move(tp))
         {}
 
         std::string name;
@@ -954,13 +955,13 @@ struct c_record: c_object {
     };
 
     c_record(std::string ename, std::vector<field> fields, bool is_uni = false):
-        p_name{std::move(ename)}, p_uni{is_uni}
+        p_name{util::move(ename)}, p_uni{is_uni}
     {
-        set_fields(std::move(fields));
+        set_fields(util::move(fields));
     }
 
     c_record(std::string ename, bool is_uni = false):
-        p_name{std::move(ename)}, p_uni{is_uni}
+        p_name{util::move(ename)}, p_uni{is_uni}
     {}
 
     c_object_type obj_type() const {
@@ -1071,7 +1072,7 @@ private:
 struct c_enum: c_object {
     struct field {
         field(std::string nm, int val):
-            name{std::move(nm)}, value(val)
+            name{util::move(nm)}, value(val)
         {}
 
         std::string name;
@@ -1079,12 +1080,12 @@ struct c_enum: c_object {
     };
 
     c_enum(std::string ename, std::vector<field> fields):
-        p_name{std::move(ename)}
+        p_name{util::move(ename)}
     {
-        set_fields(std::move(fields));
+        set_fields(util::move(fields));
     }
 
-    c_enum(std::string ename): p_name{std::move(ename)} {}
+    c_enum(std::string ename): p_name{util::move(ename)} {}
 
     c_object_type obj_type() const {
         return c_object_type::ENUM;
@@ -1123,7 +1124,7 @@ struct c_enum: c_object {
         assert(p_fields.empty());
         assert(p_opaque);
 
-        p_fields = std::move(fields);
+        p_fields = util::move(fields);
         p_opaque = false;
     }
 

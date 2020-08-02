@@ -14,6 +14,7 @@
 
 #include "parser.hh"
 #include "ast.hh"
+#include "util.hh"
 
 namespace parser {
 
@@ -165,7 +166,7 @@ struct lex_state {
 
     int get() {
         if (lahead.token >= 0) {
-            t = std::move(lahead);
+            t = util::move(lahead);
             lahead.token = -1;
             return t.token;
         }
@@ -733,7 +734,7 @@ cont:
                     std::string name{p_buf.begin(), p_buf.end()};
                     /* could be a keyword? */
                     auto kwit = keyword_map.find(name.c_str());
-                    tok.value_s = std::move(name);
+                    tok.value_s = util::move(name);
                     if (kwit != keyword_map.end()) {
                         return TOK_NAME + kwit->second;
                     }
@@ -905,7 +906,7 @@ static constexpr int unprec = 11;
 static constexpr int ifprec = 1;
 
 static std::unique_ptr<ast::c_expr> expr_dup(ast::c_expr &&exp) {
-    return std::make_unique<ast::c_expr>(std::move(exp));
+    return std::make_unique<ast::c_expr>(util::move(exp));
 }
 
 static ast::c_expr parse_cexpr(lex_state &ls);
@@ -924,7 +925,7 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
         ast::c_expr unexp;
         unexp.type(ast::c_expr_type::UNARY);
         unexp.un.op = unop;
-        unexp.un.expr = expr_dup(std::move(exp)).release();
+        unexp.un.expr = expr_dup(util::move(exp)).release();
         return unexp;
     }
     /* FIXME: implement non-integer constants */
@@ -1064,10 +1065,10 @@ static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec) {
             ast::c_expr fexp = parse_cexpr_bin(ls, ifprec);
             ast::c_expr tern;
             tern.type(ast::c_expr_type::TERNARY);
-            tern.tern.cond = expr_dup(std::move(lhs)).release();
-            tern.tern.texpr = expr_dup(std::move(texp)).release();
-            tern.tern.fexpr = expr_dup(std::move(fexp)).release();
-            lhs = std::move(tern);
+            tern.tern.cond = expr_dup(util::move(lhs)).release();
+            tern.tern.texpr = expr_dup(util::move(texp)).release();
+            tern.tern.fexpr = expr_dup(util::move(fexp)).release();
+            lhs = util::move(tern);
             continue;
         }
         /* for right associative this would be prec, we don't
@@ -1078,9 +1079,9 @@ static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec) {
         ast::c_expr bin;
         bin.type(ast::c_expr_type::BINARY);
         bin.bin.op = op;
-        bin.bin.lhs = expr_dup(std::move(lhs)).release();
-        bin.bin.rhs = expr_dup(std::move(rhs)).release();
-        lhs = std::move(bin);
+        bin.bin.lhs = expr_dup(util::move(lhs)).release();
+        bin.bin.rhs = expr_dup(util::move(rhs)).release();
+        lhs = util::move(bin);
     }
     return lhs;
 }
@@ -1259,7 +1260,7 @@ static std::vector<ast::c_param> parse_paramlist(lex_state &ls) {
         if (pname == "?") {
             pname.clear();
         }
-        params.emplace_back(std::move(pname), std::move(pt));
+        params.emplace_back(util::move(pname), util::move(pt));
         if (!test_next(ls, ',')) {
             break;
         }
@@ -1293,7 +1294,7 @@ struct plevel {
         is_func{v.is_func}, is_ref{v.is_ref}
     {
         if (is_func) {
-            new (&argl) std::vector<ast::c_param>(std::move(v.argl));
+            new (&argl) std::vector<ast::c_param>(util::move(v.argl));
         } else {
             arrd = v.arrd;
         }
@@ -1571,7 +1572,7 @@ newlevel:
              */
             auto argl = parse_paramlist(ls);
             auto &clev = pcvq[ridx];
-            new (&clev.argl) std::vector<ast::c_param>(std::move(argl));
+            new (&clev.argl) std::vector<ast::c_param>(util::move(argl));
             clev.is_func = true;
             /* attribute style calling convention after paramlist */
             clev.cconv = parse_callconv_attrib(ls);
@@ -1654,8 +1655,8 @@ newlevel:
             if (pcvq[cidx].is_ref) {
                 tp.add_ref();
             } else {
-                ast::c_type ntp{std::move(tp), pcvq[cidx].cv, ast::C_BUILTIN_PTR};
-                tp = std::move(ntp);
+                ast::c_type ntp{util::move(tp), pcvq[cidx].cv, ast::C_BUILTIN_PTR};
+                tp = util::move(ntp);
             }
             ++cidx;
         }
@@ -1680,8 +1681,8 @@ newlevel:
                 ls.syntax_error(buf);
                 break;
             }
-            ast::c_function cf{std::move(tp), std::move(olev->argl), fflags};
-            tp = ast::c_type{std::move(cf), 0};
+            ast::c_function cf{util::move(tp), util::move(olev->argl), fflags};
+            tp = ast::c_type{util::move(cf), 0};
         } else if (olev->arrd) {
             if (tp.vla() || tp.unbounded()) {
                 ls.syntax_error(
@@ -1694,10 +1695,10 @@ newlevel:
                 dimstack.pop();
                 --olev->arrd;
                 ast::c_type atp{
-                    std::move(tp), quals, dim,
+                    util::move(tp), quals, dim,
                     (!olev->arrd ? olev->flags : uint32_t(0))
                 };
-                tp = std::move(atp);
+                tp = util::move(atp);
             }
         }
         if (cidx >= tidx) {
@@ -1973,7 +1974,7 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
         if (!oldecl || (oldecl->obj_type() != ast::c_object_type::RECORD)) {
             mode_error();
             /* different type or not stored yet, raise error or store */
-            auto *p = new ast::c_record{std::move(sname), is_uni};
+            auto *p = new ast::c_record{util::move(sname), is_uni};
             ls.store_decl(p, sline);
             return *p;
         }
@@ -2006,7 +2007,7 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
                 goto field_end;
             }
             flexible = tp.unbounded();
-            fields.emplace_back(std::move(fpn), std::move(tp));
+            fields.emplace_back(util::move(fpn), util::move(tp));
             /* unbounded array must be the last in the list */
             if (flexible) {
                 break;
@@ -2027,7 +2028,7 @@ field_end:
         auto &st = oldecl->as<ast::c_record>();
         if (st.opaque()) {
             /* previous declaration was opaque; prevent redef errors */
-            st.set_fields(std::move(fields));
+            st.set_fields(util::move(fields));
             if (newst) {
                 *newst = true;
             }
@@ -2038,7 +2039,7 @@ field_end:
     if (newst) {
         *newst = true;
     }
-    auto *p = new ast::c_record{std::move(sname), std::move(fields), is_uni};
+    auto *p = new ast::c_record{util::move(sname), util::move(fields), is_uni};
     ls.store_decl(p, sline);
     return *p;
 }
@@ -2071,7 +2072,7 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
         auto *oldecl = ls.lookup(ename.c_str());
         if (!oldecl || (oldecl->obj_type() != ast::c_object_type::ENUM)) {
             mode_error();
-            auto *p = new ast::c_enum{std::move(ename)};
+            auto *p = new ast::c_enum{util::move(ename)};
             ls.store_decl(p, eline);
             return *p;
         }
@@ -2106,10 +2107,10 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
                     ls.syntax_error("unsupported type");
                     break;
             }
-            fields.emplace_back(std::move(fname), val.i);
+            fields.emplace_back(util::move(fname), val.i);
         } else {
             fields.emplace_back(
-                std::move(fname), fields.empty() ? 0 : (fields.back().value + 1)
+                util::move(fname), fields.empty() ? 0 : (fields.back().value + 1)
             );
         }
         /* enums: register fields as constant values
@@ -2136,12 +2137,12 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
         auto &st = oldecl->as<ast::c_enum>();
         if (st.opaque()) {
             /* previous declaration was opaque; prevent redef errors */
-            st.set_fields(std::move(fields));
+            st.set_fields(util::move(fields));
             return st;
         }
     }
 
-    auto *p = new ast::c_enum{std::move(ename), std::move(fields)};
+    auto *p = new ast::c_enum{util::move(ename), util::move(fields)};
     ls.store_decl(p, eline);
     return *p;
 }
@@ -2174,7 +2175,7 @@ static void parse_decl(lex_state &ls) {
                  * way to access the type and it'd be unique either way
                  */
                 ls.store_decl(
-                    new ast::c_typedef{std::move(dname), std::move(tp)}, dline
+                    new ast::c_typedef{util::move(dname), util::move(tp)}, dline
                 );
                 continue;
             } else {
@@ -2194,12 +2195,12 @@ static void parse_decl(lex_state &ls) {
             if (ls.t.value_s.empty()) {
                 ls.syntax_error("empty symbol name");
             }
-            sym = std::move(ls.t.value_s);
+            sym = util::move(ls.t.value_s);
             ls.get();
             check_match(ls, ')', '(', lnum);
         }
         ls.store_decl(new ast::c_variable{
-            std::move(dname), std::move(sym), std::move(tp)
+            util::move(dname), util::move(sym), util::move(tp)
         }, dline);
     } while (test_next(ls, ','));
 }

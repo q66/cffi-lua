@@ -11,6 +11,7 @@
 #include "lua.hh"
 #include "lib.hh"
 #include "ast.hh"
+#include "util.hh"
 
 namespace ffi {
 
@@ -242,7 +243,7 @@ static inline cdata<T> &newcdata(
     lua_State *L, ast::c_type &&tp, size_t extra = 0
 ) {
     auto *cd = lua::newuserdata<cdata<T>>(L, extra);
-    new (&cd->decl) ast::c_type{std::move(tp)};
+    new (&cd->decl) ast::c_type{util::move(tp)};
     cd->gc_ref = LUA_REFNIL;
     cd->aux = 0;
     lua::mark_cdata(L);
@@ -262,7 +263,7 @@ static inline cdata<ffi::noval> &newcdata(
     auto *cd = static_cast<cdata<ffi::noval> *>(
         lua_newuserdata(L, vals + cdata_value_base())
     );
-    new (&cd->decl) ast::c_type{std::move(tp)};
+    new (&cd->decl) ast::c_type{util::move(tp)};
     cd->gc_ref = LUA_REFNIL;
     cd->aux = 0;
     lua::mark_cdata(L);
@@ -649,7 +650,7 @@ static inline cdata<arg_stor_t> &make_cdata_arith(
     }
     auto tp = ast::c_type{bt, 0};
     auto as = tp.alloc_size();
-    auto &cd = newcdata(L, std::move(tp), as);
+    auto &cd = newcdata(L, util::move(tp), as);
     memcpy(&cd.val, &cv, as);
     return *reinterpret_cast<cdata<arg_stor_t> *>(&cd);
 }

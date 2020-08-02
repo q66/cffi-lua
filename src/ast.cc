@@ -6,6 +6,7 @@
 #include <type_traits>
 
 #include "platform.hh"
+#include "util.hh"
 #include "ast.hh"
 #include "ffi.hh"
 
@@ -581,7 +582,7 @@ void c_function::do_serialize(
 }
 
 c_type::c_type(c_function tp, uint32_t qual, bool cb):
-    p_fptr{new c_function{std::move(tp)}}, p_ttype{C_BUILTIN_FUNC},
+    p_fptr{new c_function{util::move(tp)}}, p_ttype{C_BUILTIN_FUNC},
     p_flags{uint32_t(cb ? C_TYPE_CLOSURE : 0)}, p_cv{qual}
 {}
 
@@ -615,7 +616,7 @@ void c_type::copy(c_type const &v) {
 }
 
 c_type::c_type(c_type &&v):
-    p_ptr{std::exchange(v.p_ptr, nullptr)},
+    p_ptr{util::exchange(v.p_ptr, nullptr)},
     p_asize{v.p_asize}, p_ttype{v.p_ttype}, p_flags{v.p_flags}, p_cv{v.p_cv}
 {
     v.p_ttype = C_BUILTIN_INVALID;
@@ -625,7 +626,7 @@ c_type::c_type(c_type &&v):
 
 c_type &c_type::operator=(c_type &&v) {
     clear();
-    p_ptr = std::exchange(v.p_ptr, nullptr);
+    p_ptr = util::exchange(v.p_ptr, nullptr);
     p_asize = v.p_asize;
     p_ttype = v.p_ttype;
     p_flags = v.p_flags;
@@ -989,7 +990,7 @@ void c_record::set_fields(std::vector<field> fields) {
     assert(p_fields.empty());
     assert(!p_elements);
 
-    p_fields = std::move(fields);
+    p_fields = util::move(fields);
 
     /* when dealing with flexible array members, we will need to pad the
      * struct to satisfy alignment of the flexible member, and use that
@@ -1130,7 +1131,7 @@ void decl_store::commit() {
     p_base->p_dlist.reserve(p_base->p_dlist.size() + p_dlist.size());
     /* move all */
     for (auto &u: p_dlist) {
-        p_base->p_dlist.push_back(std::move(u));
+        p_base->p_dlist.push_back(util::move(u));
     }
     /* set up mappings in base */
     for (auto const &p: p_dmap) {
