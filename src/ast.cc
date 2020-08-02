@@ -1165,8 +1165,7 @@ c_object *decl_store::lookup(char const *name) {
     return nullptr;
 }
 
-std::string decl_store::request_name() const {
-    char buf[32];
+int decl_store::request_name(char *buf, size_t bufsize) const {
     /* could do something better, this will do to avoid clashes for now... */
     size_t n = 0;
     decl_store const *pb = this;
@@ -1174,8 +1173,7 @@ std::string decl_store::request_name() const {
         n += pb->p_dlist.size();
         pb = pb->p_base;
     } while (pb);
-    snprintf(buf, sizeof(buf), "%zu", n);
-    return std::string{static_cast<char const *>(buf)};
+    return snprintf(buf, bufsize, "%zu", n);
 }
 
 c_type from_lua_type(lua_State *L, int index) {

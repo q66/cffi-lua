@@ -1151,7 +1151,7 @@ struct decl_store {
     c_object const *lookup(char const *name) const;
     c_object *lookup(char const *name);
 
-    std::string request_name() const;
+    int request_name(char *buf, size_t bufsize) const;
 
     static decl_store &get_main(lua_State *L) {
         lua_getfield(L, LUA_REGISTRYINDEX, lua::CFFI_DECL_STOR);

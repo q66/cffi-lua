@@ -207,8 +207,8 @@ struct lex_state {
         return p_dstore.lookup(name);
     }
 
-    std::string request_name() const {
-        return p_dstore.request_name();
+    int request_name(char *buf, size_t bufsize) const {
+        return p_dstore.request_name(buf, bufsize);
     }
 
     int mode() const {
@@ -1960,7 +1960,10 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
         ls.get();
         named = true;
     } else {
-        sname += ls.request_name();
+        char buf[32];
+        auto wn = ls.request_name(buf, sizeof(buf));
+        assert((wn > 0) && (wn < int(sizeof(buf))));
+        sname += static_cast<char const *>(buf);
     }
 
     int linenum = ls.line_number;
@@ -2060,7 +2063,10 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
         ls.get();
         named = true;
     } else {
-        ename += ls.request_name();
+        char buf[32];
+        auto wn = ls.request_name(buf, sizeof(buf));
+        assert((wn > 0) && (wn < int(sizeof(buf))));
+        ename += static_cast<char const *>(buf);
     }
 
     int linenum = ls.line_number;
