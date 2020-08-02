@@ -10,8 +10,6 @@
 #include "libffi.hh"
 #include "util.hh"
 
-#include <type_traits>
-#include <limits>
 #include <string>
 #include <vector>
 #include <unordered_map>

@@ -8,7 +8,6 @@
 
 #include <cstdarg>
 #include <cassert>
-#include <limits>
 
 #include "platform.hh"
 #include "util.hh"

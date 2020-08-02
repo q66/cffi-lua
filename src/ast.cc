@@ -1,9 +1,7 @@
 #include <cassert>
 #include <cstdint>
-#include <limits>
 #include <climits>
 #include <ctime>
-#include <type_traits>
 
 #include "platform.hh"
 #include "util.hh"

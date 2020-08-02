@@ -2,8 +2,6 @@
 #define FFI_HH
 
 #include <cstddef>
-#include <limits>
-#include <type_traits>
 #include <list>
 
 #include "libffi.hh"
