@@ -5,7 +5,6 @@
 
 #include <stack>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <memory>
 
@@ -92,9 +91,7 @@ struct lex_token {
     ast::c_value value{};
 };
 
-static thread_local std::unordered_map<
-    char const *, int, util::str_hash, util::str_equal
-> keyword_map;
+static thread_local util::str_map<int> keyword_map;
 
 static void init_kwmap() {
     if (!keyword_map.empty()) {
@@ -738,8 +735,8 @@ cont:
                     p_buf.push_back('\0');
                     /* could be a keyword? */
                     auto kwit = keyword_map.find(&p_buf[0]);
-                    if (kwit != keyword_map.end()) {
-                        return TOK_NAME + kwit->second;
+                    if (kwit) {
+                        return TOK_NAME + *kwit;
                     }
                     return TOK_NAME;
                 }

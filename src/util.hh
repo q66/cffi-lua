@@ -10,8 +10,11 @@
 #ifndef UTIL_HH
 #define UTIL_HH
 
+#include "platform.hh"
+
 #include <type_traits>
 #include <cstddef>
+#include <cstring>
 
 namespace util {
 
@@ -249,6 +252,177 @@ private:
     T *p_buf = nullptr;
     size_t p_size = 0, p_cap = 0;
 };
+
+/* hashtable */
+
+template<typename K, typename V, typename HF, typename CF>
+struct map {
+private:
+    static constexpr size_t CHUNK_SIZE = 64;
+    static constexpr size_t DEFAULT_SIZE = 1024;
+
+    struct entry {
+        K key;
+        V data;
+    };
+
+    struct bucket {
+        entry value;
+        bucket *next;
+    };
+
+public:
+    map(size_t sz = DEFAULT_SIZE): p_size{sz} {
+        p_buckets = new bucket *[sz];
+        memset(p_buckets, 0, sz * sizeof(bucket *));
+    }
+
+    ~map() {
+        delete[] p_buckets;
+        drop_chunks();
+    }
+
+    bool empty() const {
+        return p_nelems == 0;
+    }
+
+    V &operator[](K const &key) {
+        size_t h;
+        bucket *b = find_bucket(key, h);
+        if (!b) {
+            b = add(h);
+            b->value.key = key;
+        }
+        return b->value.data;
+    }
+
+    V *find(K const &key) const {
+        size_t h;
+        bucket *b = find_bucket(key, h);
+        if (!b) {
+            return nullptr;
+        }
+        return &b->value.data;
+    }
+
+    V &insert(K const &key, V const &value) {
+        size_t h;
+        bucket *b = find_bucket(key, h);
+        if (!b) {
+            b = add(h);
+            b->value.key = key;
+            b->value.data = value;
+        }
+        return b->value.data;
+    }
+
+    void clear() {
+        if (!p_nelems) {
+            return;
+        }
+        p_nelems = 0;
+        p_unused = nullptr;
+        memset(p_buckets, 0, p_size * sizeof(bucket *));
+        drop_chunks();
+    }
+
+    void swap(map &m) {
+        util::swap(p_size, m.p_size);
+        util::swap(p_nelems, m.p_nelems);
+        util::swap(p_buckets, m.p_buckets);
+        util::swap(p_unused, m.p_unused);
+        util::swap(p_chunks, m.p_chunks);
+    }
+
+    template<typename F>
+    void for_each(F &&func) const {
+        for (size_t i = 0; i < p_size; ++i) {
+            for (bucket *b = p_buckets[i]; b; b = b->next) {
+                func(b->value.key, b->value.data);
+            }
+        }
+    }
+
+private:
+    bucket *add(size_t hash) {
+        if (!p_unused) {
+            chunk *nb = new chunk;
+            nb->next = p_chunks;
+            p_chunks = nb;
+            for (size_t i = 0; i < CHUNK_SIZE - 1; ++i) {
+                nb->buckets[i].next = &nb->buckets[i + 1];
+            }
+            nb->buckets[CHUNK_SIZE - 1].next = p_unused;
+            p_unused = nb->buckets;
+        }
+        bucket *b = p_unused;
+        p_unused = p_unused->next;
+        b->next = p_buckets[hash];
+        p_buckets[hash] = b;
+        ++p_nelems;
+        return b;
+    }
+
+    bucket *find_bucket(K const &key, size_t &h) const {
+        h = HF{}(key) % p_size;
+        for (bucket *b = p_buckets[h]; b; b = b->next) {
+            if (CF{}(key, b->value.key)) {
+                return b;
+            }
+        }
+        return nullptr;
+    }
+
+    void drop_chunks() {
+        for (chunk *nc; p_chunks; p_chunks = nc) {
+            nc = p_chunks->next;
+            delete p_chunks;
+        }
+    }
+
+    struct chunk {
+        bucket buckets[CHUNK_SIZE];
+        chunk *next;
+    };
+
+    size_t p_size, p_nelems = 0;
+
+    bucket **p_buckets;
+    bucket *p_unused = nullptr;
+    chunk *p_chunks = nullptr;
+};
+
+template<typename T, T offset_basis, T prime>
+struct fnv1a {
+    T operator()(char const *data) const {
+        size_t slen = strlen(data);
+        T hash = offset_basis;
+        for (size_t i = 0; i < slen; ++i) {
+            hash ^= T(data[i]);
+            hash *= prime;
+        }
+        return hash;
+    }
+};
+
+#if FFI_WORDSIZE == 64
+struct str_hash: fnv1a<size_t,
+    size_t(14695981039346656037ULL), size_t(1099511628211ULL)
+> {};
+#elif FFI_WORDSIZE == 32
+struct str_hash: fnv1a<size_t, size_t(2166136261U), size_t(16777619U)> {};
+#else
+#  error Not implemented
+#endif
+
+struct str_equal {
+    bool operator()(char const *k1, char const *k2) const {
+        return !strcmp(k1, k2);
+    }
+};
+
+template<typename V>
+using str_map = map<char const *, V, str_hash, str_equal>;
 
 } /* namespace util */
 

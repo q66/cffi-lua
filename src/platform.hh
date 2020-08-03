@@ -285,41 +285,4 @@ static_assert(
 
 #define _CRT_SECURE_NO_WARNINGS 1
 
-/* some plumbing */
-
-#include <cstring>
-
-namespace util {
-
-template<typename T, T offset_basis, T prime>
-struct fnv1a {
-    T operator()(char const *data) const {
-        size_t slen = strlen(data);
-        T hash = offset_basis;
-        for (size_t i = 0; i < slen; ++i) {
-            hash ^= T(data[i]);
-            hash *= prime;
-        }
-        return hash;
-    }
-};
-
-#if FFI_WORDSIZE == 64
-struct str_hash: fnv1a<size_t,
-    size_t(14695981039346656037ULL), size_t(1099511628211ULL)
-> {};
-#elif FFI_WORDSIZE == 32
-struct str_hash: fnv1a<size_t, size_t(2166136261U), size_t(16777619U)> {};
-#else
-#  error Not implemented
-#endif
-
-struct str_equal {
-    bool operator()(char const *k1, char const *k2) const {
-        return !strcmp(k1, k2);
-    }
-};
-
-} /* namespace util */
-
 #endif /* PLATFORM_HH */

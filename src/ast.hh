@@ -11,7 +11,6 @@
 #include "util.hh"
 
 #include <string>
-#include <unordered_map>
 #include <memory>
 
 namespace ast {
@@ -1163,9 +1162,7 @@ struct decl_store {
 private:
     decl_store *p_base = nullptr;
     util::vector<std::unique_ptr<c_object>> p_dlist{};
-    std::unordered_map<
-        char const *, c_object *, util::str_hash, util::str_equal
-    > p_dmap{};
+    util::str_map<c_object *> p_dmap{};
 };
 
 c_type from_lua_type(lua_State *L, int index);

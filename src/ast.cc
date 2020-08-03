@@ -1119,7 +1119,7 @@ void decl_store::add(c_object *decl) {
 
     p_dlist.emplace_back(decl);
     auto &d = *p_dlist.back();
-    p_dmap.emplace(d.name(), &d);
+    p_dmap.insert(d.name(), &d);
 }
 
 void decl_store::commit() {
@@ -1132,9 +1132,9 @@ void decl_store::commit() {
         p_base->p_dlist.push_back(util::move(p_dlist[i]));
     }
     /* set up mappings in base */
-    for (auto const &p: p_dmap) {
-        p_base->p_dmap.emplace(p);
-    }
+    p_dmap.for_each([this](char const *key, c_object *value) {
+        p_base->p_dmap.insert(key, value);
+    });
     drop();
 }
 
@@ -1144,9 +1144,9 @@ void decl_store::drop() {
 }
 
 c_object const *decl_store::lookup(char const *name) const {
-    auto it = p_dmap.find(name);
-    if (it != p_dmap.cend()) {
-        return it->second;
+    auto *o = p_dmap.find(name);
+    if (o) {
+        return *o;
     }
     if (p_base) {
         return p_base->lookup(name);
@@ -1155,9 +1155,9 @@ c_object const *decl_store::lookup(char const *name) const {
 }
 
 c_object *decl_store::lookup(char const *name) {
-    auto it = p_dmap.find(name);
-    if (it != p_dmap.end()) {
-        return it->second;
+    auto *o = p_dmap.find(name);
+    if (o) {
+        return *o;
     }
     if (p_base) {
         return p_base->lookup(name);
