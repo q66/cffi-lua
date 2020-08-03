@@ -959,6 +959,11 @@ struct c_record: c_object {
         p_name{util::move(ename)}, p_uni{is_uni}
     {}
 
+    ~c_record() {
+        delete[] p_elements;
+        delete[] p_felems;
+    }
+
     c_object_type obj_type() const {
         return c_object_type::RECORD;
     }
@@ -1055,8 +1060,8 @@ private:
 
     std::string p_name;
     util::vector<field> p_fields{};
-    std::unique_ptr<ffi_type *[]> p_elements{};
-    std::unique_ptr<ffi_type *[]> p_felems{};
+    ffi_type **p_elements = nullptr;
+    ffi_type **p_felems = nullptr;
     ffi_type p_ffi_type{};
     ffi_type p_ffi_flex{};
     int p_metatype = LUA_REFNIL;

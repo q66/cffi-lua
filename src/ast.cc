@@ -1003,9 +1003,7 @@ void c_record::set_fields(util::vector<field> fields) {
     size_t nfields = p_fields.size();
     size_t ffields = flex ? (nfields - 1) : nfields;
 
-    p_elements = std::unique_ptr<ffi_type *[]>{
-        new ffi_type *[nfields + 1]
-    };
+    p_elements = new ffi_type *[nfields + 1];
 
     p_ffi_type.size = p_ffi_type.alignment = 0;
     p_ffi_type.type = FFI_TYPE_STRUCT;
@@ -1078,9 +1076,7 @@ void c_record::set_fields(util::vector<field> fields) {
     }
     /* otherwise create the padding struct */
     padn = falign - padn;
-    p_felems = std::unique_ptr<ffi_type *[]>{
-        new ffi_type *[padn + 1]
-    };
+    p_felems = new ffi_type *[padn + 1];
 
     /* we know the size and alignment, since it's just padding bytes */
     p_ffi_flex.size = padn;
