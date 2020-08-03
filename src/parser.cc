@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <cassert>
 
-#include <stack>
 #include <string>
 
 #include "parser.hh"
@@ -1330,7 +1329,7 @@ struct arrdim {
     size_t size;
     uint32_t quals;
 };
-static thread_local std::stack<arrdim> dimstack{};
+static thread_local util::vector<arrdim> dimstack{};
 
 /* FIXME: when in var declarations, all components must be complete */
 static size_t parse_array(lex_state &ls, int &flags) {
@@ -1343,25 +1342,25 @@ static size_t parse_array(lex_state &ls, int &flags) {
     auto cv = parse_cv(ls);
     if (ls.t.token == ']') {
         flags |= ast::C_TYPE_NOSIZE;
-        dimstack.push({0, cv});
+        dimstack.push_back({0, cv});
         ++ndims;
         ls.get();
     } else if (ls.t.token == '?') {
         /* FIXME: this should only be available in cdata creation contexts */
         flags |= ast::C_TYPE_VLA;
-        dimstack.push({0, cv});
+        dimstack.push_back({0, cv});
         ++ndims;
         ls.get();
         check_next(ls, ']');
     } else {
-        dimstack.push({get_arrsize(ls, parse_cexpr(ls)), cv});
+        dimstack.push_back({get_arrsize(ls, parse_cexpr(ls)), cv});
         ++ndims;
         check_next(ls, ']');
     }
     while (ls.t.token == '[') {
         ls.get();
         cv = parse_cv(ls);
-        dimstack.push({get_arrsize(ls, parse_cexpr(ls)), cv});
+        dimstack.push_back({get_arrsize(ls, parse_cexpr(ls)), cv});
         ++ndims;
         check_next(ls, ']');
     }
@@ -1688,9 +1687,9 @@ newlevel:
                 );
             }
             while (olev->arrd) {
-                size_t dim = dimstack.top().size;
-                auto quals = dimstack.top().quals;
-                dimstack.pop();
+                size_t dim = dimstack.back().size;
+                auto quals = dimstack.back().quals;
+                dimstack.pop_back();
                 --olev->arrd;
                 ast::c_type atp{
                     util::move(tp), quals, dim,
