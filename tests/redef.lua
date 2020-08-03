@@ -11,7 +11,7 @@ ffi.cdef [[
     void free(int p);
 ]]
 
-local p = ffi.C.malloc(4)
+local p = ffi.gc(ffi.C.malloc(4), ffi.C.free)
 assert(ffi.istype("void *", p))
 
 ffi.cdef [[
