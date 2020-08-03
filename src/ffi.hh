@@ -653,10 +653,13 @@ static inline cdata<arg_stor_t> &make_cdata_arith(
     return *reinterpret_cast<cdata<arg_stor_t> *>(&cd);
 }
 
-static inline std::string lua_serialize(lua_State *L, int idx) {
+static inline char const *lua_serialize(lua_State *L, int idx) {
     auto *cd = testcdata<noval>(L, idx);
     if (cd) {
-        return cd->decl.serialize();
+        /* it's ok to mess up the lua stack, this is only used for errors */
+        std::string ser = cd->decl.serialize();
+        lua_pushlstring(L, ser.c_str(), ser.size());
+        return lua_tostring(L, -1);
     }
     return lua_typename(L, lua_type(L, idx));
 }

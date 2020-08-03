@@ -9,7 +9,6 @@
 #include <cstring>
 #include <cstdint>
 
-#include <string>
 #endif
 
 #include "lib.hh"

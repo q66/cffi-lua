@@ -398,7 +398,7 @@ struct cdata_meta {
         }
         luaL_error(
             L, "attempt to concatenate '%s' and '%s'",
-            ffi::lua_serialize(L, 1).c_str(), ffi::lua_serialize(L, 2).c_str()
+            ffi::lua_serialize(L, 1), ffi::lua_serialize(L, 2)
         );
         return 0;
     }
@@ -409,8 +409,7 @@ struct cdata_meta {
             return 1;
         }
         luaL_error(
-            L, "attempt to get length of '%s'",
-            ffi::lua_serialize(L, 1).c_str()
+            L, "attempt to get length of '%s'", ffi::lua_serialize(L, 1)
         );
         return 0;
     }
@@ -590,8 +589,7 @@ struct cdata_meta {
                     }
                     luaL_error(
                         L, "cannot convert '%s' to '%s'",
-                        cd2->decl.serialize().c_str(),
-                        cd1->decl.serialize().c_str()
+                        cd2->decl.serialize(), cd1->decl.serialize()
                     );
                 }
                 auto ret = reinterpret_cast<unsigned char *>(cd1->val)
@@ -752,8 +750,7 @@ struct cdata_meta {
                 }
                 luaL_error(
                     L, "attempt to compare '%s' with '%s'",
-                    ffi::lua_serialize(L, 1).c_str(),
-                    ffi::lua_serialize(L, 2).c_str()
+                    ffi::lua_serialize(L, 1), ffi::lua_serialize(L, 2)
                 );
             }
             arith_64bit_cmp(L, op);
@@ -777,8 +774,7 @@ struct cdata_meta {
             }
             luaL_error(
                 L, "attempt to compare '%s' with '%s'",
-                ffi::lua_serialize(L, 1).c_str(),
-                ffi::lua_serialize(L, 2).c_str()
+                ffi::lua_serialize(L, 1), ffi::lua_serialize(L, 2)
             );
         }
         if (binop_try_mt<mf1>(L, cd1, cd2)) {
@@ -822,7 +818,7 @@ struct cdata_meta {
             return 3;
         }
         luaL_error(
-            L, "attempt to iterate '%s'", ffi::lua_serialize(L, 1).c_str()
+            L, "attempt to iterate '%s'", ffi::lua_serialize(L, 1)
         );
         return 0;
     }
@@ -834,7 +830,7 @@ struct cdata_meta {
             return 3;
         }
         luaL_error(
-            L, "attempt to iterate '%s'", ffi::lua_serialize(L, 1).c_str()
+            L, "attempt to iterate '%s'", ffi::lua_serialize(L, 1)
         );
         return 0;
     }
