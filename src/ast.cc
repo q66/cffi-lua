@@ -1114,7 +1114,7 @@ void decl_store::add(c_object *decl) {
     }
 
     p_dlist.emplace_back(decl);
-    auto &d = *p_dlist.back();
+    auto &d = *p_dlist.back().value;
     p_dmap.insert(d.name(), &d);
 }
 

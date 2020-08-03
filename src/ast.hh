@@ -11,7 +11,6 @@
 #include "util.hh"
 
 #include <string>
-#include <memory>
 
 namespace ast {
 
@@ -1165,8 +1164,15 @@ struct decl_store {
         return *ds;
     }
 private:
+    struct obj_ptr {
+        c_object *value = nullptr;
+        obj_ptr(c_object *v): value{v} {}
+        ~obj_ptr() { delete value; }
+        obj_ptr(obj_ptr &&v) { value = util::exchange(v.value, nullptr);}
+        obj_ptr(obj_ptr const &v) = delete;
+    };
     decl_store *p_base = nullptr;
-    util::vector<std::unique_ptr<c_object>> p_dlist{};
+    util::vector<obj_ptr> p_dlist{};
     util::str_map<c_object *> p_dmap{};
 };
 
