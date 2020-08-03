@@ -163,10 +163,12 @@ struct lex_state {
         return (lahead.token = lex(t));
     }
 
+    void lex_error(int tok) {
+        throw lex_state_error{tok, line_number};
+    }
+
     void lex_error(std::string const &msg, int tok) {
-        p_buf.clear();
-        p_buf.reserve(msg.size() + 1);
-        memcpy(&p_buf[0], msg.c_str(), msg.size() + 1);
+        setbuf(msg.data(), msg.size());
         throw lex_state_error{tok, line_number};
     }
 
@@ -226,8 +228,7 @@ struct lex_state {
         }
         /* replace $ with name */
         t.token = TOK_NAME;
-        p_buf.reserve(len + 1);
-        memcpy(&p_buf[0], str, len + 1);
+        setbuf(str, len);
         ++p_pidx;
     }
 
@@ -266,6 +267,33 @@ struct lex_state {
 
     char const *getbuf() const {
         return &p_buf[0];
+    }
+
+    void setbuf(char const *str, size_t len) {
+        p_buf.clear();
+        p_buf.reserve(len + 1);
+        p_buf.setbuf(str, len);
+        p_buf.push_back('\0');
+    }
+
+    void setbuf(char const *str) {
+        setbuf(str, strlen(str));
+    }
+
+    void appendbuf(char const *str, size_t len) {
+        auto sz = p_buf.size();
+        p_buf.reserve(sz + len + 1);
+        if (!sz) {
+            setbuf(str, len);
+            return;
+        }
+        memcpy(&p_buf[sz], str, len);
+        p_buf[sz + len] = '\0';
+        p_buf.setlen(sz + len + 1);
+    }
+
+    void appendbuf(char const *str) {
+        appendbuf(str, strlen(str));
     }
 
 private:

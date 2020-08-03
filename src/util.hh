@@ -14,6 +14,7 @@
 
 #include <type_traits>
 #include <cstddef>
+#include <cstdlib>
 #include <cstring>
 #include <climits>
 #include <cfloat>
@@ -375,6 +376,15 @@ struct vector {
         util::swap(p_buf, v.p_buf);
         util::swap(p_size, v.p_size);
         util::swap(p_cap, v.p_cap);
+    }
+
+    void setlen(size_t len) {
+        p_size = len;
+    }
+
+    void setbuf(T const *data, size_t len) {
+        memcpy(p_buf, data, len);
+        p_size = len;
     }
 
 private:
