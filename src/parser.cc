@@ -786,11 +786,16 @@ static char const *token_to_str(int tok, char *buf) {
 /* parser */
 
 static void error_expected(lex_state &ls, int tok) {
-    char lbuf[16];
-    std::string buf;
-    buf += '\'';
-    buf += token_to_str(tok, lbuf);
-    buf += "' expected";
+    char buf[16 + sizeof("'' expected")];
+    char *bufp = buf;
+    *bufp++ = '\'';
+    char const *tk = token_to_str(tok, bufp);
+    auto tlen = strlen(tk);
+    if (tk != bufp) {
+        memcpy(bufp, tk, tlen);
+    }
+    bufp += tlen;
+    memcpy(bufp, "' expected", sizeof("' expected"));
     ls.syntax_error(buf);
 }
 
