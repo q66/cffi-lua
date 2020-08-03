@@ -117,6 +117,75 @@ inline T max(T a, T b) {
 /* basic limits interface */
 
 namespace detail {
+    template<typename T>
+    struct int_limits;
+
+    template<>
+    struct int_limits<char> {
+        static constexpr char min = CHAR_MIN;
+        static constexpr char max = CHAR_MAX;
+    };
+
+    template<>
+    struct int_limits<signed char> {
+        static constexpr signed char min = SCHAR_MIN;
+        static constexpr signed char max = SCHAR_MAX;
+    };
+
+    template<>
+    struct int_limits<unsigned char> {
+        static constexpr unsigned char min = 0;
+        static constexpr unsigned char max = UCHAR_MAX;
+    };
+
+    template<>
+    struct int_limits<short> {
+        static constexpr short min = SHRT_MIN;
+        static constexpr short max = SHRT_MAX;
+    };
+
+    template<>
+    struct int_limits<unsigned short> {
+        static constexpr unsigned short min = 0;
+        static constexpr unsigned short max = USHRT_MAX;
+    };
+
+    template<>
+    struct int_limits<int> {
+        static constexpr int min = INT_MIN;
+        static constexpr int max = INT_MAX;
+    };
+
+    template<>
+    struct int_limits<unsigned int> {
+        static constexpr unsigned int min = 0;
+        static constexpr unsigned int max = UINT_MAX;
+    };
+
+    template<>
+    struct int_limits<long> {
+        static constexpr long min = LONG_MIN;
+        static constexpr long max = LONG_MAX;
+    };
+
+    template<>
+    struct int_limits<unsigned long> {
+        static constexpr unsigned long min = 0;
+        static constexpr unsigned long max = ULONG_MAX;
+    };
+
+    template<>
+    struct int_limits<long long> {
+        static constexpr long long min = LLONG_MIN;
+        static constexpr long long max = LLONG_MAX;
+    };
+
+    template<>
+    struct int_limits<unsigned long long> {
+        static constexpr unsigned long long min = 0;
+        static constexpr unsigned long long max = ULLONG_MAX;
+    };
+
     template<typename T, bool I, bool F>
     struct limits_base {};
 
@@ -124,24 +193,32 @@ namespace detail {
     struct limits_base<T, true, false> {
         static constexpr int radix = 2;
         static constexpr int digits = CHAR_BIT * sizeof(T) - is_signed<T>::value;
+        static constexpr T min = int_limits<T>::min;
+        static constexpr T max = int_limits<T>::max;
     };
 
     template<>
     struct limits_base<float, false, true> {
         static constexpr int radix = FLT_RADIX;
         static constexpr int digits = FLT_MANT_DIG;
+        static constexpr float min = FLT_MIN;
+        static constexpr float max = FLT_MAX;
     };
 
     template<>
     struct limits_base<double, false, true> {
         static constexpr int radix = FLT_RADIX;
         static constexpr int digits = DBL_MANT_DIG;
+        static constexpr double min = DBL_MIN;
+        static constexpr double max = DBL_MAX;
     };
 
     template<>
     struct limits_base<long double, false, true> {
         static constexpr int radix = FLT_RADIX;
         static constexpr int digits = LDBL_MANT_DIG;
+        static constexpr long double min = LDBL_MIN;
+        static constexpr long double max = LDBL_MAX;
     };
 
     template<typename T>
@@ -156,6 +233,16 @@ inline constexpr int limit_radix() {
 template<typename T>
 inline constexpr int limit_digits() {
     return detail::limits<T>::digits;
+}
+
+template<typename T>
+inline constexpr T limit_min() {
+    return detail::limits<T>::min;
+}
+
+template<typename T>
+inline constexpr T limit_max() {
+    return detail::limits<T>::max;
 }
 
 /* vector */

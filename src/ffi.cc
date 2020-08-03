@@ -1,6 +1,3 @@
-#include <cfloat>
-#include <limits>
-
 #include "platform.hh"
 #include "util.hh"
 #include "ffi.hh"
@@ -386,18 +383,13 @@ static inline int push_int(
 ) {
 #if LUA_VERSION_NUM < 503
     /* generally floats, so we're assuming IEEE754 binary floats */
-    static_assert(
-        !util::is_float<lua_Number>::value || (FLT_RADIX == 2)
-        "type radix differs"
-    );
+    static_assert(util::limit_radix<lua_Number>() == 2);
     using LT = lua_Number;
 #else
     /* on lua 5.3+, we can use integers builtin in the language instead */
     using LT = lua_Integer;
 #endif
-    if ((
-        std::numeric_limits<T>::digits <= std::numeric_limits<LT>::digits
-    ) || lossy) {
+    if ((util::limit_digits<T>() <= util::limit_digits<LT>()) || lossy) {
         using U = T *;
         lua_pushinteger(L, lua_Integer(*U(value)));
         return 1;
@@ -413,10 +405,7 @@ static inline int push_flt(
     lua_State *L, ast::c_type const &tp, void const *value, bool lossy
 ) {
     /* probably not the best check */
-    if ((
-        std::numeric_limits<T>::max() <=
-        std::numeric_limits<lua_Number>::max()
-    ) || lossy) {
+    if ((util::limit_max<T>() <= util::limit_max<lua_Number>()) || lossy) {
         using U = T *;
         lua_pushnumber(L, lua_Number(*U(value)));
         return 1;
