@@ -5,8 +5,6 @@
 
 #include <stack>
 #include <string>
-#include <utility>
-#include <memory>
 
 #include "parser.hh"
 #include "ast.hh"
@@ -909,10 +907,6 @@ static constexpr int binprec[] = {
 static constexpr int unprec = 11;
 static constexpr int ifprec = 1;
 
-static std::unique_ptr<ast::c_expr> expr_dup(ast::c_expr &&exp) {
-    return std::make_unique<ast::c_expr>(util::move(exp));
-}
-
 static ast::c_expr parse_cexpr(lex_state &ls);
 static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec);
 
@@ -929,7 +923,7 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
         ast::c_expr unexp;
         unexp.type(ast::c_expr_type::UNARY);
         unexp.un.op = unop;
-        unexp.un.expr = expr_dup(util::move(exp)).release();
+        unexp.un.expr = new ast::c_expr{util::move(exp)};
         return unexp;
     }
     /* FIXME: implement non-integer constants */
@@ -1069,9 +1063,9 @@ static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec) {
             ast::c_expr fexp = parse_cexpr_bin(ls, ifprec);
             ast::c_expr tern;
             tern.type(ast::c_expr_type::TERNARY);
-            tern.tern.cond = expr_dup(util::move(lhs)).release();
-            tern.tern.texpr = expr_dup(util::move(texp)).release();
-            tern.tern.fexpr = expr_dup(util::move(fexp)).release();
+            tern.tern.cond = new ast::c_expr{util::move(lhs)};
+            tern.tern.texpr = new ast::c_expr{util::move(texp)};
+            tern.tern.fexpr = new ast::c_expr{util::move(fexp)};
             lhs = util::move(tern);
             continue;
         }
@@ -1083,8 +1077,8 @@ static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec) {
         ast::c_expr bin;
         bin.type(ast::c_expr_type::BINARY);
         bin.bin.op = op;
-        bin.bin.lhs = expr_dup(util::move(lhs)).release();
-        bin.bin.rhs = expr_dup(util::move(rhs)).release();
+        bin.bin.lhs = new ast::c_expr{util::move(lhs)};
+        bin.bin.rhs = new ast::c_expr{util::move(rhs)};
         lhs = util::move(bin);
     }
     return lhs;
