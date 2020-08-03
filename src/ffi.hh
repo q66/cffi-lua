@@ -1,8 +1,6 @@
 #ifndef FFI_HH
 #define FFI_HH
 
-#include <list>
-
 #include "libffi.hh"
 
 #include "lua.hh"
@@ -194,7 +192,6 @@ struct ctype {
 };
 
 struct closure_data {
-    std::list<closure_data **> refs{};
     ffi_cif cif; /* closure data needs its own cif */
     int fref = LUA_REFNIL;
     lua_State *L = nullptr;
@@ -210,11 +207,6 @@ struct closure_data {
     ~closure_data() {
         if (!closure) {
             return;
-        }
-        /* invalidate any registered references to the closure data */
-        while (!refs.empty()) {
-            *refs.front() = nullptr;
-            refs.pop_front();
         }
         luaL_unref(L, LUA_REGISTRYINDEX, fref);
         ffi_closure_free(closure);

@@ -1,6 +1,4 @@
 #include <limits>
-#include <type_traits>
-#include <algorithm>
 
 #include "platform.hh"
 #include "util.hh"
@@ -96,10 +94,6 @@ void destroy_cdata(lua_State *L, cdata<noval> &cd) {
             lua_pop(L, 1);
         }
         luaL_unref(L, LUA_REGISTRYINDEX, cd.gc_ref);
-    }
-    if (cd.decl.closure() && fd.val.cd) {
-        /* this is O(n) which sucks a little */
-        fd.val.cd->refs.remove(&fd.val.cd);
     }
     switch (cd.decl.type()) {
         case ast::C_BUILTIN_PTR:
@@ -257,7 +251,6 @@ static void make_cdata_func(
         /* no funcptr means we're setting up a callback */
         if (cd) {
             /* copying existing callback reference */
-            cd->refs.push_front(&fud.val.cd);
             fud.val.cd = cd;
             return;
         }
@@ -291,8 +284,6 @@ static void make_cdata_func(
             );
         }
         cd->L = L;
-        /* register this reference within the closure */
-        cd->refs.push_front(&fud.val.cd);
         fud.val.cd = cd;
     }
 }
