@@ -1,3 +1,4 @@
+#include <cfloat>
 #include <limits>
 
 #include "platform.hh"
@@ -386,7 +387,7 @@ static inline int push_int(
 #if LUA_VERSION_NUM < 503
     /* generally floats, so we're assuming IEEE754 binary floats */
     static_assert(
-        std::numeric_limits<lua_Number>::radix == std::numeric_limits<T>::radix,
+        !util::is_float<lua_Number>::value || (FLT_RADIX == 2)
         "type radix differs"
     );
     using LT = lua_Number;

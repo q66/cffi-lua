@@ -15,6 +15,8 @@
 #include <type_traits>
 #include <cstddef>
 #include <cstring>
+#include <climits>
+#include <cfloat>
 
 namespace util {
 
@@ -110,6 +112,50 @@ inline T min(T a, T b) {
 template<typename T>
 inline T max(T a, T b) {
     return (a > b) ? a : b;
+}
+
+/* basic limits interface */
+
+namespace detail {
+    template<typename T, bool I, bool F>
+    struct limits_base {};
+
+    template<typename T>
+    struct limits_base<T, true, false> {
+        static constexpr int radix = 2;
+        static constexpr int digits = CHAR_BIT * sizeof(T) - is_signed<T>::value;
+    };
+
+    template<>
+    struct limits_base<float, false, true> {
+        static constexpr int radix = FLT_RADIX;
+        static constexpr int digits = FLT_MANT_DIG;
+    };
+
+    template<>
+    struct limits_base<double, false, true> {
+        static constexpr int radix = FLT_RADIX;
+        static constexpr int digits = DBL_MANT_DIG;
+    };
+
+    template<>
+    struct limits_base<long double, false, true> {
+        static constexpr int radix = FLT_RADIX;
+        static constexpr int digits = LDBL_MANT_DIG;
+    };
+
+    template<typename T>
+    struct limits: limits_base<T, is_int<T>::value, is_float<T>::value> {};
+}
+
+template<typename T>
+inline constexpr int limit_radix() {
+    return detail::limits<T>::radix;
+}
+
+template<typename T>
+inline constexpr int limit_digits() {
+    return detail::limits<T>::digits;
 }
 
 /* vector */
