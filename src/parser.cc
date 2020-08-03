@@ -2224,27 +2224,40 @@ static void parse_decls(lex_state &ls) {
     }
 }
 
+static void parse_err(lua_State *L) {
+    luaL_where(L, 1);
+    lua_insert(L, -2);
+    lua_concat(L, 2);
+    lua_error(L);
+}
+
 void parse(lua_State *L, char const *input, char const *iend, int paridx) {
     if (!iend) {
         iend = input + strlen(input);
     }
-    lex_state ls{L, input, iend, PARSE_MODE_DEFAULT, paridx};
-    try {
-        /* read first token */
-        ls.get();
-        parse_decls(ls);
-        ls.commit();
-    } catch (lex_state_error const &e) {
-        if (e.token > 0) {
-            char buf[16];
-            luaL_error(
-                L, "input:%d: %s near '%s'", e.line_number, ls.getbuf(),
-                token_to_str(e.token, buf)
-            );
-        } else {
-            luaL_error(L, "input:%d: %s", e.line_number, ls.getbuf());
+    {
+        lex_state ls{L, input, iend, PARSE_MODE_DEFAULT, paridx};
+        try {
+            /* read first token */
+            ls.get();
+            parse_decls(ls);
+            ls.commit();
+            return;
+        } catch (lex_state_error const &e) {
+            if (e.token > 0) {
+                char buf[16];
+                lua_pushfstring(
+                    L, "input:%d: %s near '%s'", e.line_number, ls.getbuf(),
+                    token_to_str(e.token, buf)
+                );
+            } else {
+                lua_pushfstring(L, "input:%d: %s", e.line_number, ls.getbuf());
+            }
+            goto lerr;
         }
     }
+lerr:
+    parse_err(L);
 }
 
 ast::c_type parse_type(
@@ -2253,22 +2266,27 @@ ast::c_type parse_type(
     if (!iend) {
         iend = input + strlen(input);
     }
-    lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF, paridx};
-    try {
-        ls.get();
-        auto tp = parse_type(ls);
-        ls.commit();
-        return tp;
-    } catch (lex_state_error const &e) {
-        if (e.token > 0) {
-            char buf[16];
-            luaL_error(
-                L, "%s near '%s'", ls.getbuf(), token_to_str(e.token, buf)
-            );
-        } else {
-            luaL_error(L, "%s", ls.getbuf());
+    {
+        lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF, paridx};
+        try {
+            ls.get();
+            auto tp = parse_type(ls);
+            ls.commit();
+            return tp;
+        } catch (lex_state_error const &e) {
+            if (e.token > 0) {
+                char buf[16];
+                lua_pushfstring(
+                    L, "%s near '%s'", ls.getbuf(), token_to_str(e.token, buf)
+                );
+            } else {
+                lua_pushfstring(L, "%s", ls.getbuf());
+            }
+            goto lerr;
         }
     }
+lerr:
+    parse_err(L);
     /* unreachable */
     return ast::c_type{ast::C_BUILTIN_INVALID, 0};
 }
@@ -2279,23 +2297,28 @@ ast::c_expr_type parse_number(
     if (!iend) {
         iend = input + strlen(input);
     }
-    lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF};
-    try {
-        ls.get();
-        check(ls, TOK_INTEGER);
-        v = ls.t.value;
-        ls.commit();
-        return ls.t.numtag;
-    } catch (lex_state_error const &e) {
-        if (e.token > 0) {
-            char buf[16];
-            luaL_error(
-                L, "%s near '%s'", ls.getbuf(), token_to_str(e.token, buf)
-            );
-        } else {
-            luaL_error(L, "%s", ls.getbuf());
+    {
+        lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF};
+        try {
+            ls.get();
+            check(ls, TOK_INTEGER);
+            v = ls.t.value;
+            ls.commit();
+            return ls.t.numtag;
+        } catch (lex_state_error const &e) {
+            if (e.token > 0) {
+                char buf[16];
+                lua_pushfstring(
+                    L, "%s near '%s'", ls.getbuf(), token_to_str(e.token, buf)
+                );
+            } else {
+                lua_pushfstring(L, "%s", ls.getbuf());
+            }
+            goto lerr;
         }
     }
+lerr:
+    parse_err(L);
     /* unreachable */
     return ast::c_expr_type{};
 }
