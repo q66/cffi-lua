@@ -11,6 +11,7 @@
 #define UTIL_HH
 
 #include <type_traits>
+#include <cstddef>
 
 namespace util {
 
@@ -24,6 +25,8 @@ namespace detail {
 
 template<typename T> using remove_ref_t = typename detail::remove_ref<T>::type;
 
+template<typename T> using remove_sign_t = std::make_unsigned_t<T>;
+
 namespace detail {
     template<bool B, typename T, typename F>
     struct conditional { using type = T; };
@@ -34,6 +37,8 @@ namespace detail {
 
 template<bool B, typename T, typename F>
 using conditional_t = typename detail::conditional<B, T, F>::type;
+
+using max_align_t = std::max_align_t;
 
 template<typename T>
 struct is_int {

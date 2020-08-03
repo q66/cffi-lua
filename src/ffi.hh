@@ -1,7 +1,6 @@
 #ifndef FFI_HH
 #define FFI_HH
 
-#include <cstddef>
 #include <list>
 
 #include "libffi.hh"
@@ -108,7 +107,7 @@ static inline constexpr auto metafield_name(metatype_flag flag) {
 }
 
 struct arg_stor_t {
-    std::max_align_t pad;
+    util::max_align_t pad;
 
     /* only use with types that will fit */
     template<typename T>
