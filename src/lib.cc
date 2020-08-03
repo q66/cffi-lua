@@ -99,7 +99,7 @@ static char const *resolve_name(lua_State *L, char const *name) {
 
 /* ldscript handling logic generally adapted from luajit... */
 
-static std::string check_ldscript(char const *buf) {
+static bool check_ldscript(char const *buf, char const *&beg, char const *&end) {
     char const *p;
     if ((
         !strncmp(buf, "GROUP", 5) || !strncmp(buf, "INPUT", 5)
@@ -109,34 +109,44 @@ static std::string check_ldscript(char const *buf) {
         while (*e && (*e != ' ') && (*e != ')')) {
             ++e;
         }
-        return std::string{p, e};
+        beg = p;
+        end = e;
+        return true;
     }
-    return std::string{};
+    return false;
 }
 
-static std::string resolve_ldscript(std::string name) {
-    FILE *f = fopen(name.c_str(), "r");
+static bool resolve_ldscript(
+    lua_State *L, char const *nbeg, char const *nend
+) {
+    lua_pushlstring(L, nbeg, nend - nbeg);
+    FILE *f = fopen(lua_tostring(L, -1), "r");
+    lua_pop(L, 1);
     if (!f) {
-        return nullptr;
+        return false;
     }
     char buf[256];
     if (!fgets(buf, sizeof(buf), f)) {
         fclose(f);
-        return nullptr;
+        return false;
     }
-    std::string p;
+    char const *pb, *pe;
+    bool got = false;
     if (!strncmp(buf, "/* GNU ld script", 16)) {
         while (fgets(buf, sizeof(buf), f)) {
-            p = check_ldscript(buf);
-            if (!p.empty()) {
+            got = check_ldscript(buf, pb, pe);
+            if (got) {
                 break;
             }
         }
     } else {
-        p = check_ldscript(buf);
+        got = check_ldscript(buf, pb, pe);
     }
     fclose(f);
-    return p;
+    if (got) {
+        lua_pushlstring(L, pb, pe - pb);
+    }
+    return got;
 }
 
 void load(c_lib *cl, char const *path, lua_State *L, bool global) {
@@ -156,11 +166,12 @@ void load(c_lib *cl, char const *path, lua_State *L, bool global) {
         return;
     }
     char const *err = dlerror(), *e;
-    std::string lds;
-    if (err && (*err == '/') && (e = strchr(err, ':')) && !(
-        lds = resolve_ldscript(std::string{err, e})
-    ).empty()) {
-        h = open(lds.c_str(), global);
+    if (
+        err && (*err == '/') && (e = strchr(err, ':')) &&
+        resolve_ldscript(L, err, e)
+    ) {
+        h = open(lua_tostring(L, -1), global);
+        lua_pop(L, 1);
         if (h) {
             lua::mark_lib(L);
             cl->h = h;
@@ -233,12 +244,13 @@ static bool dl_need_ext(char const *s) {
     return true;
 }
 
-static std::string dl_ext_name(char const *name) {
-    std::string ret{name};
+static std::string dl_ext_name(lua_State *L, char const *name) {
+    lua_pushstring(L, name);
     if (dl_need_ext(name)) {
-        ret += ".dll";
+        lua_pushliteral(L, ".dll");
+        lua_concat(L, 2);
     }
-    return ret;
+    return lua_tostring(L, -1);
 }
 
 void load(c_lib *cl, char const *path, lua_State *L, bool) {
@@ -251,8 +263,9 @@ void load(c_lib *cl, char const *path, lua_State *L, bool) {
     }
     auto olderr = GetLastError();
     handle h = static_cast<handle>(
-        LoadLibraryExA(dl_ext_name(path).c_str(), nullptr, 0)
+        LoadLibraryExA(dl_ext_name(L, path), nullptr, 0)
     );
+    lua_pop(L, 1);
     if (!h) {
         dl_error(L, "cannot load module '%s': %s", path);
     }
