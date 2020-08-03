@@ -383,7 +383,9 @@ static inline int push_int(
 ) {
 #if LUA_VERSION_NUM < 503
     /* generally floats, so we're assuming IEEE754 binary floats */
-    static_assert(util::limit_radix<lua_Number>() == 2);
+    static_assert(
+        util::limit_radix<lua_Number>() == 2, "unsupported lua_Number type"
+    );
     using LT = lua_Number;
 #else
     /* on lua 5.3+, we can use integers builtin in the language instead */
