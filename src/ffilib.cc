@@ -1012,7 +1012,9 @@ struct cdata_meta {
 /* the ffi module itself */
 struct ffi_module {
     static int cdef_f(lua_State *L) {
-        parser::parse(L, luaL_checkstring(L, 1), (lua_gettop(L) > 1) ? 2 : -1);
+        size_t slen;
+        char const *inp = luaL_checklstring(L, 1, &slen);
+        parser::parse(L, inp, inp + slen, (lua_gettop(L) > 1) ? 2 : -1);
         return 0;
     }
 
@@ -1029,8 +1031,10 @@ struct ffi_module {
             lua_replace(L, idx);
             return ct.decl;
         }
+        size_t slen;
+        char const *inp = luaL_checklstring(L, idx, &slen);
         auto &ct = ffi::newctype(
-            L, parser::parse_type(L, luaL_checkstring(L, idx), paridx)
+            L, parser::parse_type(L, inp, inp + slen, paridx)
         );
         lua_replace(L, idx);
         return ct.decl;
