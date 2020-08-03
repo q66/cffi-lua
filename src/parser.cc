@@ -767,20 +767,18 @@ public:
     lex_token t, lahead;
 };
 
-static std::string token_to_str(int tok) {
-    std::string ret;
+static char const *token_to_str(int tok, char *buf) {
     if (tok < 0) {
         return "<eof>";
     }
     if (tok < TOK_CUSTOM) {
         if (isprint(tok)) {
-            ret += char(tok);
+            buf[0] = char(tok);
+            buf[1] = '\0';
         } else {
-            char buf[16];
-            snprintf(buf, sizeof(buf), "char(%d)", tok);
-            ret += static_cast<char const *>(buf);
+            snprintf(buf, 16, "char(%d)", tok);
         }
-        return ret;
+        return buf;
     }
     return tokens[tok - TOK_CUSTOM];
 }
@@ -788,9 +786,10 @@ static std::string token_to_str(int tok) {
 /* parser */
 
 static void error_expected(lex_state &ls, int tok) {
+    char lbuf[16];
     std::string buf;
     buf += '\'';
-    buf += token_to_str(tok);
+    buf += token_to_str(tok, lbuf);
     buf += "' expected";
     ls.syntax_error(buf);
 }
@@ -821,16 +820,16 @@ static void check_match(lex_state &ls, int what, int who, int where) {
     if (where == ls.line_number) {
         error_expected(ls, what);
     } else {
-        char lbuf[16];
-        auto tbuf = token_to_str(what);
-        auto vbuf = token_to_str(who);
+        char lbuf[48];
+        auto tbuf = token_to_str(what, lbuf + 16);
+        auto vbuf = token_to_str(who, lbuf + 32);
         std::string buf;
         buf += '\'';
         buf += tbuf;
         buf += " ' expected (to close '";
         buf += vbuf;
         buf += "' at line ";
-        snprintf(lbuf, sizeof(lbuf), "%d", where);
+        snprintf(lbuf, sizeof(lbuf) / 3, "%d", where);
         buf += static_cast<char const *>(lbuf);
         buf += ')';
         ls.syntax_error(buf);
@@ -2241,9 +2240,10 @@ void parse(lua_State *L, char const *input, char const *iend, int paridx) {
         ls.commit();
     } catch (lex_state_error const &e) {
         if (e.token > 0) {
+            char buf[16];
             luaL_error(
                 L, "input:%d: %s near '%s'", e.line_number, ls.getbuf(),
-                token_to_str(e.token).c_str()
+                token_to_str(e.token, buf)
             );
         } else {
             luaL_error(L, "input:%d: %s", e.line_number, ls.getbuf());
@@ -2265,8 +2265,9 @@ ast::c_type parse_type(
         return tp;
     } catch (lex_state_error const &e) {
         if (e.token > 0) {
+            char buf[16];
             luaL_error(
-                L, "%s near '%s'", ls.getbuf(), token_to_str(e.token).c_str()
+                L, "%s near '%s'", ls.getbuf(), token_to_str(e.token, buf)
             );
         } else {
             luaL_error(L, "%s", ls.getbuf());
@@ -2291,8 +2292,9 @@ ast::c_expr_type parse_number(
         return ls.t.numtag;
     } catch (lex_state_error const &e) {
         if (e.token > 0) {
+            char buf[16];
             luaL_error(
-                L, "%s near '%s'", ls.getbuf(), token_to_str(e.token).c_str()
+                L, "%s near '%s'", ls.getbuf(), token_to_str(e.token, buf)
             );
         } else {
             luaL_error(L, "%s", ls.getbuf());
