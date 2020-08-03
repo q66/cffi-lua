@@ -1133,10 +1133,6 @@ private:
     bool p_opaque = true;
 };
 
-struct redefine_error {
-    c_object const *obj;
-};
-
 struct decl_store {
     decl_store() {}
     decl_store(decl_store &ds): p_base(&ds) {}
@@ -1147,7 +1143,7 @@ struct decl_store {
     decl_store &operator=(decl_store const &) = delete;
 
     /* takes ownership of the pointer */
-    void add(c_object *decl);
+    c_object const *add(c_object *decl);
     void commit();
     void drop();
 

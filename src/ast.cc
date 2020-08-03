@@ -1094,7 +1094,7 @@ void c_record::set_fields(util::vector<field> fields) {
 
 /* decl store implementation, with overlaying for staging */
 
-void decl_store::add(c_object *decl) {
+c_object const *decl_store::add(c_object *decl) {
     auto *oldecl = lookup(decl->name());
     if (oldecl) {
         auto ot = decl->obj_type();
@@ -1103,19 +1103,20 @@ void decl_store::add(c_object *decl) {
             (ot != ast::c_object_type::TYPEDEF)
         ) {
             delete decl;
-            throw redefine_error{oldecl};
+            return oldecl;
         } else {
             /* redefinitions of vars and funcs are okay
              * luajit doesn't check them so we don't either
              */
             delete decl;
-            return;
+            return nullptr;
         }
     }
 
     p_dlist.emplace_back(decl);
     auto &d = *p_dlist.back().value;
     p_dmap.insert(d.name(), &d);
+    return nullptr;
 }
 
 void decl_store::commit() {

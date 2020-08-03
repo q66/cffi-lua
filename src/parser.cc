@@ -175,15 +175,14 @@ struct lex_state {
     }
 
     void store_decl(ast::c_object *obj, int lnum) {
-        try {
-            p_dstore.add(obj);
-        } catch (ast::redefine_error const &e) {
+        auto *old = p_dstore.add(obj);
+        if (old) {
             p_buf.clear();
-            auto nlen = strlen(e.obj->name());
+            auto nlen = strlen(old->name());
             p_buf.reserve(nlen + sizeof("'' redefined"));
             char *sp = &p_buf[0];
             sp[0] = '\'';
-            memcpy(&sp[1], e.obj->name(), nlen);
+            memcpy(&sp[1], old->name(), nlen);
             memcpy(&sp[nlen + 1], "' redefined", sizeof("' redefined"));
             throw lex_state_error{-1, lnum};
         }
