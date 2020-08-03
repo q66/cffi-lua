@@ -271,7 +271,7 @@ template<typename ...A>
 static inline ctype &newctype(lua_State *L, A &&...args) {
     auto *cd = lua::newuserdata<ctype>(L);
     cd->ct_tag = lua::CFFI_CTYPE_TAG;
-    new (&cd->decl) ast::c_type{std::forward<A>(args)...};
+    new (&cd->decl) ast::c_type{util::forward<A>(args)...};
     lua::mark_cdata(L);
     return *cd;
 }

@@ -1845,7 +1845,7 @@ qualified:
             cbt = ast::builtin_v<ptrdiff_t>;
             goto btype;
         case TOK_ssize_t:
-            cbt = ast::builtin_v<std::make_signed_t<size_t>>;
+            cbt = ast::builtin_v<util::add_sign_t<size_t>>;
             goto btype;
         case TOK_size_t:
             cbt = ast::builtin_v<size_t>;
