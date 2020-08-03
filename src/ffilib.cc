@@ -589,7 +589,8 @@ struct cdata_meta {
                     }
                     luaL_error(
                         L, "cannot convert '%s' to '%s'",
-                        cd2->decl.serialize(), cd1->decl.serialize()
+                        cd2->decl.serialize().c_str(),
+                        cd1->decl.serialize().c_str()
                     );
                 }
                 auto ret = reinterpret_cast<unsigned char *>(cd1->val)
