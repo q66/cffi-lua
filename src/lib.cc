@@ -244,7 +244,7 @@ static bool dl_need_ext(char const *s) {
     return true;
 }
 
-static std::string dl_ext_name(lua_State *L, char const *name) {
+static char const *dl_ext_name(lua_State *L, char const *name) {
     lua_pushstring(L, name);
     if (dl_need_ext(name)) {
         lua_pushliteral(L, ".dll");
