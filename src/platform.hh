@@ -17,9 +17,9 @@
 
 #if defined(HAVE_BIG_ENDIAN) || defined(__BIG_ENDIAN__) || \
     defined(__ARMEB__) || defined(__AARCH64EB__) || ( \
-		defined(__BYTE_ORDER__) && \
-		(__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__) \
-	)
+        defined(__BYTE_ORDER__) && \
+        (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__) \
+    )
 #  define FFI_BIG_ENDIAN 1
 #elif defined(HAVE_ENDIAN_H)
 #  include <endian.h>
