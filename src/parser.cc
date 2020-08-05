@@ -179,8 +179,7 @@ struct lex_state {
         lex_error(tok, line_number);
     }
 
-    void syntax_error(std::string const &msg) {
-        setbuf(msg.data(), msg.size());
+    void syntax_error() {
         lex_error(t.token);
     }
 
@@ -232,7 +231,8 @@ struct lex_state {
         size_t len;
         char const *str = lua_tolstring(p_L, p_pidx, &len);
         if (!str) {
-            syntax_error("name expected");
+            setbuf("name expected");
+            syntax_error();
         }
         /* replace $ with name */
         t.token = TOK_NAME;
@@ -248,7 +248,8 @@ struct lex_state {
         ensure_pidx();
         lua_Integer d = lua_tointeger(p_L, p_pidx);
         if (!d && !lua_isnumber(p_L, p_pidx)) {
-            syntax_error("integer expected");
+            setbuf("integer expected");
+            syntax_error();
         }
         /* replace $ with integer */
         t.token = TOK_INTEGER;
@@ -265,7 +266,8 @@ struct lex_state {
     ast::c_type param_get_type() {
         ensure_pidx();
         if (!luaL_testudata(p_L, p_pidx, lua::CFFI_CDATA_MT)) {
-            syntax_error("type expected");
+            setbuf("type expected");
+            syntax_error();
         }
         auto ct = *lua::touserdata<ast::c_type>(p_L, p_pidx);
         get(); /* consume $ */
@@ -307,7 +309,8 @@ struct lex_state {
 private:
     void ensure_pidx() {
         if ((p_pidx <= 0) || lua_isnone(p_L, p_pidx)) {
-            syntax_error("wrong number of type parameters");
+            setbuf("wrong number of type parameters");
+            syntax_error();
         }
     }
 
@@ -606,7 +609,8 @@ private:
                         }
                         next_char();
                     }
-                    syntax_error("unterminated comment");
+                    setbuf("unterminated comment");
+                    syntax_error();
                 } else if (current != '/') {
                     /* just / */
                     return '/';
@@ -832,7 +836,8 @@ static void error_expected(lex_state &ls, int tok) {
     }
     bufp += tlen;
     memcpy(bufp, "' expected", sizeof("' expected"));
-    ls.syntax_error(buf);
+    ls.setbuf(buf);
+    ls.syntax_error();
 }
 
 static bool test_next(lex_state &ls, int tok) {
@@ -873,7 +878,8 @@ static void check_match(lex_state &ls, int what, int who, int where) {
         snprintf(lbuf, sizeof(lbuf) / 3, "%d", where);
         buf += static_cast<char const *>(lbuf);
         buf += ')';
-        ls.syntax_error(buf);
+        ls.setbuf(buf.c_str());
+        ls.syntax_error();
     }
 }
 
@@ -986,7 +992,8 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
                 std::string buf = "unknown constant '";
                 buf += ls.getbuf();
                 buf += "'";
-                ls.syntax_error(buf);
+                ls.setbuf(buf.c_str());
+                ls.syntax_error();
             }
             auto &ct = o->as<ast::c_constant>();
             switch (ct.type().type()) {
@@ -1014,7 +1021,8 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
                     ret.type(ast::c_expr_type::BOOL); break;
                 default:
                     /* should be generally unreachable */
-                    ls.syntax_error("unknown type");
+                    ls.setbuf("unknown type");
+                    ls.syntax_error();
                     break;
             }
             ret.val = ct.value();
@@ -1075,7 +1083,8 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
             return ret;
         }
         default:
-            ls.syntax_error("unexpected symbol");
+            ls.setbuf("unexpected symbol");
+            ls.syntax_error();
             break;
     }
     return ast::c_expr{}; /* unreachable */
@@ -1143,18 +1152,21 @@ static size_t get_arrsize(lex_state &ls, ast::c_expr const &exp) {
         case ast::c_expr_type::ULONG: uval = val.ul; goto done;
         case ast::c_expr_type::ULLONG: uval = val.ull; goto done;
         default:
-            ls.syntax_error("invalid array size");
+            ls.setbuf("invalid array size");
+            ls.syntax_error();
             break;
     }
     if (sval < 0) {
-        ls.syntax_error("array size is negative");
+        ls.setbuf("array size is negative");
+        ls.syntax_error();
     }
     uval = sval;
 
 done:
     using ULL = unsigned long long;
     if (uval > ULL(~size_t(0))) {
-        ls.syntax_error("array size too big");
+        ls.setbuf("array sie too big");
+        ls.syntax_error();
     }
     return size_t(uval);
 }
@@ -1168,7 +1180,8 @@ static uint32_t parse_cv(
         case TOK_const:
         case TOK___const__:
             if (quals & ast::C_CV_CONST) {
-                ls.syntax_error("duplicate const qualifier");
+                ls.setbuf("duplicate const qualifier");
+                ls.syntax_error();
                 break;
             }
             ls.get();
@@ -1177,7 +1190,8 @@ static uint32_t parse_cv(
         case TOK_volatile:
         case TOK___volatile__:
             if (quals & ast::C_CV_VOLATILE) {
-                ls.syntax_error("duplicate volatile qualifier");
+                ls.setbuf("duplicate volatile qualifier");
+                ls.syntax_error();
                 break;
             }
             ls.get();
@@ -1188,7 +1202,8 @@ static uint32_t parse_cv(
                 return quals;
             }
             if (*tdef) {
-                ls.syntax_error("duplicate typedef qualifier");
+                ls.setbuf("duplicate typedef qualifier");
+                ls.syntax_error();
                 break;
             }
             ls.get();
@@ -1199,7 +1214,8 @@ static uint32_t parse_cv(
                 return quals;
             }
             if (*extr) {
-                ls.syntax_error("duplicate extern qualifier");
+                ls.setbuf("duplicate extern qualifier");
+                ls.syntax_error();
                 break;
             }
             ls.get();
@@ -1231,7 +1247,8 @@ static uint32_t parse_callconv_attrib(lex_state &ls) {
     } else if (!strcmp(ls.getbuf(), "thiscall")) {
         conv = ast::C_FUNC_THISCALL;
     } else {
-        ls.syntax_error("invalid calling convention");
+        ls.setbuf("invalid calling convention");
+        ls.syntax_error();
     }
     ls.get();
     check_match(ls, TOK_ATTRIBE, TOK_ATTRIBB, ln);
@@ -1293,7 +1310,8 @@ static util::vector<ast::c_param> parse_paramlist(lex_state &ls) {
             std::string buf = "'";
             buf += pt.serialize();
             buf += "' cannot be passed by value";
-            ls.syntax_error(buf);
+            ls.setbuf(buf.c_str());
+            ls.syntax_error();
             break;
         }
         if (pname == "?") {
@@ -1625,7 +1643,8 @@ newlevel:
             pcvq[ridx].flags = flags;
         }
         if (!pcvq[ridx].is_func && (prevconv != ast::C_FUNC_DEFAULT)) {
-            ls.syntax_error("calling convention on non-function declaration");
+            ls.setbuf("calling convention on non-function declaration");
+            ls.syntax_error();
         }
         prevconv = pcvq[ridx].cconv;
         --ridx;
@@ -1689,7 +1708,8 @@ newlevel:
              * to them nor we can make references to references
              */
             if (tp.is_ref()) {
-                ls.syntax_error("references must be trailing");
+                ls.setbuf("references must be trailing");
+                ls.syntax_error();
             }
             if (pcvq[cidx].is_ref) {
                 tp.add_ref();
@@ -1717,16 +1737,16 @@ newlevel:
                 std::string buf = "'";
                 buf += tp.serialize();
                 buf += "' cannot be passed by value";
-                ls.syntax_error(buf);
+                ls.setbuf(buf.c_str());
+                ls.syntax_error();
                 break;
             }
             ast::c_function cf{util::move(tp), util::move(olev->argl), fflags};
             tp = ast::c_type{util::move(cf), 0};
         } else if (olev->arrd) {
             if (tp.vla() || tp.unbounded()) {
-                ls.syntax_error(
-                    "only first bound of an array may have unknown size"
-                );
+                ls.setbuf("only first bound of an array may have unknown size");
+                ls.syntax_error();
             }
             while (olev->arrd) {
                 size_t dim = dimstack.back().size;
@@ -1751,7 +1771,8 @@ newlevel:
     if (
         (ls.mode() == PARSE_MODE_DEFAULT) && (tp.type() == ast::C_BUILTIN_VOID)
     ) {
-        ls.syntax_error("void type in forbidden context");
+        ls.setbuf("void type in forbidden context");
+        ls.syntax_error();
     }
     /* shrink it back to what it was, these resources can be reused later */
     pcvq.resize(pidx);
@@ -1818,7 +1839,8 @@ qualified:
             buf += "undeclared symbol '";
             buf += ls.getbuf();
             buf += "'";
-            ls.syntax_error(buf);
+            ls.setbuf(buf.c_str());
+            ls.syntax_error();
         }
         switch (decl->obj_type()) {
             case ast::c_object_type::TYPEDEF: {
@@ -1843,7 +1865,8 @@ qualified:
                 buf += "symbol '";
                 buf += ls.getbuf();
                 buf += "' is not a type";
-                ls.syntax_error(buf);
+                ls.setbuf(buf.c_str());
+                ls.syntax_error();
                 break;
             }
         }
@@ -1960,7 +1983,8 @@ qualified:
             }
             break;
         default:
-            ls.syntax_error("type name expected");
+            ls.setbuf("type name expected");
+            ls.syntax_error();
             break;
     }
 
@@ -2006,7 +2030,8 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
 
     auto mode_error = [&ls, named]() {
         if (named && (ls.mode() == PARSE_MODE_NOTCDEF)) {
-            ls.syntax_error("struct declaration not allowed in this context");
+            ls.setbuf("struct declaration not allowed in this context");
+            ls.syntax_error();
         }
     };
 
@@ -2109,7 +2134,8 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
 
     auto mode_error = [&ls, named]() {
         if (named && (ls.mode() == PARSE_MODE_NOTCDEF)) {
-            ls.syntax_error("enum declaration not allowed in this context");
+            ls.setbuf("enum declaration not allowed in this context");
+            ls.syntax_error();
         }
     };
 
@@ -2149,7 +2175,8 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
                 case ast::c_expr_type::LLONG: val.i = int(val.ll); break;
                 case ast::c_expr_type::ULLONG: val.i = int(val.ull); break;
                 default:
-                    ls.syntax_error("unsupported type");
+                    ls.setbuf("unsupported type");
+                    ls.syntax_error();
                     break;
             }
             fields.emplace_back(util::move(fname), val.i);
@@ -2208,7 +2235,8 @@ static void parse_decl(lex_state &ls) {
         first = false;
         if (cconv != ast::C_FUNC_DEFAULT) {
             if (tp.type() != ast::C_BUILTIN_FUNC) {
-                ls.syntax_error("calling convention on non-function declaration");
+                ls.setbuf("calling convention on non-function declaration");
+                ls.syntax_error();
             }
             auto *func = const_cast<ast::c_function *>(&tp.function());
             func->callconv(cconv);
@@ -2238,7 +2266,8 @@ static void parse_decl(lex_state &ls) {
             check_next(ls, '(');
             check(ls, TOK_STRING);
             if (ls.getbuf()[0] == '\0') {
-                ls.syntax_error("empty symbol name");
+                ls.setbuf("empty symbol name");
+                ls.syntax_error();
             }
             sym = ls.getbuf();
             ls.get();
