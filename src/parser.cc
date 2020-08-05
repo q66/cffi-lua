@@ -88,7 +88,8 @@ struct lex_token {
     ast::c_value value{};
 };
 
-static thread_local util::str_map<int> keyword_map;
+static thread_local util::str_map<int> keyword_map{};
+static thread_local util::vector<char> ls_buf{};
 
 static void init_kwmap() {
     if (!keyword_map.empty()) {
@@ -122,13 +123,14 @@ struct lex_state {
         int pmode = PARSE_MODE_DEFAULT, int paridx = -1
     ):
         p_mode(pmode), p_pidx(paridx), p_L(L), stream(str),
-        send(estr), p_buf{}, p_dstore{ast::decl_store::get_main(L)}
+        send(estr), p_dstore{ast::decl_store::get_main(L)}
     {
         /* thread-local, initialize for parsing thread */
         init_kwmap();
 
         /* this should be enough that we should never have to resize it */
-        p_buf.reserve(256);
+        ls_buf.clear();
+        ls_buf.reserve(256);
 
         /* read first char */
         next_char();
@@ -179,10 +181,10 @@ struct lex_state {
     void store_decl(ast::c_object *obj, int lnum) {
         auto *old = p_dstore.add(obj);
         if (old) {
-            p_buf.clear();
+            ls_buf.clear();
             auto nlen = strlen(old->name());
-            p_buf.reserve(nlen + sizeof("'' redefined"));
-            char *sp = &p_buf[0];
+            ls_buf.reserve(nlen + sizeof("'' redefined"));
+            char *sp = &ls_buf[0];
             sp[0] = '\'';
             memcpy(&sp[1], old->name(), nlen);
             memcpy(&sp[nlen + 1], "' redefined", sizeof("' redefined"));
@@ -266,14 +268,14 @@ struct lex_state {
     }
 
     char const *getbuf() const {
-        return &p_buf[0];
+        return &ls_buf[0];
     }
 
     void setbuf(char const *str, size_t len) {
-        p_buf.clear();
-        p_buf.reserve(len + 1);
-        p_buf.setbuf(str, len);
-        p_buf.push_back('\0');
+        ls_buf.clear();
+        ls_buf.reserve(len + 1);
+        ls_buf.setbuf(str, len);
+        ls_buf.push_back('\0');
     }
 
     void setbuf(char const *str) {
@@ -281,15 +283,15 @@ struct lex_state {
     }
 
     void appendbuf(char const *str, size_t len) {
-        auto sz = p_buf.size();
-        p_buf.reserve(sz + len + 1);
+        auto sz = ls_buf.size();
+        ls_buf.reserve(sz + len + 1);
         if (!sz) {
             setbuf(str, len);
             return;
         }
-        memcpy(&p_buf[sz], str, len);
-        p_buf[sz + len] = '\0';
-        p_buf.setlen(sz + len + 1);
+        memcpy(&ls_buf[sz], str, len);
+        ls_buf[sz + len] = '\0';
+        ls_buf.setlen(sz + len + 1);
     }
 
     void appendbuf(char const *str) {
@@ -427,11 +429,11 @@ private:
 
     template<size_t base, typename F, typename G>
     void read_int_core(F &&digf, G &&convf, lex_token &tok) {
-        p_buf.clear();
+        ls_buf.clear();
         do {
-            p_buf.push_back(next_char());
+            ls_buf.push_back(next_char());
         } while (digf(current));
-        char const *numbeg = &p_buf[0], *numend = &p_buf[p_buf.size()];
+        char const *numbeg = &ls_buf[0], *numend = &ls_buf[ls_buf.size()];
         /* go from the end */
         unsigned long long val = 0, mul = 1;
         do {
@@ -711,7 +713,7 @@ cont:
             }
             /* string literal */
             case '\"': {
-                p_buf.clear();
+                ls_buf.clear();
                 next_char();
                 for (;;) {
                     if (current == '\"') {
@@ -729,14 +731,14 @@ cont:
                     if (current == '\\') {
                         char c = '\0';
                         read_escape(c);
-                        p_buf.push_back(c);
+                        ls_buf.push_back(c);
                     } else {
-                        p_buf.push_back(char(current));
+                        ls_buf.push_back(char(current));
                         next_char();
                     }
                 }
                 next_char();
-                p_buf.push_back('\0');
+                ls_buf.push_back('\0');
                 return TOK_STRING;
             }
             /* single-char tokens, number literals, keywords, names */
@@ -752,13 +754,13 @@ cont:
                     /* names, keywords */
                     /* what current pointed to */
                     /* keep reading until we readh non-matching char */
-                    p_buf.clear();
+                    ls_buf.clear();
                     do {
-                        p_buf.push_back(next_char());
+                        ls_buf.push_back(next_char());
                     } while (isalnum(current) || (current == '_'));
-                    p_buf.push_back('\0');
+                    ls_buf.push_back('\0');
                     /* could be a keyword? */
-                    auto kwit = keyword_map.find(&p_buf[0]);
+                    auto kwit = keyword_map.find(&ls_buf[0]);
                     if (kwit) {
                         return TOK_NAME + *kwit;
                     }
@@ -780,7 +782,6 @@ cont:
     char const *stream;
     char const *send;
 
-    util::vector<char> p_buf;
     ast::decl_store p_dstore;
 
 public:
