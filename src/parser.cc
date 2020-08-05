@@ -108,6 +108,10 @@ struct lex_state_error {
     int line_number;
 };
 
+static thread_local lex_state_error ls_err{};
+
+struct ls_error {};
+
 enum parse_mode {
     PARSE_MODE_DEFAULT,
     PARSE_MODE_TYPEDEF,
@@ -165,13 +169,19 @@ struct lex_state {
         return (lahead.token = lex(t));
     }
 
+    void lex_error(int tok, int linenum) {
+        ls_err.token = tok;
+        ls_err.line_number = linenum;
+        throw ls_error{};
+    }
+
     void lex_error(int tok) {
-        throw lex_state_error{tok, line_number};
+        lex_error(tok, line_number);
     }
 
     void lex_error(std::string const &msg, int tok) {
         setbuf(msg.data(), msg.size());
-        throw lex_state_error{tok, line_number};
+        lex_error(tok);
     }
 
     void syntax_error(std::string const &msg) {
@@ -188,7 +198,7 @@ struct lex_state {
             sp[0] = '\'';
             memcpy(&sp[1], old->name(), nlen);
             memcpy(&sp[nlen + 1], "' redefined", sizeof("' redefined"));
-            throw lex_state_error{-1, lnum};
+            lex_error(-1, lnum);
         }
     }
 
@@ -2270,15 +2280,17 @@ void parse(lua_State *L, char const *input, char const *iend, int paridx) {
             parse_decls(ls);
             ls.commit();
             return;
-        } catch (lex_state_error const &e) {
-            if (e.token > 0) {
+        } catch (ls_error) {
+            if (ls_err.token > 0) {
                 char buf[16];
                 lua_pushfstring(
-                    L, "input:%d: %s near '%s'", e.line_number, ls.getbuf(),
-                    token_to_str(e.token, buf)
+                    L, "input:%d: %s near '%s'", ls_err.line_number,
+                    ls.getbuf(), token_to_str(ls_err.token, buf)
                 );
             } else {
-                lua_pushfstring(L, "input:%d: %s", e.line_number, ls.getbuf());
+                lua_pushfstring(
+                    L, "input:%d: %s", ls_err.line_number, ls.getbuf()
+                );
             }
             goto lerr;
         }
@@ -2300,11 +2312,12 @@ ast::c_type parse_type(
             auto tp = parse_type(ls);
             ls.commit();
             return tp;
-        } catch (lex_state_error const &e) {
-            if (e.token > 0) {
+        } catch (ls_error) {
+            if (ls_err.token > 0) {
                 char buf[16];
                 lua_pushfstring(
-                    L, "%s near '%s'", ls.getbuf(), token_to_str(e.token, buf)
+                    L, "%s near '%s'", ls.getbuf(),
+                    token_to_str(ls_err.token, buf)
                 );
             } else {
                 lua_pushfstring(L, "%s", ls.getbuf());
@@ -2332,11 +2345,12 @@ ast::c_expr_type parse_number(
             v = ls.t.value;
             ls.commit();
             return ls.t.numtag;
-        } catch (lex_state_error const &e) {
-            if (e.token > 0) {
+        } catch (ls_error) {
+            if (ls_err.token > 0) {
                 char buf[16];
                 lua_pushfstring(
-                    L, "%s near '%s'", ls.getbuf(), token_to_str(e.token, buf)
+                    L, "%s near '%s'", ls.getbuf(),
+                    token_to_str(ls_err.token, buf)
                 );
             } else {
                 lua_pushfstring(L, "%s", ls.getbuf());
