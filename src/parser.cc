@@ -179,13 +179,9 @@ struct lex_state {
         lex_error(tok, line_number);
     }
 
-    void lex_error(std::string const &msg, int tok) {
-        setbuf(msg.data(), msg.size());
-        lex_error(tok);
-    }
-
     void syntax_error(std::string const &msg) {
-        lex_error(msg, t.token);
+        setbuf(msg.data(), msg.size());
+        lex_error(t.token);
     }
 
     void store_decl(ast::c_object *obj, int lnum) {
@@ -433,7 +429,8 @@ private:
         /* unsuffixed decimal and doesn't fit into signed long long,
          * or explicitly marked long and out of bounds
          */
-        lex_error("value out of bounds", TOK_INTEGER);
+        setbuf("value out of bounds");
+        lex_error(TOK_INTEGER);
         return ast::c_expr_type::INVALID;
     }
 
@@ -472,7 +469,8 @@ private:
                 /* hex */
                 next_char();
                 if (!isxdigit(current)) {
-                    lex_error("malformed integer", TOK_INTEGER);
+                    setbuf("malformed integer");
+                    lex_error(TOK_INTEGER);
                     return;
                 }
                 read_int_core<16>(isxdigit, [](int dig) {
@@ -484,7 +482,8 @@ private:
                 /* binary */
                 next_char();
                 if ((current != '0') && (current != '1')) {
-                    lex_error("malformed integer", TOK_INTEGER);
+                    setbuf("malformed integer");
+                    lex_error(TOK_INTEGER);
                     return;
                 }
                 read_int_core<2>([](int cur) {
@@ -512,7 +511,8 @@ private:
         next_char();
         switch (current) {
             case '\0':
-                lex_error("unterminated escape sequence", TOK_CHAR);
+                setbuf("unterminated escape sequence");
+                lex_error(TOK_CHAR);
                 return;
             case '\'':
             case '\"':
@@ -536,7 +536,8 @@ private:
                 next_char();
                 int c1 = current, c2 = upcoming();
                 if (!isxdigit(c1) || !isxdigit(c2)) {
-                    lex_error("malformed hex escape", TOK_CHAR);
+                    setbuf("malformed hex escape");
+                    lex_error(TOK_CHAR);
                 }
                 c1 |= 32; c2 |= 32;
                 c1 = (c1 >= 'a') ? (c1 - 'a' + 10) : (c1 - '0');
@@ -560,9 +561,8 @@ private:
                             next_char();
                             int r = (c3 + (c2 * 8) + (c1 * 64));
                             if (r > 0xFF) {
-                                lex_error(
-                                    "octal escape out of bounds", TOK_CHAR
-                                );
+                                setbuf("octal escape out of bounds");
+                                lex_error(TOK_CHAR);
                             }
                             c = char(r);
                             return;
@@ -577,7 +577,8 @@ private:
                         return;
                     }
                 }
-                lex_error("malformed escape sequence", TOK_CHAR);
+                setbuf("malformed escape sequence");
+                lex_error(TOK_CHAR);
                 return;
         }
     }
@@ -707,7 +708,8 @@ cont:
             case '\'': {
                 next_char();
                 if (current == '\0') {
-                    lex_error("unterminated literal", TOK_CHAR);
+                    setbuf("unterminated literal");
+                    lex_error(TOK_CHAR);
                 } else if (current == '\\') {
                     read_escape(tok.value.c);
                 } else {
@@ -715,7 +717,8 @@ cont:
                     next_char();
                 }
                 if (current != '\'') {
-                    lex_error("unterminated literal", TOK_CHAR);
+                    setbuf("unterminated literal");
+                    lex_error(TOK_CHAR);
                 }
                 next_char();
                 tok.numtag = ast::c_expr_type::CHAR;
@@ -736,7 +739,8 @@ cont:
                         }
                     }
                     if (current == '\0') {
-                        lex_error("unterminated string", TOK_STRING);
+                        setbuf("unterminated string");
+                        lex_error(TOK_STRING);
                     }
                     if (current == '\\') {
                         char c = '\0';
