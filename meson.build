@@ -148,6 +148,7 @@ if host_machine.system() == 'windows'
 endif
 
 cffi_src = [
+    'src/util.cc',
     'src/ffilib.cc',
     'src/parser.cc',
     'src/ast.cc',
