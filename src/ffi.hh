@@ -104,8 +104,18 @@ static inline constexpr auto metafield_name(metatype_flag flag) {
     return "";
 }
 
+static_assert((
+    (sizeof(lua_Integer) <= sizeof(ffi::scalar_stor_t)) &&
+    (alignof(lua_Integer) <= alignof(ffi::scalar_stor_t))
+), "unsupported lua_Integer type");
+
+static_assert((
+    (sizeof(lua_Number) <= sizeof(ffi::scalar_stor_t)) &&
+    (alignof(lua_Number) <= alignof(ffi::scalar_stor_t))
+), "unsupported lua_Number type");
+
 struct arg_stor_t {
-    util::max_align_t pad;
+    ffi::scalar_stor_t pad;
 
     /* only use with types that will fit */
     template<typename T>

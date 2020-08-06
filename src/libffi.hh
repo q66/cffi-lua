@@ -35,6 +35,26 @@
 namespace ffi {
 
 namespace detail {
+    /* these need to be adjusted if a larger type support
+     * is added, e.g. 128-bit integers/floats and so on
+     */
+    using max_aligned_t = util::conditional_t<
+        (alignof(long double) > alignof(long long)),
+        long double,
+        long long
+    >;
+
+    using biggest_t = util::conditional_t<
+        (sizeof(long double) > sizeof(long long)),
+        long double,
+        long long
+    >;
+
+    struct ffi_stor {
+        alignas(alignof(detail::max_aligned_t))
+        unsigned char data[sizeof(detail::biggest_t)];
+    };
+
     template<typename T>
     static inline ffi_type *ffi_int() {
         bool is_signed = util::is_signed<T>::value;
@@ -54,6 +74,8 @@ namespace detail {
         return nullptr;
     }
 } /* namespace detail */
+
+using scalar_stor_t = detail::ffi_stor;
 
 /* compile-time mappings from builtin types to libffi types
  *

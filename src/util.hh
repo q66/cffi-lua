@@ -54,8 +54,6 @@ namespace detail {
 template<bool B, typename T, typename F>
 using conditional_t = typename detail::conditional<B, T, F>::type;
 
-using max_align_t = std::max_align_t;
-
 template<typename T>
 struct is_int {
     static constexpr bool value = std::is_integral<T>::value;
