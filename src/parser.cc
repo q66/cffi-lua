@@ -2095,17 +2095,17 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
 
     /* name is optional */
     bool named = false;
-    std::string ename = "enum ";
+    util::strbuf ename{"enum "};
     ls.param_maybe_name();
     if (ls.t.token == TOK_NAME) {
-        ename += ls.getbuf();
+        ename.append(ls_buf);
         ls.get();
         named = true;
     } else {
         char buf[32];
         auto wn = ls.request_name(buf, sizeof(buf));
         assert((wn > 0) && (wn < int(sizeof(buf))));
-        ename += static_cast<char const *>(buf);
+        ename.append(buf);
     }
 
     int linenum = ls.line_number;
@@ -2118,7 +2118,7 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
     };
 
     if (!test_next(ls, '{')) {
-        auto *oldecl = ls.lookup(ename.c_str());
+        auto *oldecl = ls.lookup(ename.data());
         if (!oldecl || (oldecl->obj_type() != ast::c_object_type::ENUM)) {
             mode_error();
             auto *p = new ast::c_enum{util::move(ename)};
@@ -2136,7 +2136,7 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
         int eln = ls.line_number;
         ls.param_maybe_name();
         check(ls, TOK_NAME);
-        std::string fname = ls.getbuf();
+        util::strbuf fname{ls_buf};
         ls.get();
         if (ls.t.token == '=') {
             ls.get();
@@ -2170,7 +2170,7 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
         ast::c_value fval;
         fval.i = fld.value;
         auto *p = new ast::c_constant{
-            fld.name, ast::c_type{ast::C_BUILTIN_INT, 0}, fval
+            std::string{fld.name.data()}, ast::c_type{ast::C_BUILTIN_INT, 0}, fval
         };
         ls.store_decl(p, eln);
         if (ls.t.token != ',') {
@@ -2182,7 +2182,7 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
 
     check_match(ls, '}', '{', linenum);
 
-    auto *oldecl = ls.lookup(ename.c_str());
+    auto *oldecl = ls.lookup(ename.data());
     if (oldecl && (oldecl->obj_type() == ast::c_object_type::ENUM)) {
         auto &st = oldecl->as<ast::c_enum>();
         if (st.opaque()) {

@@ -1074,35 +1074,35 @@ private:
 
 struct c_enum: c_object {
     struct field {
-        field(std::string nm, int val):
+        field(util::strbuf nm, int val):
             name{util::move(nm)}, value(val)
         {}
 
-        std::string name;
+        util::strbuf name;
         int value; /* FIXME: make a c_expr */
     };
 
-    c_enum(std::string ename, util::vector<field> fields):
+    c_enum(util::strbuf ename, util::vector<field> fields):
         p_name{util::move(ename)}
     {
         set_fields(util::move(fields));
     }
 
-    c_enum(std::string ename): p_name{util::move(ename)} {}
+    c_enum(util::strbuf ename): p_name{util::move(ename)} {}
 
     c_object_type obj_type() const {
         return c_object_type::ENUM;
     }
 
     void do_serialize(util::strbuf &o, c_object_cont_f cont, void *data) const {
-        o.append(this->p_name.c_str(), this->p_name.size());
+        o.append(this->p_name);
         if (cont) {
             cont(o, data);
         }
     }
 
     char const *name() const {
-        return p_name.c_str();
+        return p_name.data();
     }
 
     util::vector<field> const &fields() const {
@@ -1132,7 +1132,7 @@ struct c_enum: c_object {
     }
 
 private:
-    std::string p_name;
+    util::strbuf p_name;
     util::vector<field> p_fields{};
     bool p_opaque = true;
 };
