@@ -952,13 +952,13 @@ struct c_record: c_object {
         c_type type;
     };
 
-    c_record(std::string ename, util::vector<field> fields, bool is_uni = false):
+    c_record(util::strbuf ename, util::vector<field> fields, bool is_uni = false):
         p_name{util::move(ename)}, p_uni{is_uni}
     {
         set_fields(util::move(fields));
     }
 
-    c_record(std::string ename, bool is_uni = false):
+    c_record(util::strbuf ename, bool is_uni = false):
         p_name{util::move(ename)}, p_uni{is_uni}
     {}
 
@@ -972,14 +972,14 @@ struct c_record: c_object {
     }
 
     void do_serialize(util::strbuf &o, c_object_cont_f cont, void *data) const {
-        o.append(this->p_name.c_str(), this->p_name.size());
+        o.append(this->p_name);
         if (cont) {
             cont(o, data);
         }
     }
 
     char const *name() const {
-        return p_name.c_str();
+        return p_name.data();
     }
 
     /* invalid for opaque structs */
@@ -1061,7 +1061,7 @@ private:
         char const *fname, c_type const &type, size_t off, void *data
     ), void *data, size_t base, bool &end) const;
 
-    std::string p_name;
+    util::strbuf p_name;
     util::vector<field> p_fields{};
     ffi_type **p_elements = nullptr;
     ffi_type **p_felems = nullptr;

@@ -1991,17 +1991,17 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
 
     /* name is optional */
     bool named = false;
-    std::string sname = is_uni ? "union " : "struct ";
+    util::strbuf sname{is_uni ? "union " : "struct "};
     ls.param_maybe_name();
     if (ls.t.token == TOK_NAME) {
-        sname += ls.getbuf();
+        sname.append(ls_buf);
         ls.get();
         named = true;
     } else {
         char buf[32];
         auto wn = ls.request_name(buf, sizeof(buf));
         assert((wn > 0) && (wn < int(sizeof(buf))));
-        sname += static_cast<char const *>(buf);
+        sname.append(buf);
     }
 
     int linenum = ls.line_number;
@@ -2015,7 +2015,7 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
 
     /* opaque */
     if (!test_next(ls, '{')) {
-        auto *oldecl = ls.lookup(sname.c_str());
+        auto *oldecl = ls.lookup(sname.data());
         if (!oldecl || (oldecl->obj_type() != ast::c_object_type::RECORD)) {
             mode_error();
             /* different type or not stored yet, raise error or store */
@@ -2068,7 +2068,7 @@ field_end:
 
     check_match(ls, '}', '{', linenum);
 
-    auto *oldecl = ls.lookup(sname.c_str());
+    auto *oldecl = ls.lookup(sname.data());
     if (oldecl && (oldecl->obj_type() == ast::c_object_type::RECORD)) {
         auto &st = oldecl->as<ast::c_record>();
         if (st.opaque()) {
