@@ -122,6 +122,8 @@ static inline void mark_lib(lua_State *L) {
     luaL_setmetatable(L, CFFI_LIB_MT);
 }
 
+struct custom_size { size_t sz; };
+
 } /* namespace lua */
 
 inline void *operator new(size_t n, lua_State *L) {
@@ -132,8 +134,8 @@ inline void *operator new(size_t n, lua_State *L, size_t extra) {
     return lua_newuserdata(L, n + extra);
 }
 
-inline void *operator new(size_t, lua_State *L, size_t n, bool) {
-    return lua_newuserdata(L, n);
+inline void *operator new(size_t, lua_State *L, lua::custom_size n) {
+    return lua_newuserdata(L, n.sz);
 }
 
 #endif /* LUA_HH */

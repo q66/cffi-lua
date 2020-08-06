@@ -267,9 +267,8 @@ static inline cdata<T> &newcdata(
 static inline cdata<ffi::noval> &newcdata(
     lua_State *L, ast::c_type const &tp, size_t vals
 ) {
-    auto *cd = new (
-        L, vals + cdata_value_base(), true
-    ) cdata<ffi::noval>{tp};
+    auto ssz = vals + cdata_value_base();
+    auto *cd = new (L, lua::custom_size{ssz}) cdata<ffi::noval>{tp};
     cd->gc_ref = LUA_REFNIL;
     cd->aux = 0;
     lua::mark_cdata(L);
