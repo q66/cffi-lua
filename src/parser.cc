@@ -226,12 +226,12 @@ struct lex_state {
         size_t len;
         char const *str = lua_tolstring(p_L, p_pidx, &len);
         if (!str) {
-            setbuf("name expected");
+            ls_buf.set("name expected");
             syntax_error();
         }
         /* replace $ with name */
         t.token = TOK_NAME;
-        setbuf(str, len);
+        ls_buf.set(str, len);
         ++p_pidx;
     }
 
@@ -243,7 +243,7 @@ struct lex_state {
         ensure_pidx();
         lua_Integer d = lua_tointeger(p_L, p_pidx);
         if (!d && !lua_isnumber(p_L, p_pidx)) {
-            setbuf("integer expected");
+            ls_buf.set("integer expected");
             syntax_error();
         }
         /* replace $ with integer */
@@ -261,7 +261,7 @@ struct lex_state {
     ast::c_type param_get_type() {
         ensure_pidx();
         if (!luaL_testudata(p_L, p_pidx, lua::CFFI_CDATA_MT)) {
-            setbuf("type expected");
+            ls_buf.set("type expected");
             syntax_error();
         }
         auto ct = *lua::touserdata<ast::c_type>(p_L, p_pidx);
@@ -270,30 +270,10 @@ struct lex_state {
         return ct;
     }
 
-    char const *getbuf() const {
-        return &ls_buf[0];
-    }
-
-    void setbuf(char const *str, size_t len) {
-        ls_buf.set(str, len);
-    }
-
-    void setbuf(char const *str) {
-        ls_buf.set(str);
-    }
-
-    void appendbuf(char const *str, size_t len) {
-        ls_buf.append(str, len);
-    }
-
-    void appendbuf(char const *str) {
-        ls_buf.append(str);
-    }
-
 private:
     void ensure_pidx() {
         if ((p_pidx <= 0) || lua_isnone(p_L, p_pidx)) {
-            setbuf("wrong number of type parameters");
+            ls_buf.set("wrong number of type parameters");
             syntax_error();
         }
     }
@@ -416,7 +396,7 @@ private:
         /* unsuffixed decimal and doesn't fit into signed long long,
          * or explicitly marked long and out of bounds
          */
-        setbuf("value out of bounds");
+        ls_buf.set("value out of bounds");
         lex_error(TOK_INTEGER);
         return ast::c_expr_type::INVALID;
     }
@@ -457,7 +437,7 @@ private:
                 /* hex */
                 next_char();
                 if (!isxdigit(current)) {
-                    setbuf("malformed integer");
+                    ls_buf.set("malformed integer");
                     lex_error(TOK_INTEGER);
                     return;
                 }
@@ -470,7 +450,7 @@ private:
                 /* binary */
                 next_char();
                 if ((current != '0') && (current != '1')) {
-                    setbuf("malformed integer");
+                    ls_buf.set("malformed integer");
                     lex_error(TOK_INTEGER);
                     return;
                 }
@@ -499,7 +479,7 @@ private:
         next_char();
         switch (current) {
             case '\0':
-                setbuf("unterminated escape sequence");
+                ls_buf.set("unterminated escape sequence");
                 lex_error(TOK_CHAR);
                 return;
             case '\'':
@@ -524,7 +504,7 @@ private:
                 next_char();
                 int c1 = current, c2 = upcoming();
                 if (!isxdigit(c1) || !isxdigit(c2)) {
-                    setbuf("malformed hex escape");
+                    ls_buf.set("malformed hex escape");
                     lex_error(TOK_CHAR);
                 }
                 c1 |= 32; c2 |= 32;
@@ -549,7 +529,7 @@ private:
                             next_char();
                             int r = (c3 + (c2 * 8) + (c1 * 64));
                             if (r > 0xFF) {
-                                setbuf("octal escape out of bounds");
+                                ls_buf.set("octal escape out of bounds");
                                 lex_error(TOK_CHAR);
                             }
                             c = char(r);
@@ -565,7 +545,7 @@ private:
                         return;
                     }
                 }
-                setbuf("malformed escape sequence");
+                ls_buf.set("malformed escape sequence");
                 lex_error(TOK_CHAR);
                 return;
         }
@@ -594,7 +574,7 @@ private:
                         }
                         next_char();
                     }
-                    setbuf("unterminated comment");
+                    ls_buf.set("unterminated comment");
                     syntax_error();
                 } else if (current != '/') {
                     /* just / */
@@ -697,7 +677,7 @@ cont:
             case '\'': {
                 next_char();
                 if (current == '\0') {
-                    setbuf("unterminated literal");
+                    ls_buf.set("unterminated literal");
                     lex_error(TOK_CHAR);
                 } else if (current == '\\') {
                     read_escape(tok.value.c);
@@ -706,7 +686,7 @@ cont:
                     next_char();
                 }
                 if (current != '\'') {
-                    setbuf("unterminated literal");
+                    ls_buf.set("unterminated literal");
                     lex_error(TOK_CHAR);
                 }
                 next_char();
@@ -729,7 +709,7 @@ cont:
                         }
                     }
                     if (current == '\0') {
-                        setbuf("unterminated string");
+                        ls_buf.set("unterminated string");
                         lex_error(TOK_STRING);
                     }
                     if (current == '\\') {
@@ -823,7 +803,7 @@ static void error_expected(lex_state &ls, int tok) {
     }
     bufp += tlen;
     memcpy(bufp, "' expected", sizeof("' expected"));
-    ls.setbuf(buf);
+    ls_buf.set(buf);
     ls.syntax_error();
 }
 
@@ -971,7 +951,7 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
         }
         case TOK_NAME: {
             ast::c_expr ret;
-            auto *o = ls.lookup(ls.getbuf());
+            auto *o = ls.lookup(ls_buf.data());
             if (!o || (o->obj_type() != ast::c_object_type::CONSTANT)) {
                 ls_buf.prepend("unknown constant '");
                 ls_buf.append('\'');
@@ -1003,7 +983,7 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
                     ret.type(ast::c_expr_type::BOOL); break;
                 default:
                     /* should be generally unreachable */
-                    ls.setbuf("unknown type");
+                    ls_buf.set("unknown type");
                     ls.syntax_error();
                     break;
             }
@@ -1065,7 +1045,7 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
             return ret;
         }
         default:
-            ls.setbuf("unexpected symbol");
+            ls_buf.set("unexpected symbol");
             ls.syntax_error();
             break;
     }
@@ -1134,12 +1114,12 @@ static size_t get_arrsize(lex_state &ls, ast::c_expr const &exp) {
         case ast::c_expr_type::ULONG: uval = val.ul; goto done;
         case ast::c_expr_type::ULLONG: uval = val.ull; goto done;
         default:
-            ls.setbuf("invalid array size");
+            ls_buf.set("invalid array size");
             ls.syntax_error();
             break;
     }
     if (sval < 0) {
-        ls.setbuf("array size is negative");
+        ls_buf.set("array size is negative");
         ls.syntax_error();
     }
     uval = sval;
@@ -1147,7 +1127,7 @@ static size_t get_arrsize(lex_state &ls, ast::c_expr const &exp) {
 done:
     using ULL = unsigned long long;
     if (uval > ULL(~size_t(0))) {
-        ls.setbuf("array sie too big");
+        ls_buf.set("array sie too big");
         ls.syntax_error();
     }
     return size_t(uval);
@@ -1162,7 +1142,7 @@ static uint32_t parse_cv(
         case TOK_const:
         case TOK___const__:
             if (quals & ast::C_CV_CONST) {
-                ls.setbuf("duplicate const qualifier");
+                ls_buf.set("duplicate const qualifier");
                 ls.syntax_error();
                 break;
             }
@@ -1172,7 +1152,7 @@ static uint32_t parse_cv(
         case TOK_volatile:
         case TOK___volatile__:
             if (quals & ast::C_CV_VOLATILE) {
-                ls.setbuf("duplicate volatile qualifier");
+                ls_buf.set("duplicate volatile qualifier");
                 ls.syntax_error();
                 break;
             }
@@ -1184,7 +1164,7 @@ static uint32_t parse_cv(
                 return quals;
             }
             if (*tdef) {
-                ls.setbuf("duplicate typedef qualifier");
+                ls_buf.set("duplicate typedef qualifier");
                 ls.syntax_error();
                 break;
             }
@@ -1196,7 +1176,7 @@ static uint32_t parse_cv(
                 return quals;
             }
             if (*extr) {
-                ls.setbuf("duplicate extern qualifier");
+                ls_buf.set("duplicate extern qualifier");
                 ls.syntax_error();
                 break;
             }
@@ -1220,16 +1200,16 @@ static uint32_t parse_callconv_attrib(lex_state &ls) {
     check_next(ls, TOK_ATTRIBB);
     int conv = -1;
     check(ls, TOK_NAME);
-    if (!strcmp(ls.getbuf(), "cdecl")) {
+    if (!strcmp(ls_buf.data(), "cdecl")) {
         conv = ast::C_FUNC_CDECL;
-    } else if (!strcmp(ls.getbuf(), "fastcall")) {
+    } else if (!strcmp(ls_buf.data(), "fastcall")) {
         conv = ast::C_FUNC_FASTCALL;
-    } else if (!strcmp(ls.getbuf(), "stdcall")) {
+    } else if (!strcmp(ls_buf.data(), "stdcall")) {
         conv = ast::C_FUNC_STDCALL;
-    } else if (!strcmp(ls.getbuf(), "thiscall")) {
+    } else if (!strcmp(ls_buf.data(), "thiscall")) {
         conv = ast::C_FUNC_THISCALL;
     } else {
-        ls.setbuf("invalid calling convention");
+        ls_buf.set("invalid calling convention");
         ls.syntax_error();
     }
     ls.get();
@@ -1625,7 +1605,7 @@ newlevel:
             pcvq[ridx].flags = flags;
         }
         if (!pcvq[ridx].is_func && (prevconv != ast::C_FUNC_DEFAULT)) {
-            ls.setbuf("calling convention on non-function declaration");
+            ls_buf.set("calling convention on non-function declaration");
             ls.syntax_error();
         }
         prevconv = pcvq[ridx].cconv;
@@ -1690,7 +1670,7 @@ newlevel:
              * to them nor we can make references to references
              */
             if (tp.is_ref()) {
-                ls.setbuf("references must be trailing");
+                ls_buf.set("references must be trailing");
                 ls.syntax_error();
             }
             if (pcvq[cidx].is_ref) {
@@ -1727,7 +1707,7 @@ newlevel:
             tp = ast::c_type{util::move(cf), 0};
         } else if (olev->arrd) {
             if (tp.vla() || tp.unbounded()) {
-                ls.setbuf("only first bound of an array may have unknown size");
+                ls_buf.set("only first bound of an array may have unknown size");
                 ls.syntax_error();
             }
             while (olev->arrd) {
@@ -1753,7 +1733,7 @@ newlevel:
     if (
         (ls.mode() == PARSE_MODE_DEFAULT) && (tp.type() == ast::C_BUILTIN_VOID)
     ) {
-        ls.setbuf("void type in forbidden context");
+        ls_buf.set("void type in forbidden context");
         ls.syntax_error();
     }
     /* shrink it back to what it was, these resources can be reused later */
@@ -1828,7 +1808,7 @@ static ast::c_type parse_typebase_core(lex_state &ls, bool *tdef, bool *extr) {
 qualified:
     if (ls.t.token == TOK_NAME) {
         /* typedef, struct, enum, var, etc. */
-        auto *decl = ls.lookup(ls.getbuf());
+        auto *decl = ls.lookup(ls_buf.data());
         if (!decl) {
             ls_buf.prepend("undeclared symbol '");
             ls_buf.append('\'');
@@ -1972,7 +1952,7 @@ qualified:
             }
             break;
         default:
-            ls.setbuf("type name expected");
+            ls_buf.set("type name expected");
             ls.syntax_error();
             break;
     }
@@ -2019,7 +1999,7 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
 
     auto mode_error = [&ls, named]() {
         if (named && (ls.mode() == PARSE_MODE_NOTCDEF)) {
-            ls.setbuf("struct declaration not allowed in this context");
+            ls_buf.set("struct declaration not allowed in this context");
             ls.syntax_error();
         }
     };
@@ -2123,7 +2103,7 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
 
     auto mode_error = [&ls, named]() {
         if (named && (ls.mode() == PARSE_MODE_NOTCDEF)) {
-            ls.setbuf("enum declaration not allowed in this context");
+            ls_buf.set("enum declaration not allowed in this context");
             ls.syntax_error();
         }
     };
@@ -2164,7 +2144,7 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
                 case ast::c_expr_type::LLONG: val.i = int(val.ll); break;
                 case ast::c_expr_type::ULLONG: val.i = int(val.ull); break;
                 default:
-                    ls.setbuf("unsupported type");
+                    ls_buf.set("unsupported type");
                     ls.syntax_error();
                     break;
             }
@@ -2224,7 +2204,7 @@ static void parse_decl(lex_state &ls) {
         first = false;
         if (cconv != ast::C_FUNC_DEFAULT) {
             if (tp.type() != ast::C_BUILTIN_FUNC) {
-                ls.setbuf("calling convention on non-function declaration");
+                ls_buf.set("calling convention on non-function declaration");
                 ls.syntax_error();
             }
             auto *func = const_cast<ast::c_function *>(&tp.function());
@@ -2255,7 +2235,7 @@ static void parse_decl(lex_state &ls) {
             check_next(ls, '(');
             check(ls, TOK_STRING);
             if (ls_buf.empty()) {
-                ls.setbuf("empty symbol name");
+                ls_buf.set("empty symbol name");
                 ls.syntax_error();
             }
             sym = ls_buf;
@@ -2307,11 +2287,11 @@ void parse(lua_State *L, char const *input, char const *iend, int paridx) {
                 char buf[16];
                 lua_pushfstring(
                     L, "input:%d: %s near '%s'", ls_err.line_number,
-                    ls.getbuf(), token_to_str(ls_err.token, buf)
+                    ls_buf.data(), token_to_str(ls_err.token, buf)
                 );
             } else {
                 lua_pushfstring(
-                    L, "input:%d: %s", ls_err.line_number, ls.getbuf()
+                    L, "input:%d: %s", ls_err.line_number, ls_buf.data()
                 );
             }
             goto lerr;
@@ -2338,11 +2318,11 @@ ast::c_type parse_type(
             if (ls_err.token > 0) {
                 char buf[16];
                 lua_pushfstring(
-                    L, "%s near '%s'", ls.getbuf(),
+                    L, "%s near '%s'", ls_buf.data(),
                     token_to_str(ls_err.token, buf)
                 );
             } else {
-                lua_pushfstring(L, "%s", ls.getbuf());
+                lua_pushfstring(L, "%s", ls_buf.data());
             }
             goto lerr;
         }
@@ -2371,11 +2351,11 @@ ast::c_expr_type parse_number(
             if (ls_err.token > 0) {
                 char buf[16];
                 lua_pushfstring(
-                    L, "%s near '%s'", ls.getbuf(),
+                    L, "%s near '%s'", ls_buf.data(),
                     token_to_str(ls_err.token, buf)
                 );
             } else {
-                lua_pushfstring(L, "%s", ls.getbuf());
+                lua_pushfstring(L, "%s", ls_buf.data());
             }
             goto lerr;
         }

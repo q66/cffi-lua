@@ -5,7 +5,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cassert>
-#include <ctime>
 
 #include "lua.hh"
 #include "libffi.hh"
