@@ -1,8 +1,6 @@
 #ifndef LIB_HH
 #define LIB_HH
 
-#include <string>
-
 #include "lua.hh"
 
 namespace lib {
