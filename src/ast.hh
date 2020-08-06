@@ -466,7 +466,7 @@ private:
     }
 };
 
-using c_object_cont_f = void (*)(std::string &, void *);
+using c_object_cont_f = void (*)(util::strbuf &, void *);
 
 struct c_object {
     c_object() {}
@@ -475,19 +475,17 @@ struct c_object {
     virtual char const *name() const = 0;
     virtual c_object_type obj_type() const = 0;
     virtual void do_serialize(
-        std::string &o, c_object_cont_f cont, void *data
+        util::strbuf &o, c_object_cont_f cont, void *data
     ) const = 0;
 
     void serialize(util::strbuf &sb) const {
-        std::string out;
-        do_serialize(out, nullptr, nullptr);
-        sb.append(out.c_str());
+        do_serialize(sb, nullptr, nullptr);
     }
 
     void serialize(lua_State *L) const {
-        std::string out;
-        do_serialize(out, nullptr, nullptr);
-        lua_pushlstring(L, out.c_str(), out.size());
+        util::strbuf sb;
+        serialize(sb);
+        lua_pushlstring(L, sb.data(), sb.size());
     }
 
     template<typename T>
@@ -560,7 +558,7 @@ struct c_type: c_object {
         return c_object_type::TYPE;
     }
 
-    void do_serialize(std::string &o, c_object_cont_f cont, void *data) const;
+    void do_serialize(util::strbuf &o, c_object_cont_f cont, void *data) const;
 
     char const *name() const {
         switch (type()) {
@@ -749,7 +747,7 @@ struct c_param: c_object {
         return c_object_type::PARAM;
     }
 
-    void do_serialize(std::string &o, c_object_cont_f cont, void *data) const;
+    void do_serialize(util::strbuf &o, c_object_cont_f cont, void *data) const;
 
     char const *name() const {
         return p_name.c_str();
@@ -782,7 +780,7 @@ struct c_function: c_object {
         return c_object_type::FUNCTION;
     }
 
-    void do_serialize(std::string &o, c_object_cont_f cont, void *data) const;
+    void do_serialize(util::strbuf &o, c_object_cont_f cont, void *data) const;
 
     char const *name() const {
         return nullptr;
@@ -836,7 +834,7 @@ struct c_variable: c_object {
         return c_object_type::VARIABLE;
     }
 
-    void do_serialize(std::string &o, c_object_cont_f cont, void *data) const {
+    void do_serialize(util::strbuf &o, c_object_cont_f cont, void *data) const {
         p_type.do_serialize(o, cont, data);
     }
 
@@ -878,7 +876,7 @@ struct c_constant: c_object {
         return c_object_type::CONSTANT;
     }
 
-    void do_serialize(std::string &o, c_object_cont_f cont, void *data) const {
+    void do_serialize(util::strbuf &o, c_object_cont_f cont, void *data) const {
         p_type.do_serialize(o, cont, data);
     }
 
@@ -917,7 +915,7 @@ struct c_typedef: c_object {
         return c_object_type::TYPEDEF;
     }
 
-    void do_serialize(std::string &o, c_object_cont_f cont, void *data) const {
+    void do_serialize(util::strbuf &o, c_object_cont_f cont, void *data) const {
         /* typedefs are resolved to their base type */
         p_type.do_serialize(o, cont, data);
     }
@@ -973,8 +971,8 @@ struct c_record: c_object {
         return c_object_type::RECORD;
     }
 
-    void do_serialize(std::string &o, c_object_cont_f cont, void *data) const {
-        o += this->p_name;
+    void do_serialize(util::strbuf &o, c_object_cont_f cont, void *data) const {
+        o.append(this->p_name.c_str(), this->p_name.size());
         if (cont) {
             cont(o, data);
         }
@@ -1096,8 +1094,8 @@ struct c_enum: c_object {
         return c_object_type::ENUM;
     }
 
-    void do_serialize(std::string &o, c_object_cont_f cont, void *data) const {
-        o += this->p_name;
+    void do_serialize(util::strbuf &o, c_object_cont_f cont, void *data) const {
+        o.append(this->p_name.c_str(), this->p_name.size());
         if (cont) {
             cont(o, data);
         }

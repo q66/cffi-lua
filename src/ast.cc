@@ -535,27 +535,27 @@ c_value c_expr::eval(c_expr_type &et, bool promote) const {
 }
 
 /* params ignore continuation func */
-void c_param::do_serialize(std::string &o, c_object_cont_f, void *) const {
-    p_type.do_serialize(o, [](std::string &out, void *data) {
+void c_param::do_serialize(util::strbuf &o, c_object_cont_f, void *) const {
+    p_type.do_serialize(o, [](util::strbuf &out, void *data) {
         auto &p = *static_cast<c_param const *>(data);
         if (!p.p_name.empty()) {
             if (out.back() != '*') {
-                out += ' ';
+                out.append(' ');
             }
-            out += p.p_name;
+            out.append(p.p_name.c_str());
         }
     }, const_cast<c_param *>(this));
 }
 
 void c_function::do_serialize(
-    std::string &o, c_object_cont_f cont, void *data
+    util::strbuf &o, c_object_cont_f cont, void *data
 ) const {
     using D = struct {
         c_object_cont_f cont;
         void *data;
     };
     D val{cont, data};
-    p_result.do_serialize(o, [](std::string &out, void *idata) {
+    p_result.do_serialize(o, [](util::strbuf &out, void *idata) {
         D &d = *static_cast<D *>(idata);
         /* if cont is nullptr, we still need this for the final () anyway */
         if (
@@ -563,20 +563,20 @@ void c_function::do_serialize(
             (out.back() != ']') && (out.back() != ')') &&
             (out.back() != '(')
         ) {
-            out += ' ';
+            out.append(' ');
         }
         if (d.cont) {
-            out += '(';
+            out.append('(');
             auto sz = out.size();
             d.cont(out, d.data);
             if (sz == out.size()) {
                 out.pop_back();
             } else {
-                out += ')';
+                out.append(')');
             }
         }
     }, &val);
-    o += "()";
+    o.append("()");
 }
 
 c_type::c_type(c_function tp, uint32_t qual, bool cb):
@@ -635,17 +635,17 @@ c_type &c_type::operator=(c_type &&v) {
     return *this;
 }
 
-static inline void add_cv(std::string &o, int cv) {
+static inline void add_cv(util::strbuf &o, int cv) {
     if (cv & C_CV_CONST) {
-        o += " const";
+        o.append(" const");
     }
     if (cv & C_CV_VOLATILE) {
-        o += " volatile";
+        o.append(" volatile");
     }
 }
 
 void c_type::do_serialize(
-    std::string &o, c_object_cont_f cont, void *data
+    util::strbuf &o, c_object_cont_f cont, void *data
 ) const {
     using D = struct {
         c_object_cont_f cont;
@@ -656,12 +656,12 @@ void c_type::do_serialize(
     D val{cont, data, this, cv()};
     /* FIXME: don't use unref() */
     if (is_ref()) {
-        unref().do_serialize(o, [](std::string &out, void *idata) {
+        unref().do_serialize(o, [](util::strbuf &out, void *idata) {
             D &d = *static_cast<D *>(idata);
             if ((out.back() != '*') && (out.back() != '(')) {
-                out += ' ';
+                out.append(' ');
             }
-            out += '&';
+            out.append('&');
             if (d.cont) {
                 d.cont(out, d.data);
             }
@@ -670,12 +670,12 @@ void c_type::do_serialize(
     }
     switch (type()) {
         case C_BUILTIN_PTR:
-            p_ptr->do_serialize(o, [](std::string &out, void *idata) {
+            p_ptr->do_serialize(o, [](util::strbuf &out, void *idata) {
                 D &d = *static_cast<D *>(idata);
                 if ((out.back() != '*') && (out.back() != '(')) {
-                    out += ' ';
+                    out.append(' ');
                 }
-                out += '*';
+                out.append('*');
                 add_cv(out, d.cv);
                 if (d.cont) {
                     d.cont(out, d.data);
@@ -683,9 +683,9 @@ void c_type::do_serialize(
             }, &val);
             break;
         case C_BUILTIN_ARRAY:
-            p_ptr->do_serialize(o, [](std::string &out, void *idata) {
+            p_ptr->do_serialize(o, [](util::strbuf &out, void *idata) {
                 D &d = *static_cast<D *>(idata);
-                out += '(';
+                out.append('(');
                 auto sz = out.size();
                 if (d.cont) {
                     d.cont(out, d.data);
@@ -694,7 +694,7 @@ void c_type::do_serialize(
                 if (sz == out.size()) {
                     out.pop_back();
                 } else {
-                    out += ')';
+                    out.append(')');
                 }
                 if (
                     (out.back() != '&') &&
@@ -702,17 +702,17 @@ void c_type::do_serialize(
                     (out.back() != ']') &&
                     (out.back() != ')')
                 ) {
-                    out += ' ';
+                    out.append(' ');
                 }
-                out += '[';
+                out.append('[');
                 if (d.ct->vla()) {
-                    out += '?';
+                    out.append('?');
                 } else if (!d.ct->unbounded()) {
                     char buf[32];
                     snprintf(buf, sizeof(buf), "%zu", d.ct->array_size());
-                    out += static_cast<char const *>(buf);
+                    out.append(buf);
                 }
-                out += ']';
+                out.append(']');
             }, &val);
             break;
         case C_BUILTIN_FUNC:
@@ -722,7 +722,7 @@ void c_type::do_serialize(
             p_crec->do_serialize(o, cont, data);
             break;
         default:
-            o += name();
+            o.append(name());
             add_cv(o, val.cv);
             if (cont) {
                 cont(o, data);
