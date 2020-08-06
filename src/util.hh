@@ -44,6 +44,22 @@ template<typename T> using remove_sign_t = std::make_unsigned_t<T>;
 template<typename T> using add_sign_t = std::make_signed_t<T>;
 
 namespace detail {
+    template<typename T> struct remove_const { using type = T; };
+    template<typename T> struct remove_const<T const> { using type = T; };
+
+    template<typename T> struct remove_volatile { using type = T; };
+    template<typename T> struct remove_volatile<T volatile> { using type = T; };
+}
+
+template<typename T> using remove_const_t =
+    typename detail::remove_const<T>::type;
+template<typename T> using remove_volatile_t =
+    typename detail::remove_volatile<T>::type;
+template<typename T> using remove_cv_t = typename detail::remove_volatile<
+    typename detail::remove_const<T>::type
+>::type;
+
+namespace detail {
     template<bool B, typename T, typename F>
     struct conditional { using type = T; };
 
@@ -54,14 +70,80 @@ namespace detail {
 template<bool B, typename T, typename F>
 using conditional_t = typename detail::conditional<B, T, F>::type;
 
+namespace detail {
+    template<typename> struct integral {
+        static constexpr bool value = false;
+    };
+    template<> struct integral<bool> {
+        static constexpr bool value = true;
+    };
+    template<> struct integral<char> {
+        static constexpr bool value = true;
+    };
+    template<> struct integral<char16_t> {
+        static constexpr bool value = true;
+    };
+    template<> struct integral<char32_t> {
+        static constexpr bool value = true;
+    };
+    template<> struct integral<wchar_t> {
+        static constexpr bool value = true;
+    };
+    template<> struct integral<short> {
+        static constexpr bool value = true;
+    };
+    template<> struct integral<int> {
+        static constexpr bool value = true;
+    };
+    template<> struct integral<long> {
+        static constexpr bool value = true;
+    };
+    template<> struct integral<long long> {
+        static constexpr bool value = true;
+    };
+    template<> struct integral<signed char> {
+        static constexpr bool value = true;
+    };
+    template<> struct integral<unsigned char> {
+        static constexpr bool value = true;
+    };
+    template<> struct integral<unsigned short> {
+        static constexpr bool value = true;
+    };
+    template<> struct integral<unsigned int> {
+        static constexpr bool value = true;
+    };
+    template<> struct integral<unsigned long> {
+        static constexpr bool value = true;
+    };
+    template<> struct integral<unsigned long long> {
+        static constexpr bool value = true;
+    };
+}
+
 template<typename T>
 struct is_int {
-    static constexpr bool value = std::is_integral<T>::value;
+    static constexpr bool value = detail::integral<remove_cv_t<T>>::value;
 };
+
+namespace detail {
+    template<typename> struct fpoint {
+        static constexpr bool value = false;
+    };
+    template<> struct fpoint<float> {
+        static constexpr bool value = true;
+    };
+    template<> struct fpoint<double> {
+        static constexpr bool value = true;
+    };
+    template<> struct fpoint<long double> {
+        static constexpr bool value = true;
+    };
+}
 
 template<typename T>
 struct is_float {
-    static constexpr bool value = std::is_floating_point<T>::value;
+    static constexpr bool value = detail::fpoint<remove_cv_t<T>>::value;
 };
 
 template<typename T>
