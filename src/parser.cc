@@ -1766,6 +1766,19 @@ enum type_signedness {
     TYPE_UNSIGNED = 1 << 1
 };
 
+using signed_size_t = util::conditional_t<
+    sizeof(size_t) == sizeof(char), signed char,
+    util::conditional_t<
+        sizeof(size_t) == sizeof(short), short,
+        util::conditional_t<
+            sizeof(size_t) == sizeof(int), int,
+            util::conditional_t<
+                sizeof(size_t) == sizeof(long), long, long long
+            >
+        >
+    >
+>;
+
 static ast::c_type parse_typebase_core(lex_state &ls, bool *tdef, bool *extr) {
     /* left-side cv */
     uint32_t quals = parse_cv(ls, tdef, extr);
@@ -1885,7 +1898,7 @@ qualified:
             cbt = ast::builtin_v<ptrdiff_t>;
             goto btype;
         case TOK_ssize_t:
-            cbt = ast::builtin_v<util::add_sign_t<size_t>>;
+            cbt = ast::builtin_v<signed_size_t>;
             goto btype;
         case TOK_size_t:
             cbt = ast::builtin_v<size_t>;

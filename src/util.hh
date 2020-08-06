@@ -12,7 +12,6 @@
 
 #include "platform.hh"
 
-#include <type_traits>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
@@ -39,9 +38,6 @@ namespace detail {
 }
 
 template<typename T> using remove_ref_t = typename detail::remove_ref<T>::type;
-
-template<typename T> using remove_sign_t = std::make_unsigned_t<T>;
-template<typename T> using add_sign_t = std::make_signed_t<T>;
 
 namespace detail {
     template<typename T> struct remove_const { using type = T; };

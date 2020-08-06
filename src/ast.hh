@@ -198,24 +198,41 @@ namespace detail {
             >
         >
     >;
+    template<typename T> using eq_utype = util::conditional_t<
+        sizeof(T) == sizeof(char),
+        unsigned char,
+        util::conditional_t<
+            sizeof(T) == sizeof(short),
+            unsigned short,
+            util::conditional_t<
+                sizeof(T) == sizeof(int),
+                unsigned int,
+                util::conditional_t<
+                    sizeof(T) == sizeof(long),
+                    unsigned long,
+                    unsigned long long
+                >
+            >
+        >
+    >;
 
     template<> struct builtin_v_base<wchar_t> {
         static constexpr c_builtin value =
             util::is_signed<wchar_t>::value
                 ? builtin_v_base<eq_type<wchar_t>>::value
-                : builtin_v_base<util::remove_sign_t<eq_type<wchar_t>>>::value;
+                : builtin_v_base<eq_utype<wchar_t>>::value;
     };
     template<> struct builtin_v_base<char16_t> {
         static constexpr c_builtin value =
             util::is_signed<char16_t>::value
                 ? builtin_v_base<eq_type<char16_t>>::value
-                : builtin_v_base<util::remove_sign_t<eq_type<char16_t>>>::value;
+                : builtin_v_base<eq_utype<char16_t>>::value;
     };
     template<> struct builtin_v_base<char32_t> {
         static constexpr c_builtin value =
             util::is_signed<char32_t>::value
                 ? builtin_v_base<eq_type<char16_t>>::value
-                : builtin_v_base<util::remove_sign_t<eq_type<char32_t>>>::value;
+                : builtin_v_base<eq_utype<char32_t>>::value;
     };
 } /* namespace detail */
 
