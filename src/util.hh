@@ -411,6 +411,8 @@ struct strbuf {
 
     strbuf(char const *str): strbuf(str, strlen(str)) {}
 
+    ~strbuf() {}
+
     void push_back(char c) {
         p_buf.back() = c;
         p_buf.push_back('\0');
@@ -433,6 +435,10 @@ struct strbuf {
         append(str, strlen(str));
     }
 
+    void append(char c) {
+        push_back(c);
+    }
+
     void prepend(char const *str, size_t n) {
         auto sz = p_buf.size();
         p_buf.reserve(sz + n);
@@ -443,6 +449,14 @@ struct strbuf {
 
     void prepend(char const *str) {
         prepend(str, strlen(str));
+    }
+
+    void prepend(char c) {
+        auto sz = p_buf.size();
+        p_buf.reserve(sz + 1);
+        memmove(&p_buf[1], &p_buf[0], sz);
+        p_buf[0] = c;
+        p_buf.setlen(sz + 1);
     }
 
     void insert(char const *str, size_t n, size_t idx) {
@@ -475,7 +489,7 @@ struct strbuf {
     void clear() {
         p_buf.clear();
         p_buf[0] = '\0';
-        p_buf.setlen(0);
+        p_buf.setlen(1);
     }
 
     char  operator[](size_t i) const { return p_buf[i]; }
@@ -498,6 +512,13 @@ struct strbuf {
     void swap(strbuf &b) {
         p_buf.swap(b.p_buf);
     }
+
+    void setlen(size_t n) {
+        p_buf.setlen(n + 1);
+    }
+
+    util::vector<char> const &raw() const { return p_buf; }
+    util::vector<char> &raw() { return p_buf; }
 
 private:
     util::vector<char> p_buf{};

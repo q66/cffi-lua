@@ -89,7 +89,7 @@ struct lex_token {
 };
 
 static thread_local util::str_map<int> keyword_map{};
-static thread_local util::vector<char> ls_buf{};
+static thread_local util::strbuf ls_buf{};
 
 static void init_kwmap() {
     if (!keyword_map.empty()) {
@@ -187,12 +187,9 @@ struct lex_state {
         auto *old = p_dstore.add(obj);
         if (old) {
             ls_buf.clear();
-            auto nlen = strlen(old->name());
-            ls_buf.reserve(nlen + sizeof("'' redefined"));
-            char *sp = &ls_buf[0];
-            sp[0] = '\'';
-            memcpy(&sp[1], old->name(), nlen);
-            memcpy(&sp[nlen + 1], "' redefined", sizeof("' redefined"));
+            ls_buf.append('\'');
+            ls_buf.append(old->name());
+            ls_buf.append("' redefined");
             lex_error(-1, lnum);
         }
     }
@@ -280,30 +277,19 @@ struct lex_state {
     }
 
     void setbuf(char const *str, size_t len) {
-        ls_buf.clear();
-        ls_buf.reserve(len + 1);
-        ls_buf.setbuf(str, len);
-        ls_buf.push_back('\0');
+        ls_buf.set(str, len);
     }
 
     void setbuf(char const *str) {
-        setbuf(str, strlen(str));
+        ls_buf.set(str);
     }
 
     void appendbuf(char const *str, size_t len) {
-        auto sz = ls_buf.size();
-        ls_buf.reserve(sz + len + 1);
-        if (!sz) {
-            setbuf(str, len);
-            return;
-        }
-        memcpy(&ls_buf[sz], str, len);
-        ls_buf[sz + len] = '\0';
-        ls_buf.setlen(sz + len + 1);
+        ls_buf.append(str, len);
     }
 
     void appendbuf(char const *str) {
-        appendbuf(str, strlen(str));
+        ls_buf.append(str);
     }
 
 private:
@@ -439,11 +425,12 @@ private:
 
     template<size_t base, typename F, typename G>
     void read_int_core(F &&digf, G &&convf, lex_token &tok) {
-        ls_buf.clear();
+        auto &lb = ls_buf.raw();
+        lb.clear();
         do {
-            ls_buf.push_back(next_char());
+            lb.push_back(next_char());
         } while (digf(current));
-        char const *numbeg = &ls_buf[0], *numend = &ls_buf[ls_buf.size()];
+        char const *numbeg = &ls_buf[0], *numend = &ls_buf[lb.size()];
         /* go from the end */
         unsigned long long val = 0, mul = 1;
         do {
@@ -730,7 +717,8 @@ cont:
             }
             /* string literal */
             case '\"': {
-                ls_buf.clear();
+                auto &lb = ls_buf.raw();
+                lb.clear();
                 next_char();
                 for (;;) {
                     if (current == '\"') {
@@ -749,14 +737,14 @@ cont:
                     if (current == '\\') {
                         char c = '\0';
                         read_escape(c);
-                        ls_buf.push_back(c);
+                        lb.push_back(c);
                     } else {
-                        ls_buf.push_back(char(current));
+                        lb.push_back(char(current));
                         next_char();
                     }
                 }
                 next_char();
-                ls_buf.push_back('\0');
+                lb.push_back('\0');
                 return TOK_STRING;
             }
             /* single-char tokens, number literals, keywords, names */
@@ -772,13 +760,14 @@ cont:
                     /* names, keywords */
                     /* what current pointed to */
                     /* keep reading until we readh non-matching char */
-                    ls_buf.clear();
+                    auto &lb = ls_buf.raw();
+                    lb.clear();
                     do {
-                        ls_buf.push_back(next_char());
+                        lb.push_back(next_char());
                     } while (isalnum(current) || (current == '_'));
-                    ls_buf.push_back('\0');
+                    lb.push_back('\0');
                     /* could be a keyword? */
-                    auto kwit = keyword_map.find(&ls_buf[0]);
+                    auto kwit = keyword_map.find(ls_buf.data());
                     if (kwit) {
                         return TOK_NAME + *kwit;
                     }
