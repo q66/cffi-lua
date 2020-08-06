@@ -13,6 +13,10 @@
 
 #include "lib.hh"
 
+#if FFI_OS == FFI_OS_WINDOWS
+#include <cstdlib>
+#endif
+
 namespace lib {
 
 static int make_cache(lua_State *L) {
@@ -197,8 +201,6 @@ bool is_c(c_lib const *cl) {
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-
-#include <cstdlib>
 
 #ifndef GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
 #define GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS 4
