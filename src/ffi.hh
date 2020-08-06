@@ -146,6 +146,9 @@ struct cdata {
     int aux;
     alignas(arg_stor_t) T val;
 
+    template<typename D>
+    cdata(D &&tp): decl{util::forward<D>(tp)} {}
+
     void *get_addr() {
         if (decl.is_ref()) {
             goto reft;
@@ -202,6 +205,9 @@ static constexpr size_t cdata_value_base() {
 struct ctype {
     ast::c_type decl;
     int ct_tag;
+
+    template<typename D>
+    ctype(D &&tp): decl{util::forward<D>(tp)} {}
 };
 
 struct closure_data {
@@ -244,8 +250,7 @@ template<typename T>
 static inline cdata<T> &newcdata(
     lua_State *L, ast::c_type &&tp, size_t extra = 0
 ) {
-    auto *cd = lua::newuserdata<cdata<T>>(L, extra);
-    new (&cd->decl) ast::c_type{util::move(tp)};
+    auto *cd = new (L, extra) cdata<T>{util::move(tp)};
     cd->gc_ref = LUA_REFNIL;
     cd->aux = 0;
     lua::mark_cdata(L);
@@ -262,10 +267,9 @@ static inline cdata<T> &newcdata(
 static inline cdata<ffi::noval> &newcdata(
     lua_State *L, ast::c_type const &tp, size_t vals
 ) {
-    auto *cd = static_cast<cdata<ffi::noval> *>(
-        lua_newuserdata(L, vals + cdata_value_base())
-    );
-    new (&cd->decl) ast::c_type{util::move(tp)};
+    auto *cd = new (
+        L, vals + cdata_value_base(), true
+    ) cdata<ffi::noval>{tp};
     cd->gc_ref = LUA_REFNIL;
     cd->aux = 0;
     lua::mark_cdata(L);
@@ -274,9 +278,8 @@ static inline cdata<ffi::noval> &newcdata(
 
 template<typename ...A>
 static inline ctype &newctype(lua_State *L, A &&...args) {
-    auto *cd = lua::newuserdata<ctype>(L);
+    auto *cd = new (L) ctype{ast::c_type{util::forward<A>(args)...}};
     cd->ct_tag = lua::CFFI_CTYPE_TAG;
-    new (&cd->decl) ast::c_type{util::forward<A>(args)...};
     lua::mark_cdata(L);
     return *cd;
 }

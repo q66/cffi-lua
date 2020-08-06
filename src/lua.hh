@@ -102,11 +102,6 @@ static constexpr char const CFFI_LIB_MT[] = "cffi_lib_handle";
 static constexpr char const CFFI_DECL_STOR[] = "cffi_decl_stor";
 
 template<typename T>
-static T *newuserdata(lua_State *L, size_t extra = 0) {
-    return static_cast<T *>(lua_newuserdata(L, sizeof(T) + extra));
-}
-
-template<typename T>
 static T *touserdata(lua_State *L, int index) {
     return static_cast<T *>(lua_touserdata(L, index));
 }
@@ -128,5 +123,17 @@ static inline void mark_lib(lua_State *L) {
 }
 
 } /* namespace lua */
+
+inline void *operator new(size_t n, lua_State *L) {
+    return lua_newuserdata(L, n);
+}
+
+inline void *operator new(size_t n, lua_State *L, size_t extra) {
+    return lua_newuserdata(L, n + extra);
+}
+
+inline void *operator new(size_t, lua_State *L, size_t n, bool) {
+    return lua_newuserdata(L, n);
+}
 
 #endif /* LUA_HH */

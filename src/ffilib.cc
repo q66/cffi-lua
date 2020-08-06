@@ -1142,7 +1142,7 @@ struct ffi_module {
     static int load_f(lua_State *L) {
         char const *path = luaL_checkstring(L, 1);
         bool glob = (lua_gettop(L) >= 2) && lua_toboolean(L, 2);
-        auto *c_ud = lua::newuserdata<lib::c_lib>(L);
+        auto *c_ud = new (L) lib::c_lib{};
         lib::load(c_ud, path, L, glob);
         return 1;
     }
@@ -1539,8 +1539,7 @@ struct ffi_module {
 
     static void setup_dstor(lua_State *L) {
         /* our declaration storage is a userdata in the registry */
-        auto *ud = lua::newuserdata<ast::decl_store>(L);
-        new (ud) ast::decl_store{};
+        new (L) ast::decl_store{};
         /* stack: dstor */
         lua_newtable(L);
         /* stack: dstor, mt */
@@ -1568,7 +1567,7 @@ struct ffi_module {
         setup(L); /* push table to stack */
 
         /* lib handles, needs the module table on the stack */
-        auto *c_ud = lua::newuserdata<lib::c_lib>(L);
+        auto *c_ud = new (L) lib::c_lib{};
         lib::load(c_ud, nullptr, L, false);
         lib_meta::setup(L);
     }
