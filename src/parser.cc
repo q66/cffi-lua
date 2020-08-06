@@ -2226,7 +2226,7 @@ static void parse_decl(lex_state &ls) {
                  * way to access the type and it'd be unique either way
                  */
                 ls.store_decl(new ast::c_typedef{
-                    std::string{dname.data()}, util::move(tp)
+                    util::move(dname), util::move(tp)
                 }, dline);
                 continue;
             } else {

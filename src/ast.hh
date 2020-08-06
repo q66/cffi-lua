@@ -907,7 +907,7 @@ private:
 };
 
 struct c_typedef: c_object {
-    c_typedef(std::string aname, c_type btype):
+    c_typedef(util::strbuf aname, c_type btype):
         p_name{util::move(aname)}, p_type{util::move(btype)}
     {}
 
@@ -921,7 +921,7 @@ struct c_typedef: c_object {
     }
 
     char const *name() const {
-        return p_name.c_str();
+        return p_name.data();
     }
 
     c_type const &type() const {
@@ -937,7 +937,7 @@ struct c_typedef: c_object {
     }
 
 private:
-    std::string p_name;
+    util::strbuf p_name;
     c_type p_type;
 };
 
