@@ -3,8 +3,6 @@
 #include <cstdint>
 #include <cassert>
 
-#include <string>
-
 #include "parser.hh"
 #include "ast.hh"
 #include "util.hh"
@@ -2170,7 +2168,7 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
         ast::c_value fval;
         fval.i = fld.value;
         auto *p = new ast::c_constant{
-            std::string{fld.name.data()}, ast::c_type{ast::C_BUILTIN_INT, 0}, fval
+            fld.name, ast::c_type{ast::C_BUILTIN_INT, 0}, fval
         };
         ls.store_decl(p, eln);
         if (ls.t.token != ',') {

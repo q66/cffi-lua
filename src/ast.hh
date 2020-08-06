@@ -3,14 +3,13 @@
 
 #include <cstring>
 #include <cstddef>
+#include <cstdint>
 #include <cassert>
 #include <ctime>
 
 #include "lua.hh"
 #include "libffi.hh"
 #include "util.hh"
-
-#include <string>
 
 namespace ast {
 
@@ -868,7 +867,7 @@ private:
 };
 
 struct c_constant: c_object {
-    c_constant(std::string cname, c_type ctype, c_value const &cval):
+    c_constant(util::strbuf cname, c_type ctype, c_value const &cval):
         p_name{util::move(cname)}, p_type{util::move(ctype)}, p_value{cval}
     {}
 
@@ -881,7 +880,7 @@ struct c_constant: c_object {
     }
 
     char const *name() const {
-        return p_name.c_str();
+        return p_name.data();
     }
 
     c_type const &type() const {
@@ -901,7 +900,7 @@ struct c_constant: c_object {
     }
 
 private:
-    std::string p_name;
+    util::strbuf p_name;
     c_type p_type;
     c_value p_value;
 };
