@@ -542,7 +542,7 @@ void c_param::do_serialize(util::strbuf &o, c_object_cont_f, void *) const {
             if (out.back() != '*') {
                 out.append(' ');
             }
-            out.append(p.p_name.c_str());
+            out.append(p.p_name);
         }
     }, const_cast<c_param *>(this));
 }

@@ -1280,7 +1280,7 @@ static util::vector<ast::c_param> parse_paramlist(lex_state &ls) {
     for (;;) {
         if (ls.t.token == TOK_ELLIPSIS) {
             /* varargs, insert a sentinel type (will be dropped) */
-            params.emplace_back(std::string{}, ast::c_type{
+            params.emplace_back(util::strbuf{}, ast::c_type{
                 ast::C_BUILTIN_VOID, 0
             });
             ls.get();
@@ -1301,7 +1301,7 @@ static util::vector<ast::c_param> parse_paramlist(lex_state &ls) {
         if (pname[0] == '?') {
             pname.clear();
         }
-        params.emplace_back(std::string{pname.data()}, util::move(pt));
+        params.emplace_back(util::move(pname), util::move(pt));
         if (!test_next(ls, ',')) {
             break;
         }

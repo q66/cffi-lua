@@ -439,6 +439,10 @@ struct strbuf {
         push_back(c);
     }
 
+    void append(strbuf const &b) {
+        append(b.data(), b.size());
+    }
+
     void prepend(char const *str, size_t n) {
         auto sz = p_buf.size();
         p_buf.reserve(sz + n);
@@ -459,6 +463,10 @@ struct strbuf {
         p_buf.setlen(sz + 1);
     }
 
+    void prepend(strbuf const &b) {
+        prepend(b.data(), b.size());
+    }
+
     void insert(char const *str, size_t n, size_t idx) {
         auto sz = p_buf.size();
         p_buf.reserve(sz + n);
@@ -469,6 +477,10 @@ struct strbuf {
 
     void insert(char const *str, size_t idx) {
         insert(str, strlen(str), idx);
+    }
+
+    void insert(strbuf const &b, size_t idx) {
+        insert(b.data(), b.size(), idx);
     }
 
     void set(char const *str, size_t n) {
@@ -507,7 +519,7 @@ struct strbuf {
     size_t size() const { return p_buf.size() - 1; }
     size_t capacity() const { return p_buf.capacity() - 1; }
 
-    bool empty() { return (size() == 0); }
+    bool empty() const { return (size() == 0); }
 
     void swap(strbuf &b) {
         p_buf.swap(b.p_buf);

@@ -739,7 +739,7 @@ private:
 };
 
 struct c_param: c_object {
-    c_param(std::string pname, c_type type):
+    c_param(util::strbuf pname, c_type type):
         p_name{util::move(pname)}, p_type{util::move(type)}
     {}
 
@@ -750,7 +750,7 @@ struct c_param: c_object {
     void do_serialize(util::strbuf &o, c_object_cont_f cont, void *data) const;
 
     char const *name() const {
-        return p_name.c_str();
+        return p_name.data();
     }
 
     c_type const &type() const {
@@ -766,7 +766,7 @@ struct c_param: c_object {
     }
 
 private:
-    std::string p_name;
+    util::strbuf p_name;
     c_type p_type;
 };
 
