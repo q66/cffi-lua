@@ -2,6 +2,7 @@
 #include <cctype>
 #include <cstdint>
 #include <cassert>
+#include <ctime>
 
 #include "parser.hh"
 #include "ast.hh"
