@@ -944,11 +944,11 @@ private:
 /* represents a record type: can be a struct or a union */
 struct c_record: c_object {
     struct field {
-        field(std::string nm, c_type &&tp):
+        field(util::strbuf nm, c_type &&tp):
             name{util::move(nm)}, type(util::move(tp))
         {}
 
-        std::string name;
+        util::strbuf name;
         c_type type;
     };
 

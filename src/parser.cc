@@ -2036,7 +2036,7 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
             bool transp = false;
             auto &st = parse_record(ls, &transp);
             if (transp && test_next(ls, ';')) {
-                fields.emplace_back(std::string{}, ast::c_type{&st, 0});
+                fields.emplace_back(util::strbuf{}, ast::c_type{&st, 0});
                 continue;
             }
             tpb = ast::c_type{&st, parse_cv(ls)};
@@ -2052,7 +2052,7 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
                 goto field_end;
             }
             flexible = tp.unbounded();
-            fields.emplace_back(std::string{fpn.data()}, util::move(tp));
+            fields.emplace_back(util::move(fpn), util::move(tp));
             /* unbounded array must be the last in the list */
             if (flexible) {
                 break;

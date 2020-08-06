@@ -964,7 +964,7 @@ size_t c_record::iter_fields(bool (*cb)(
             }
         } else {
             end = cb(
-                p_fields[i].name.c_str(), p_fields[i].type, obase + base, data
+                p_fields[i].name.data(), p_fields[i].type, obase + base, data
             );
             if (end) {
                 return base;
@@ -977,7 +977,7 @@ size_t c_record::iter_fields(bool (*cb)(
     if (flex) {
         base = p_ffi_type.size;
         end = cb(
-            p_fields.back().name.c_str(), p_fields.back().type,
+            p_fields.back().name.data(), p_fields.back().type,
             obase + base, data
         );
     }
