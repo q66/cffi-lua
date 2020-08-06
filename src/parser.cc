@@ -855,19 +855,16 @@ static void check_match(lex_state &ls, int what, int who, int where) {
     if (where == ls.line_number) {
         error_expected(ls, what);
     } else {
-        char lbuf[48];
-        auto tbuf = token_to_str(what, lbuf + 16);
-        auto vbuf = token_to_str(who, lbuf + 32);
-        std::string buf;
-        buf += '\'';
-        buf += tbuf;
-        buf += " ' expected (to close '";
-        buf += vbuf;
-        buf += "' at line ";
-        snprintf(lbuf, sizeof(lbuf) / 3, "%d", where);
-        buf += static_cast<char const *>(lbuf);
-        buf += ')';
-        ls.setbuf(buf.c_str());
+        char buf[16];
+        ls_buf.clear();
+        ls_buf.append('\'');
+        ls_buf.append(token_to_str(what, buf));
+        ls_buf.append("' expected (to close '");
+        ls_buf.append(token_to_str(who, buf));
+        ls_buf.append("' at line ");
+        snprintf(buf, sizeof(buf), "%d", where);
+        ls_buf.append(buf);
+        ls_buf.append(')');
         ls.syntax_error();
     }
 }
@@ -978,10 +975,8 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
             ast::c_expr ret;
             auto *o = ls.lookup(ls.getbuf());
             if (!o || (o->obj_type() != ast::c_object_type::CONSTANT)) {
-                std::string buf = "unknown constant '";
-                buf += ls.getbuf();
-                buf += "'";
-                ls.setbuf(buf.c_str());
+                ls_buf.prepend("unknown constant '");
+                ls_buf.append('\'');
                 ls.syntax_error();
             }
             auto &ct = o->as<ast::c_constant>();
@@ -1296,10 +1291,10 @@ static util::vector<ast::c_param> parse_paramlist(lex_state &ls) {
         auto pt = parse_type(ls, &pname);
         /* check if argument type can be passed by value */
         if (!pt.passable()) {
-            std::string buf = "'";
-            buf += pt.serialize();
-            buf += "' cannot be passed by value";
-            ls.setbuf(buf.c_str());
+            ls_buf.clear();
+            ls_buf.append('\'');
+            ls_buf.append(pt.serialize().c_str());
+            ls_buf.append("' cannot be passed by value");
             ls.syntax_error();
             break;
         }
@@ -1723,10 +1718,10 @@ newlevel:
                 (tp.type() == ast::C_BUILTIN_ARRAY) ||
                 ((tp.type() != ast::C_BUILTIN_VOID) && !tp.passable())
             ) {
-                std::string buf = "'";
-                buf += tp.serialize();
-                buf += "' cannot be passed by value";
-                ls.setbuf(buf.c_str());
+                ls_buf.clear();
+                ls_buf.append('\'');
+                ls_buf.append(tp.serialize().c_str());
+                ls_buf.append("' cannot be passed by value");
                 ls.syntax_error();
                 break;
             }
@@ -1824,11 +1819,8 @@ qualified:
         /* typedef, struct, enum, var, etc. */
         auto *decl = ls.lookup(ls.getbuf());
         if (!decl) {
-            std::string buf;
-            buf += "undeclared symbol '";
-            buf += ls.getbuf();
-            buf += "'";
-            ls.setbuf(buf.c_str());
+            ls_buf.prepend("undeclared symbol '");
+            ls_buf.append('\'');
             ls.syntax_error();
         }
         switch (decl->obj_type()) {
@@ -1850,11 +1842,8 @@ qualified:
                 return ast::c_type{&tp, quals};
             }
             default: {
-                std::string buf;
-                buf += "symbol '";
-                buf += ls.getbuf();
-                buf += "' is not a type";
-                ls.setbuf(buf.c_str());
+                ls_buf.prepend("symbol '");
+                ls_buf.append("' is not a type");
                 ls.syntax_error();
                 break;
             }
