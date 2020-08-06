@@ -7,18 +7,21 @@ namespace ffi {
 static inline void fail_convert_cd(
     lua_State *L, ast::c_type const &from, ast::c_type const &to
 ) {
+    from.serialize(L);
+    to.serialize(L);
     luaL_error(
         L, "cannot convert '%s' to '%s'",
-        from.serialize().c_str(), to.serialize().c_str()
+        lua_tostring(L, -2), lua_tostring(L, -1)
     );
 }
 
 static inline void fail_convert_tp(
     lua_State *L, char const *from, ast::c_type const &to
 ) {
+    to.serialize(L);
     luaL_error(
         L, "cannot convert '%s' to '%s'",
-        from, to.serialize().c_str()
+        from, lua_tostring(L, -1)
     );
 }
 
@@ -262,9 +265,10 @@ static void make_cdata_func(
         ));
         if (!cd->closure) {
             destroy_closure(cd);
+            func.serialize(L);
             luaL_error(
                 L, "failed allocating callback for '%s'",
-                func.serialize().c_str()
+                lua_tostring(L, -1)
             );
         }
         if (!prepare_cif(fud.decl.function(), cd->cif, cd->targs(), nargs)) {
@@ -276,9 +280,10 @@ static void make_cdata_func(
             reinterpret_cast<void *>(fud.val.sym)
         ) != FFI_OK) {
             destroy_closure(cd);
+            func.serialize(L);
             luaL_error(
                 L, "failed initializing closure for '%s'",
-                func.serialize().c_str()
+                lua_tostring(L, -1)
             );
         }
         cd->L = L;
@@ -624,9 +629,8 @@ static void *from_lua_num(
         case ast::C_BUILTIN_FUNC:
         case ast::C_BUILTIN_INVALID:
             /* this should not happen */
-            luaL_error(
-                L, "bad argument type '%s'", tp.serialize().c_str()
-            );
+            tp.serialize(L);
+            luaL_error(L, "bad argument type '%s'", lua_tostring(L, -1));
             break;
     }
     assert(false);

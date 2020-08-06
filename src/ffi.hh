@@ -648,8 +648,7 @@ static inline char const *lua_serialize(lua_State *L, int idx) {
     auto *cd = testcdata<noval>(L, idx);
     if (cd) {
         /* it's ok to mess up the lua stack, this is only used for errors */
-        std::string ser = cd->decl.serialize();
-        lua_pushlstring(L, ser.c_str(), ser.size());
+        cd->decl.serialize(L);
         return lua_tostring(L, -1);
     }
     return lua_typename(L, lua_type(L, idx));

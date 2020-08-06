@@ -123,7 +123,10 @@ struct cdata_meta {
                 lua_pop(L, 1);
             }
 #endif
-            lua_pushfstring(L, "ctype<%s>", cd.decl.serialize().c_str());
+            lua_pushliteral(L, "ctype<");
+            cd.decl.serialize(L);
+            lua_pushliteral(L, ">");
+            lua_concat(L, 3);
             return 1;
         }
 #if LUA_VERSION_NUM > 502
@@ -158,8 +161,10 @@ struct cdata_meta {
             lua_pushlstring(L, buf, written);
             return 1;
         }
-        auto s = cd.decl.serialize();
-        lua_pushfstring(L, "cdata<%s>: %p", s.c_str(), cd.get_addr());
+        lua_pushliteral(L, "cdata<");
+        cd.decl.serialize(L);
+        lua_pushfstring(L, ">: %p", cd.get_addr());
+        lua_concat(L, 3);
         return 1;
     }
 
@@ -182,8 +187,8 @@ struct cdata_meta {
                 lua_call(L, nargs, LUA_MULTRET);
                 return lua_gettop(L);
             }
-            auto s = fd.decl.serialize();
-            luaL_error(L, "'%s' is not callable", s.c_str());
+            fd.decl.serialize(L);
+            luaL_error(L, "'%s' is not callable", lua_tostring(L, -1));
         }
         if (fd.decl.closure() && !fd.val.cd) {
             luaL_error(L, "bad callback");
@@ -222,9 +227,10 @@ struct cdata_meta {
                 ptr = static_cast<unsigned char *>(*valp);
                 elsize = decl->ptr_base().alloc_size();
                 if (!elsize) {
+                    decl->serialize(L);
                     luaL_error(
                         L, "attempt to index an incomplete type '%s'",
-                        decl->serialize().c_str()
+                        lua_tostring(L, -1)
                     );
                 }
                 break;
@@ -239,8 +245,8 @@ struct cdata_meta {
                 return true;
             }
             default: {
-                auto s = decl->serialize();
-                luaL_error(L, "'%s' is not indexable", s.c_str());
+                decl->serialize(L);
+                luaL_error(L, "'%s' is not indexable", lua_tostring(L, -1));
                 break;
             }
         }
@@ -287,15 +293,17 @@ struct cdata_meta {
                 lua_pushcfunction(L, cb_set);
                 return 1;
             } else if (!mname) {
+                cd.decl.serialize(L);
                 luaL_error(
                     L, "'%s' cannot be indexed with '%s'",
-                    cd.decl.serialize().c_str(),
+                    lua_tostring(L, -1),
                     lua_typename(L, lua_type(L, 2))
                 );
             } else {
+                cd.decl.serialize(L);
                 luaL_error(
                     L, "'%s' has no member named '%s'",
-                    cd.decl.serialize().c_str(), mname
+                    lua_tostring(L, -1), mname
                 );
             }
             return 0;
@@ -327,14 +335,16 @@ struct cdata_meta {
             }
         }
         if (lua_type(L, 2) != LUA_TSTRING) {
+            cd.decl.serialize(L);
             luaL_error(
                 L, "'%s' is not indexable with '%s'",
-                cd.decl.serialize().c_str(), lua_typename(L, 2)
+                lua_tostring(L, -1), lua_typename(L, 2)
             );
         } else {
+            cd.decl.serialize(L);
             luaL_error(
                 L, "'%s' has no member named '%s'",
-                cd.decl.serialize().c_str(), lua_tostring(L, 2)
+                lua_tostring(L, -1), lua_tostring(L, 2)
             );
         }
         return 1;
@@ -352,10 +362,10 @@ struct cdata_meta {
             lua_call(L, 3, 0);
             return 0;
         }
+        ffi::tocdata<ffi::noval>(L, 1).decl.serialize(L);
         luaL_error(
             L, "'%s' has no member named '%s'",
-            ffi::tocdata<ffi::noval>(L, 1).decl.serialize().c_str(),
-            lua_tostring(L, 2)
+            lua_tostring(L, -1), lua_tostring(L, 2)
         );
         return 0;
     }
@@ -587,10 +597,11 @@ struct cdata_meta {
                     if (binop_try_mt<ffi::METATYPE_FLAG_SUB>(L, cd1, cd2)) {
                         return 1;
                     }
+                    cd2->decl.serialize(L);
+                    cd1->decl.serialize(L);
                     luaL_error(
                         L, "cannot convert '%s' to '%s'",
-                        cd2->decl.serialize().c_str(),
-                        cd1->decl.serialize().c_str()
+                        lua_tostring(L, -2), lua_tostring(L, -1)
                     );
                 }
                 auto ret = reinterpret_cast<unsigned char *>(cd1->val)
@@ -1307,9 +1318,10 @@ struct ffi_module {
                 (ctp != ast::C_BUILTIN_ARRAY) &&
                 !cd.decl.is_ref()
             ) {
+                cd.decl.serialize(L);
                 lua_pushfstring(
                     L, "cannot convert '%s' to 'void *'",
-                    cd.decl.serialize().c_str()
+                    lua_tostring(L, -1)
                 );
                 luaL_argcheck(L, false, idx, lua_tostring(L, -1));
             }

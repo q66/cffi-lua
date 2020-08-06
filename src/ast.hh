@@ -478,10 +478,16 @@ struct c_object {
         std::string &o, c_object_cont_f cont, void *data
     ) const = 0;
 
-    std::string serialize() const {
+    void serialize(util::strbuf &sb) const {
         std::string out;
         do_serialize(out, nullptr, nullptr);
-        return out;
+        sb.append(out.c_str());
+    }
+
+    void serialize(lua_State *L) const {
+        std::string out;
+        do_serialize(out, nullptr, nullptr);
+        lua_pushlstring(L, out.c_str(), out.size());
     }
 
     template<typename T>

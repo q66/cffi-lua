@@ -1293,7 +1293,7 @@ static util::vector<ast::c_param> parse_paramlist(lex_state &ls) {
         if (!pt.passable()) {
             ls_buf.clear();
             ls_buf.append('\'');
-            ls_buf.append(pt.serialize().c_str());
+            pt.serialize(ls_buf);
             ls_buf.append("' cannot be passed by value");
             ls.syntax_error();
             break;
@@ -1720,7 +1720,7 @@ newlevel:
             ) {
                 ls_buf.clear();
                 ls_buf.append('\'');
-                ls_buf.append(tp.serialize().c_str());
+                tp.serialize(ls_buf);
                 ls_buf.append("' cannot be passed by value");
                 ls.syntax_error();
                 break;
