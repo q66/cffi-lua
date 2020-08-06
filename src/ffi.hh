@@ -106,12 +106,15 @@ static inline constexpr auto metafield_name(metatype_flag flag) {
 
 static_assert((
     (sizeof(lua_Integer) <= sizeof(ffi::scalar_stor_t)) &&
-    (alignof(lua_Integer) <= alignof(ffi::scalar_stor_t))
+    (alignof(lua_Integer) <= alignof(ffi::scalar_stor_t)) &&
+    util::is_int<lua_Integer>::value
 ), "unsupported lua_Integer type");
 
+/* lua_Number is supported either as a float or as an integer */
 static_assert((
     (sizeof(lua_Number) <= sizeof(ffi::scalar_stor_t)) &&
-    (alignof(lua_Number) <= alignof(ffi::scalar_stor_t))
+    (alignof(lua_Number) <= alignof(ffi::scalar_stor_t)) &&
+    (util::is_float<lua_Number>::value || util::is_int<lua_Number>::value)
 ), "unsupported lua_Number type");
 
 struct arg_stor_t {
