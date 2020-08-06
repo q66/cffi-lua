@@ -261,7 +261,7 @@ struct vector {
     vector(vector &&v) { *this = move(v); }
 
     vector &operator=(vector const &v) {
-        resize(0);
+        shrink(0);
         if (v.size() > capacity()) {
             reserve(v.size());
         }
@@ -317,7 +317,7 @@ struct vector {
         p_cap = n;
     }
 
-    void resize(size_t n) {
+    void shrink(size_t n) {
         for (size_t i = n; i < p_size; ++i) {
             p_buf[i].~T();
         }
@@ -325,7 +325,7 @@ struct vector {
     }
 
     void clear() {
-        resize(0);
+        shrink(0);
     }
 
     T &operator[](size_t i) {
@@ -389,12 +389,118 @@ struct vector {
 
 private:
     void drop() {
-        resize(0);
+        shrink(0);
         delete[] reinterpret_cast<unsigned char *>(p_buf);
     }
 
     T *p_buf = nullptr;
     size_t p_size = 0, p_cap = 0;
+};
+
+/* string buffer */
+
+struct strbuf {
+    strbuf() {
+        /* always terminated */
+        p_buf.push_back('\0');
+    }
+
+    strbuf(char const *str, size_t n) {
+        set(str, n);
+    }
+
+    strbuf(char const *str): strbuf(str, strlen(str)) {}
+
+    void push_back(char c) {
+        p_buf.back() = c;
+        p_buf.push_back('\0');
+    }
+
+    void pop_back() {
+        p_buf.pop_back();
+        p_buf.back() = '\0';
+    }
+
+    void append(char const *str, size_t n) {
+        auto sz = p_buf.size();
+        p_buf.reserve(sz + n);
+        memcpy(&p_buf[sz - 1], str, n);
+        p_buf[n + sz - 1] = '\0';
+        p_buf.setlen(sz + n);
+    }
+
+    void append(char const *str) {
+        append(str, strlen(str));
+    }
+
+    void prepend(char const *str, size_t n) {
+        auto sz = p_buf.size();
+        p_buf.reserve(sz + n);
+        memmove(&p_buf[n], &p_buf[0], sz);
+        memcpy(&p_buf[0], str, n);
+        p_buf.setlen(sz + n);
+    }
+
+    void prepend(char const *str) {
+        prepend(str, strlen(str));
+    }
+
+    void insert(char const *str, size_t n, size_t idx) {
+        auto sz = p_buf.size();
+        p_buf.reserve(sz + n);
+        memmove(&p_buf[idx + n], &p_buf[idx], sz - idx);
+        memcpy(&p_buf[idx], str, n);
+        p_buf.setlen(sz + n);
+    }
+
+    void insert(char const *str, size_t idx) {
+        insert(str, strlen(str), idx);
+    }
+
+    void set(char const *str, size_t n) {
+        p_buf.reserve(n + 1);
+        memcpy(&p_buf[0], str, n);
+        p_buf[n] = '\0';
+        p_buf.setlen(n + 1);
+    }
+
+    void set(char const *str) {
+        set(str, strlen(str));
+    }
+
+    void reserve(size_t n) {
+        p_buf.reserve(n + 1);
+    }
+
+    void clear() {
+        p_buf.clear();
+        p_buf[0] = '\0';
+        p_buf.setlen(0);
+    }
+
+    char  operator[](size_t i) const { return p_buf[i]; }
+    char &operator[](size_t i) { return p_buf[i]; }
+
+    char  front() const { return p_buf.front(); }
+    char &front() { return p_buf.front(); }
+
+    char  back() const { return p_buf[size() - 1]; }
+    char &back() { return p_buf[size() - 1]; }
+
+    char const *data() const { return p_buf.data(); }
+    char *data() { return p_buf.data(); }
+
+    size_t size() const { return p_buf.size() - 1; }
+    size_t capacity() const { return p_buf.capacity() - 1; }
+
+    bool empty() { return (size() == 0); }
+
+    void swap(strbuf &b) {
+        p_buf.swap(b.p_buf);
+    }
+
+private:
+    util::vector<char> p_buf{};
 };
 
 /* hashtable */

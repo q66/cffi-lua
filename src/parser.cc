@@ -1775,7 +1775,7 @@ newlevel:
         ls.syntax_error();
     }
     /* shrink it back to what it was, these resources can be reused later */
-    pcvq.resize(pidx);
+    pcvq.shrink(pidx);
     return tp;
 }
 
