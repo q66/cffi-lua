@@ -405,6 +405,12 @@ struct strbuf {
         p_buf.push_back('\0');
     }
 
+    strbuf(strbuf const &b) {
+        set(b);
+    }
+
+    strbuf(strbuf &&b): p_buf(util::move(b.p_buf)) {}
+
     strbuf(char const *str, size_t n) {
         set(str, n);
     }
@@ -412,6 +418,21 @@ struct strbuf {
     strbuf(char const *str): strbuf(str, strlen(str)) {}
 
     ~strbuf() {}
+
+    strbuf &operator=(char const *str) {
+        set(str, strlen(str));
+        return *this;
+    }
+
+    strbuf &operator=(strbuf const &b) {
+        set(b);
+        return *this;
+    }
+
+    strbuf &operator=(strbuf &&b) {
+        p_buf = util::move(b.p_buf);
+        return *this;
+    }
 
     void push_back(char c) {
         p_buf.back() = c;
@@ -492,6 +513,10 @@ struct strbuf {
 
     void set(char const *str) {
         set(str, strlen(str));
+    }
+
+    void set(strbuf const &b) {
+        set(b.data(), b.size());
     }
 
     void reserve(size_t n) {
