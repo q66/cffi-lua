@@ -943,7 +943,7 @@ static constexpr int ifprec = 1;
 static ast::c_expr parse_cexpr(lex_state &ls);
 static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec);
 
-static ast::c_type parse_type(lex_state &ls, std::string *fpname = nullptr);
+static ast::c_type parse_type(lex_state &ls, util::strbuf *fpname = nullptr);
 
 static ast::c_record const &parse_record(lex_state &ls, bool *newst = nullptr);
 static ast::c_enum const &parse_enum(lex_state &ls);
@@ -1287,7 +1287,7 @@ static util::vector<ast::c_param> parse_paramlist(lex_state &ls) {
             /* varargs ends the arglist */
             break;
         }
-        std::string pname;
+        util::strbuf pname;
         auto pt = parse_type(ls, &pname);
         /* check if argument type can be passed by value */
         if (!pt.passable()) {
@@ -1298,10 +1298,10 @@ static util::vector<ast::c_param> parse_paramlist(lex_state &ls) {
             ls.syntax_error();
             break;
         }
-        if (pname == "?") {
+        if (pname[0] == '?') {
             pname.clear();
         }
-        params.emplace_back(util::move(pname), util::move(pt));
+        params.emplace_back(std::string{pname.data()}, util::move(pt));
         if (!test_next(ls, ',')) {
             break;
         }
@@ -1425,7 +1425,7 @@ static size_t parse_array(lex_state &ls, int &flags) {
  * below is described how it works:
  */
 static ast::c_type parse_type_ptr(
-    lex_state &ls, ast::c_type tp, std::string *fpname, bool needn
+    lex_state &ls, ast::c_type tp, util::strbuf *fpname, bool needn
 ) {
     /* our input is the left-side qualified type; that means constructs such
      * as 'const int' or 'unsigned long int const'
@@ -1582,10 +1582,10 @@ newlevel:
              * parsing a typedef or a prototype, this will be the name
              */
             check(ls, TOK_NAME);
-            *fpname = ls.getbuf();
+            *fpname = ls_buf;
             ls.get();
         } else {
-            *fpname = "?";
+            fpname->set("?");
         }
     }
     /* remember when we declared that paramlists and array dimensions bind
@@ -1980,7 +1980,7 @@ static ast::c_type parse_typebase(
     return tp;
 }
 
-static ast::c_type parse_type(lex_state &ls, std::string *fpn) {
+static ast::c_type parse_type(lex_state &ls, util::strbuf *fpn) {
     return parse_type_ptr(ls, parse_typebase(ls), fpn, false);
 }
 
@@ -2045,14 +2045,14 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
         }
         bool flexible = false;
         do {
-            std::string fpn;
+            util::strbuf fpn;
             auto tp = parse_type_ptr(ls, tpb, &fpn, false);
-            if (fpn == "?") {
+            if (fpn[0] == '?') {
                 /* nameless field declarations do nothing */
                 goto field_end;
             }
             flexible = tp.unbounded();
-            fields.emplace_back(util::move(fpn), util::move(tp));
+            fields.emplace_back(std::string{fpn.data()}, util::move(tp));
             /* unbounded array must be the last in the list */
             if (flexible) {
                 break;
@@ -2204,7 +2204,7 @@ static void parse_decl(lex_state &ls) {
     auto tpb = parse_typebase(ls, &tdef, &extr);
     bool first = true;
     do {
-        std::string dname;
+        util::strbuf dname;
         int oldmode = 0;
         if (tdef) {
             oldmode = ls.mode(PARSE_MODE_TYPEDEF);
@@ -2221,19 +2221,19 @@ static void parse_decl(lex_state &ls) {
         }
         if (tdef) {
             ls.mode(oldmode);
-            if (dname != "?") {
+            if (dname[0] != '?') {
                 /* store if the name is non-empty, if it's empty there is no
                  * way to access the type and it'd be unique either way
                  */
-                ls.store_decl(
-                    new ast::c_typedef{util::move(dname), util::move(tp)}, dline
-                );
+                ls.store_decl(new ast::c_typedef{
+                    std::string{dname.data()}, util::move(tp)
+                }, dline);
                 continue;
             } else {
                 /* unnamed typedef must not be a list */
                 break;
             }
-        } else if (dname == "?") {
+        } else if (dname[0] == '?') {
             /* if no name is permitted, it must be the only one */
             break;
         }
@@ -2252,7 +2252,7 @@ static void parse_decl(lex_state &ls) {
             check_match(ls, ')', '(', lnum);
         }
         ls.store_decl(new ast::c_variable{
-            util::move(dname), util::move(sym), util::move(tp)
+            std::string{dname.data()}, util::move(sym), util::move(tp)
         }, dline);
     } while (test_next(ls, ','));
 }
