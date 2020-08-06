@@ -2237,22 +2237,22 @@ static void parse_decl(lex_state &ls) {
             /* if no name is permitted, it must be the only one */
             break;
         }
-        std::string sym;
+        util::strbuf sym;
         /* symbol redirection */
         if (test_next(ls, TOK___asm__)) {
             int lnum = ls.line_number;
             check_next(ls, '(');
             check(ls, TOK_STRING);
-            if (ls.getbuf()[0] == '\0') {
+            if (ls_buf.empty()) {
                 ls.setbuf("empty symbol name");
                 ls.syntax_error();
             }
-            sym = ls.getbuf();
+            sym = ls_buf;
             ls.get();
             check_match(ls, ')', '(', lnum);
         }
         ls.store_decl(new ast::c_variable{
-            std::string{dname.data()}, util::move(sym), util::move(tp)
+            util::move(dname), util::move(sym), util::move(tp)
         }, dline);
     } while (test_next(ls, ','));
 }
