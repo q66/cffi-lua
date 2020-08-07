@@ -109,8 +109,6 @@ struct lex_state_error {
 
 static thread_local lex_state_error ls_err{};
 
-struct ls_error {};
-
 enum parse_mode {
     PARSE_MODE_DEFAULT,
     PARSE_MODE_TYPEDEF,
@@ -168,29 +166,31 @@ struct lex_state {
         return (lahead.token = lex(t));
     }
 
-    void lex_error(int tok, int linenum) {
+    bool lex_error(int tok, int linenum) {
         ls_err.token = tok;
         ls_err.line_number = linenum;
-        throw ls_error{};
+        throw false;
+        return false;
     }
 
-    void lex_error(int tok) {
-        lex_error(tok, line_number);
+    bool lex_error(int tok) {
+        return lex_error(tok, line_number);
     }
 
-    void syntax_error() {
-        lex_error(t.token);
+    bool syntax_error() {
+        return lex_error(t.token);
     }
 
-    void store_decl(ast::c_object *obj, int lnum) {
+    bool store_decl(ast::c_object *obj, int lnum) {
         auto *old = p_dstore.add(obj);
         if (old) {
             ls_buf.clear();
             ls_buf.append('\'');
             ls_buf.append(old->name());
             ls_buf.append("' redefined");
-            lex_error(-1, lnum);
+            return lex_error(-1, lnum);
         }
+        return true;
     }
 
     void commit() {
@@ -793,7 +793,7 @@ static char const *token_to_str(int tok, char *buf) {
 
 /* parser */
 
-static void error_expected(lex_state &ls, int tok) {
+static bool error_expected(lex_state &ls, int tok) {
     char buf[16 + sizeof("'' expected")];
     char *bufp = buf;
     *bufp++ = '\'';
@@ -805,7 +805,7 @@ static void error_expected(lex_state &ls, int tok) {
     bufp += tlen;
     memcpy(bufp, "' expected", sizeof("' expected"));
     ls_buf.set(buf);
-    ls.syntax_error();
+    return ls.syntax_error();
 }
 
 static bool test_next(lex_state &ls, int tok) {
@@ -816,36 +816,39 @@ static bool test_next(lex_state &ls, int tok) {
     return false;
 }
 
-static void check(lex_state &ls, int tok) {
+static bool check(lex_state &ls, int tok) {
     if (ls.t.token != tok) {
-        error_expected(ls, tok);
+        return error_expected(ls, tok);
     }
+    return true;
 }
 
-static void check_next(lex_state &ls, int tok) {
-    check(ls, tok);
+static bool check_next(lex_state &ls, int tok) {
+    if (!check(ls, tok)) {
+        return false;
+    }
     ls.get();
+    return true;
 }
 
-static void check_match(lex_state &ls, int what, int who, int where) {
+static bool check_match(lex_state &ls, int what, int who, int where) {
     if (test_next(ls, what)) {
-        return;
+        return true;
     }
     if (where == ls.line_number) {
-        error_expected(ls, what);
-    } else {
-        char buf[16];
-        ls_buf.clear();
-        ls_buf.append('\'');
-        ls_buf.append(token_to_str(what, buf));
-        ls_buf.append("' expected (to close '");
-        ls_buf.append(token_to_str(who, buf));
-        ls_buf.append("' at line ");
-        snprintf(buf, sizeof(buf), "%d", where);
-        ls_buf.append(buf);
-        ls_buf.append(')');
-        ls.syntax_error();
+        return error_expected(ls, what);
     }
+    char buf[16];
+    ls_buf.clear();
+    ls_buf.append('\'');
+    ls_buf.append(token_to_str(what, buf));
+    ls_buf.append("' expected (to close '");
+    ls_buf.append(token_to_str(who, buf));
+    ls_buf.append("' at line ");
+    snprintf(buf, sizeof(buf), "%d", where);
+    ls_buf.append(buf);
+    ls_buf.append(')');
+    return ls.syntax_error();
 }
 
 static ast::c_expr_binop get_binop(int tok) {
@@ -2189,7 +2192,7 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
     return *p;
 }
 
-static void parse_decl(lex_state &ls) {
+static bool parse_decl(lex_state &ls) {
     int dline = ls.line_number;
     uint32_t cconv = parse_callconv_attrib(ls);
     bool tdef = false, extr = false;
@@ -2247,21 +2250,25 @@ static void parse_decl(lex_state &ls) {
             util::move(dname), util::move(sym), util::move(tp)
         }, dline);
     } while (test_next(ls, ','));
+    return true;
 }
 
-static void parse_decls(lex_state &ls) {
+static bool parse_decls(lex_state &ls) {
     while (ls.t.token >= 0) {
         if (ls.t.token == ';') {
             /* empty statement */
             ls.get();
             continue;
         }
-        parse_decl(ls);
+        if (!parse_decl(ls)) {
+            return false;
+        }
         if (!ls.t.token) {
             break;
         }
         check_next(ls, ';');
     }
+    return true;
 }
 
 static void parse_err(lua_State *L) {
@@ -2280,10 +2287,12 @@ void parse(lua_State *L, char const *input, char const *iend, int paridx) {
         try {
             /* read first token */
             ls.get();
-            parse_decls(ls);
+            if (!parse_decls(ls)) {
+                throw false;
+            }
             ls.commit();
             return;
-        } catch (ls_error) {
+        } catch (bool) {
             if (ls_err.token > 0) {
                 char buf[16];
                 lua_pushfstring(
@@ -2315,7 +2324,7 @@ ast::c_type parse_type(
             auto tp = parse_type(ls);
             ls.commit();
             return tp;
-        } catch (ls_error) {
+        } catch (bool) {
             if (ls_err.token > 0) {
                 char buf[16];
                 lua_pushfstring(
@@ -2348,7 +2357,7 @@ ast::c_expr_type parse_number(
             v = ls.t.value;
             ls.commit();
             return ls.t.numtag;
-        } catch (ls_error) {
+        } catch (bool) {
             if (ls_err.token > 0) {
                 char buf[16];
                 lua_pushfstring(
