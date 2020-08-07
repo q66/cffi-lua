@@ -1123,7 +1123,7 @@ static bool parse_cexpr(lex_state &ls, ast::c_expr &ret) {
     return parse_cexpr_bin(ls, 1, ret);
 }
 
-static size_t get_arrsize(lex_state &ls, ast::c_expr const &exp) {
+static bool get_arrsize(lex_state &ls, ast::c_expr const &exp, size_t &ret) {
     ast::c_expr_type et;
     auto val = exp.eval(et, true);
 
@@ -1138,12 +1138,11 @@ static size_t get_arrsize(lex_state &ls, ast::c_expr const &exp) {
         case ast::c_expr_type::ULLONG: uval = val.ull; goto done;
         default:
             ls_buf.set("invalid array size");
-            ls.syntax_error();
-            break;
+            return ls.syntax_error();
     }
     if (sval < 0) {
         ls_buf.set("array size is negative");
-        ls.syntax_error();
+        return ls.syntax_error();
     }
     uval = sval;
 
@@ -1151,66 +1150,61 @@ done:
     using ULL = unsigned long long;
     if (uval > ULL(~size_t(0))) {
         ls_buf.set("array sie too big");
-        ls.syntax_error();
+        return ls.syntax_error();
     }
-    return size_t(uval);
+    ret = size_t(uval);
+    return true;
 }
 
-static uint32_t parse_cv(
-    lex_state &ls, bool *tdef = nullptr, bool *extr = nullptr
+static bool parse_cv(
+    lex_state &ls, uint32_t &ret, bool *tdef = nullptr, bool *extr = nullptr
 ) {
-    uint32_t quals = 0;
-
+    ret = 0;
     for (;;) switch (ls.t.token) {
         case TOK_const:
         case TOK___const__:
-            if (quals & ast::C_CV_CONST) {
+            if (ret & ast::C_CV_CONST) {
                 ls_buf.set("duplicate const qualifier");
-                ls.syntax_error();
-                break;
+                return ls.syntax_error();
             }
             ls.get();
-            quals |= ast::C_CV_CONST;
+            ret |= ast::C_CV_CONST;
             break;
         case TOK_volatile:
         case TOK___volatile__:
-            if (quals & ast::C_CV_VOLATILE) {
+            if (ret & ast::C_CV_VOLATILE) {
                 ls_buf.set("duplicate volatile qualifier");
-                ls.syntax_error();
-                break;
+                return ls.syntax_error();
             }
             ls.get();
-            quals |= ast::C_CV_VOLATILE;
+            ret |= ast::C_CV_VOLATILE;
             break;
         case TOK_typedef:
             if (!tdef) {
-                return quals;
+                return true;
             }
             if (*tdef) {
                 ls_buf.set("duplicate typedef qualifier");
-                ls.syntax_error();
-                break;
+                return ls.syntax_error();
             }
             ls.get();
             *tdef = true;
             break;
         case TOK_extern:
             if (!extr) {
-                return quals;
+                return true;
             }
             if (*extr) {
                 ls_buf.set("duplicate extern qualifier");
-                ls.syntax_error();
-                break;
+                return ls.syntax_error();
             }
             ls.get();
             *extr = true;
             break;
         default:
-            return quals;
+            return true;
     }
-
-    return quals;
+    return true;
 }
 
 static uint32_t parse_callconv_attrib(lex_state &ls) {
@@ -1384,7 +1378,10 @@ static size_t parse_array(lex_state &ls, int &flags) {
         return ndims;
     }
     ls.get();
-    auto cv = parse_cv(ls);
+    uint32_t cv = 0;
+    if (!parse_cv(ls, cv)) {
+        //TODO
+    }
     if (ls.t.token == ']') {
         flags |= ast::C_TYPE_NOSIZE;
         dimstack.push_back({0, cv});
@@ -1402,18 +1399,28 @@ static size_t parse_array(lex_state &ls, int &flags) {
         if (!parse_cexpr(ls, exp)) {
             //TODO
         }
-        dimstack.push_back({get_arrsize(ls, util::move(exp)), cv});
+        size_t arrs;
+        if (!get_arrsize(ls, util::move(exp), arrs)) {
+            //TODO
+        }
+        dimstack.push_back({arrs, cv});
         ++ndims;
         check_next(ls, ']');
     }
     while (ls.t.token == '[') {
         ls.get();
-        cv = parse_cv(ls);
+        if (!parse_cv(ls, cv)) {
+            //TODO
+        }
         ast::c_expr exp;
         if (!parse_cexpr(ls, exp)) {
             //TODO
         }
-        dimstack.push_back({get_arrsize(ls, util::move(exp)), cv});
+        size_t arrs;
+        if (!get_arrsize(ls, util::move(exp), arrs)) {
+            //TODO
+        }
+        dimstack.push_back({arrs, cv});
         ++ndims;
         check_next(ls, ']');
     }
@@ -1535,7 +1542,11 @@ newlevel:
         while (ls.t.token == '*') {
             ls.get();
             pcvq.emplace_back();
-            pcvq.back().cv = parse_cv(ls);
+            uint32_t cv = 0;
+            if (!parse_cv(ls, cv)) {
+                //TODO
+            }
+            pcvq.back().cv = cv;
         }
         /* references are handled the same, but we know there can only be
          * one of them; this actually does not cover all cases, since putting
@@ -1792,7 +1803,10 @@ using signed_size_t = util::conditional_t<
 
 static ast::c_type parse_typebase_core(lex_state &ls, bool *tdef, bool *extr) {
     /* left-side cv */
-    uint32_t quals = parse_cv(ls, tdef, extr);
+    uint32_t quals = 0;
+    if (!parse_cv(ls, quals, tdef, extr)) {
+        //TODO
+    }
     uint32_t squals = 0;
 
     /* parameterized types */
@@ -2001,7 +2015,11 @@ static ast::c_type parse_typebase(
 ) {
     auto tp = parse_typebase_core(ls, tdef, extr);
     /* right-side cv that can always apply */
-    tp.cv(parse_cv(ls, tdef, extr));
+    uint32_t cv = 0;
+    if (!parse_cv(ls, cv, tdef, extr)) {
+        //TODO
+    }
+    tp.cv(cv);
     return tp;
 }
 
@@ -2064,7 +2082,11 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
                 fields.emplace_back(util::strbuf{}, ast::c_type{&st, 0});
                 continue;
             }
-            tpb = ast::c_type{&st, parse_cv(ls)};
+            uint32_t cv = 0;
+            if (!parse_cv(ls, cv)) {
+                //TODO
+            }
+            tpb = ast::c_type{&st, cv};
         } else {
             tpb = parse_typebase(ls);
         }
