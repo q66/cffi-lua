@@ -519,6 +519,10 @@ struct c_record;
 struct c_enum;
 
 struct c_type: c_object {
+    c_type():
+        p_ptr{nullptr}, p_ttype{C_BUILTIN_INVALID}, p_flags{0}, p_cv{0}
+    {}
+
     c_type(c_builtin cbt, uint32_t qual):
         p_ptr{nullptr}, p_ttype{uint32_t(cbt)}, p_flags{0}, p_cv{qual}
     {}

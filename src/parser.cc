@@ -219,33 +219,34 @@ struct lex_state {
         return ret;
     }
 
-    void param_maybe_name() {
+    bool param_maybe_name() {
         if (t.token != '$') {
-            return;
+            return true;
         }
         ensure_pidx();
         size_t len;
         char const *str = lua_tolstring(p_L, p_pidx, &len);
         if (!str) {
             ls_buf.set("name expected");
-            syntax_error();
+            return syntax_error();
         }
         /* replace $ with name */
         t.token = TOK_NAME;
         ls_buf.set(str, len);
         ++p_pidx;
+        return true;
     }
 
     /* FIXME: very preliminary, should support more stuff, more types */
-    void param_maybe_expr() {
+    bool param_maybe_expr() {
         if (t.token != '$') {
-            return;
+            return true;
         }
         ensure_pidx();
         lua_Integer d = lua_tointeger(p_L, p_pidx);
         if (!d && !lua_isnumber(p_L, p_pidx)) {
             ls_buf.set("integer expected");
-            syntax_error();
+            return syntax_error();
         }
         /* replace $ with integer */
         t.token = TOK_INTEGER;
@@ -257,18 +258,19 @@ struct lex_state {
             t.value.ull = d;
         }
         ++p_pidx;
+        return true;
     }
 
-    ast::c_type param_get_type() {
+    bool param_get_type(ast::c_type &res) {
         ensure_pidx();
         if (!luaL_testudata(p_L, p_pidx, lua::CFFI_CDATA_MT)) {
             ls_buf.set("type expected");
-            syntax_error();
+            return syntax_error();
         }
-        auto ct = *lua::touserdata<ast::c_type>(p_L, p_pidx);
+        res = *lua::touserdata<ast::c_type>(p_L, p_pidx);
         get(); /* consume $ */
         ++p_pidx;
-        return ct;
+        return true;
     }
 
 private:
@@ -922,44 +924,46 @@ static constexpr int binprec[] = {
 static constexpr int unprec = 11;
 static constexpr int ifprec = 1;
 
-static ast::c_expr parse_cexpr(lex_state &ls);
-static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec);
+static bool parse_cexpr(lex_state &ls, ast::c_expr &ret);
+static bool parse_cexpr_bin(lex_state &ls, int min_prec, ast::c_expr &ret);
 
 static ast::c_type parse_type(lex_state &ls, util::strbuf *fpname = nullptr);
 
 static ast::c_record const &parse_record(lex_state &ls, bool *newst = nullptr);
 static ast::c_enum const &parse_enum(lex_state &ls);
 
-static ast::c_expr parse_cexpr_simple(lex_state &ls) {
+static bool parse_cexpr_simple(lex_state &ls, ast::c_expr &ret) {
     auto unop = get_unop(ls.t.token);
     if (unop != ast::c_expr_unop::INVALID) {
         ls.get();
-        auto exp = parse_cexpr_bin(ls, unprec);
-        ast::c_expr unexp;
-        unexp.type(ast::c_expr_type::UNARY);
-        unexp.un.op = unop;
-        unexp.un.expr = new ast::c_expr{util::move(exp)};
-        return unexp;
+        ast::c_expr exp;
+        if (!parse_cexpr_bin(ls, unprec, exp)) {
+            return false;
+        }
+        ret.type(ast::c_expr_type::UNARY);
+        ret.un.op = unop;
+        ret.un.expr = new ast::c_expr{util::move(exp)};
+        return true;
     }
     /* FIXME: implement non-integer constants */
     if (ls.t.token == '$') {
-        ls.param_maybe_expr();
+        if (!ls.param_maybe_expr()) {
+            return false;
+        }
     }
     switch (ls.t.token) {
         case TOK_INTEGER: {
-            ast::c_expr ret;
             ret.type(ls.t.numtag);
             memcpy(&ret.val, &ls.t.value, sizeof(ls.t.value));
             ls.get();
-            return ret;
+            return true;
         }
         case TOK_NAME: {
-            ast::c_expr ret;
             auto *o = ls.lookup(ls_buf.data());
             if (!o || (o->obj_type() != ast::c_object_type::CONSTANT)) {
                 ls_buf.prepend("unknown constant '");
                 ls_buf.append('\'');
-                ls.syntax_error();
+                return ls.syntax_error();
             }
             auto &ct = o->as<ast::c_constant>();
             switch (ct.type().type()) {
@@ -988,20 +992,18 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
                 default:
                     /* should be generally unreachable */
                     ls_buf.set("unknown type");
-                    ls.syntax_error();
-                    break;
+                    return ls.syntax_error();
             }
             ret.val = ct.value();
             ls.get();
-            return ret;
+            return true;
         }
         case TOK_true:
         case TOK_false: {
-            ast::c_expr ret;
             ret.type(ast::c_expr_type::BOOL);
             ret.val.b = (ls.t.token == TOK_true);
             ls.get();
-            return ret;
+            return true;
         }
         case TOK_sizeof: {
             /* TODO: this should also take expressions
@@ -1009,10 +1011,13 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
              */
             ls.get();
             int line = ls.line_number;
-            check_next(ls, '(');
+            if (!check_next(ls, '(')) {
+                return false;
+            }
             auto tp = parse_type(ls);
-            check_match(ls, ')', '(', line);
-            ast::c_expr ret;
+            if (!check_match(ls, ')', '(', line)) {
+                return false;
+            }
             size_t align = tp.libffi_type()->size;
             if (sizeof(unsigned long long) > sizeof(void *)) {
                 ret.type(ast::c_expr_type::ULONG);
@@ -1021,16 +1026,19 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
                 ret.type(ast::c_expr_type::ULLONG);
                 ret.val.ull = static_cast<unsigned long long>(align);
             }
-            return ret;
+            return true;
         }
         case TOK_alignof:
         case TOK___alignof__: {
             ls.get();
             int line = ls.line_number;
-            check_next(ls, '(');
+            if (!check_next(ls, '(')) {
+                return false;
+            }
             auto tp = parse_type(ls);
-            check_match(ls, ')', '(', line);
-            ast::c_expr ret;
+            if (!check_match(ls, ')', '(', line)) {
+                return false;
+            }
             size_t align = tp.libffi_type()->alignment;
             if (sizeof(unsigned long long) > sizeof(void *)) {
                 ret.type(ast::c_expr_type::ULONG);
@@ -1039,25 +1047,27 @@ static ast::c_expr parse_cexpr_simple(lex_state &ls) {
                 ret.type(ast::c_expr_type::ULLONG);
                 ret.val.ull = static_cast<unsigned long long>(align);
             }
-            return ret;
+            return true;
         }
         case '(': {
             int line = ls.line_number;
             ls.get();
-            auto ret = parse_cexpr(ls);
-            check_match(ls, ')', '(', line);
-            return ret;
+            if (!parse_cexpr(ls, ret) || !check_match(ls, ')', '(', line)) {
+                return false;
+            }
+            return true;
         }
         default:
-            ls_buf.set("unexpected symbol");
-            ls.syntax_error();
             break;
     }
-    return ast::c_expr{}; /* unreachable */
+    ls_buf.set("unexpected symbol");
+    return ls.syntax_error();
 }
 
-static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec) {
-    auto lhs = parse_cexpr_simple(ls);
+static bool parse_cexpr_bin(lex_state &ls, int min_prec, ast::c_expr &lhs) {
+    if (!parse_cexpr_simple(ls, lhs)) {
+        return false;
+    }
     for (;;) {
         bool istern = (ls.t.token == '?');
         ast::c_expr_binop op{};
@@ -1074,9 +1084,15 @@ static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec) {
         }
         ls.get();
         if (istern) {
-            ast::c_expr texp = parse_cexpr(ls);
+            ast::c_expr texp;
+            if (!parse_cexpr(ls, texp)) {
+                return false;
+            }
             check_next(ls, ':');
-            ast::c_expr fexp = parse_cexpr_bin(ls, ifprec);
+            ast::c_expr fexp;
+            if (!parse_cexpr_bin(ls, ifprec, fexp)) {
+                return false;
+            }
             ast::c_expr tern;
             tern.type(ast::c_expr_type::TERNARY);
             tern.tern.cond = new ast::c_expr{util::move(lhs)};
@@ -1089,7 +1105,10 @@ static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec) {
          * have those except ternary which is handled specially
          */
         int nprec = prec + 1;
-        ast::c_expr rhs = parse_cexpr_bin(ls, nprec);
+        ast::c_expr rhs;
+        if (!parse_cexpr_bin(ls, nprec, rhs)) {
+            return false;
+        }
         ast::c_expr bin;
         bin.type(ast::c_expr_type::BINARY);
         bin.bin.op = op;
@@ -1097,11 +1116,11 @@ static ast::c_expr parse_cexpr_bin(lex_state &ls, int min_prec) {
         bin.bin.rhs = new ast::c_expr{util::move(rhs)};
         lhs = util::move(bin);
     }
-    return lhs;
+    return true;
 }
 
-static ast::c_expr parse_cexpr(lex_state &ls) {
-    return parse_cexpr_bin(ls, 1);
+static bool parse_cexpr(lex_state &ls, ast::c_expr &ret) {
+    return parse_cexpr_bin(ls, 1, ret);
 }
 
 static size_t get_arrsize(lex_state &ls, ast::c_expr const &exp) {
@@ -1379,14 +1398,22 @@ static size_t parse_array(lex_state &ls, int &flags) {
         ls.get();
         check_next(ls, ']');
     } else {
-        dimstack.push_back({get_arrsize(ls, parse_cexpr(ls)), cv});
+        ast::c_expr exp;
+        if (!parse_cexpr(ls, exp)) {
+            //TODO
+        }
+        dimstack.push_back({get_arrsize(ls, util::move(exp)), cv});
         ++ndims;
         check_next(ls, ']');
     }
     while (ls.t.token == '[') {
         ls.get();
         cv = parse_cv(ls);
-        dimstack.push_back({get_arrsize(ls, parse_cexpr(ls)), cv});
+        ast::c_expr exp;
+        if (!parse_cexpr(ls, exp)) {
+            //TODO
+        }
+        dimstack.push_back({get_arrsize(ls, util::move(exp)), cv});
         ++ndims;
         check_next(ls, ']');
     }
@@ -1770,7 +1797,10 @@ static ast::c_type parse_typebase_core(lex_state &ls, bool *tdef, bool *extr) {
 
     /* parameterized types */
     if (ls.t.token == '$') {
-        auto ret = ls.param_get_type();
+        ast::c_type ret;
+        if (!ls.param_get_type(ret)) {
+            //TODO
+        }
         ret.cv(quals);
         return ret;
     }
@@ -2136,7 +2166,10 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
         if (ls.t.token == '=') {
             ls.get();
             eln = ls.line_number;
-            auto exp = parse_cexpr(ls);
+            ast::c_expr exp;
+            if (!parse_cexpr(ls, exp)) {
+                //TODO
+            }
             ast::c_expr_type et;
             auto val = exp.eval(et, true);
             /* for now large types just get truncated */
