@@ -199,7 +199,7 @@ static constexpr size_t cdata_value_base() {
         int pad1, pad2;
         arg_stor_t val;
     };
-    return offsetof(T, val);
+    return (sizeof(T) - sizeof(arg_stor_t));
 }
 
 struct ctype {
