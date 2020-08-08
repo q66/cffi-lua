@@ -160,22 +160,22 @@ struct lex_state {
             return true;
         }
         t.token = lex(t);
-        return true;
+        return !!t.token;
     }
 
     bool lookahead(int &tok) WARN_UNUSED_RET {
         tok = lahead.token = lex(t);
-        return true;
+        return !!tok;
     }
 
-    bool lex_error(int tok, int linenum) {
+    bool lex_error(int tok, int linenum) WARN_UNUSED_RET {
         ls_err.token = tok;
         ls_err.line_number = linenum;
         throw false;
         return false;
     }
 
-    bool lex_error(int tok) {
+    bool lex_error(int tok) WARN_UNUSED_RET {
         return lex_error(tok, line_number);
     }
 
@@ -412,12 +412,15 @@ private:
          * or explicitly marked long and out of bounds
          */
         ls_buf.set("value out of bounds");
-        lex_error(TOK_INTEGER);
+        if (!lex_error(TOK_INTEGER)) {
+            return ast::c_expr_type::INVALID;
+        }
+        /* unreachable */
         return ast::c_expr_type::INVALID;
     }
 
     template<size_t base, typename F, typename G>
-    void read_int_core(F &&digf, G &&convf, lex_token &tok) {
+    bool read_int_core(F &&digf, G &&convf, lex_token &tok) {
         auto &lb = ls_buf.raw();
         lb.clear();
         do {
@@ -434,9 +437,10 @@ private:
         } while (numend != numbeg);
         /* write type and value */
         tok.numtag = get_int_type(tok, val, base == 10);
+        return (tok.numtag != ast::c_expr_type::INVALID);
     }
 
-    void read_integer(lex_token &tok) {
+    bool read_integer(lex_token &tok) WARN_UNUSED_RET {
         if (current == '0') {
             next_char();
             if (!current || (
@@ -446,17 +450,16 @@ private:
                 /* special case: value 0 */
                 tok.value.i = 0;
                 tok.numtag = ast::c_expr_type::INT;
-                return;
+                return true;
             }
             if ((current | 32) == 'x') {
                 /* hex */
                 next_char();
                 if (!isxdigit(current)) {
                     ls_buf.set("malformed integer");
-                    lex_error(TOK_INTEGER);
-                    return;
+                    return lex_error(TOK_INTEGER);
                 }
-                read_int_core<16>(isxdigit, [](int dig) {
+                return read_int_core<16>(isxdigit, [](int dig) {
                     dig |= 32;
                     dig = (dig >= 'a') ? (dig - 'a' + 10) : (dig - '0');
                     return dig;
@@ -466,61 +469,58 @@ private:
                 next_char();
                 if ((current != '0') && (current != '1')) {
                     ls_buf.set("malformed integer");
-                    lex_error(TOK_INTEGER);
-                    return;
+                    return lex_error(TOK_INTEGER);
                 }
-                read_int_core<2>([](int cur) {
+                return read_int_core<2>([](int cur) {
                     return (cur == '0') || (cur == '1');
                 }, [](int dig) {
                     return (dig - '0');
                 }, tok);
             } else {
                 /* octal */
-                read_int_core<8>([](int cur) {
+                return read_int_core<8>([](int cur) {
                     return (cur >= '0') && (cur <= '7');
                 }, [](int dig) {
                     return (dig - '0');
                 }, tok);
             }
-        } else {
-            /* decimal */
-            read_int_core<10>(isdigit, [](int dig) {
-                return (dig - '0');
-            }, tok);
         }
+        /* decimal */
+        return read_int_core<10>(isdigit, [](int dig) {
+            return (dig - '0');
+        }, tok);
     }
 
-    void read_escape(char &c) {
+    bool read_escape(char &c) WARN_UNUSED_RET {
         next_char();
         switch (current) {
             case '\0':
                 ls_buf.set("unterminated escape sequence");
-                lex_error(TOK_CHAR);
-                return;
+                return lex_error(TOK_CHAR);
             case '\'':
             case '\"':
             case '\\':
             case '?':
                 c = current;
                 next_char();
-                return;
+                return true;
             case 'e': /* extension */
                 c = 0x1B;
                 next_char();
-                return;
-            case 'a': c = '\a'; next_char(); return;
-            case 'b': c = '\b'; next_char(); return;
-            case 'f': c = '\f'; next_char(); return;
-            case 'n': c = '\n'; next_char(); return;
-            case 'r': c = '\r'; next_char(); return;
-            case 't': c = '\t'; next_char(); return;
-            case 'v': c = '\v'; next_char(); return;
+                return true;
+            case 'a': c = '\a'; next_char(); return true;
+            case 'b': c = '\b'; next_char(); return true;
+            case 'f': c = '\f'; next_char(); return true;
+            case 'n': c = '\n'; next_char(); return true;
+            case 'r': c = '\r'; next_char(); return true;
+            case 't': c = '\t'; next_char(); return true;
+            case 'v': c = '\v'; next_char(); return true;
             case 'x': {
                 next_char();
                 int c1 = current, c2 = upcoming();
                 if (!isxdigit(c1) || !isxdigit(c2)) {
                     ls_buf.set("malformed hex escape");
-                    lex_error(TOK_CHAR);
+                    return lex_error(TOK_CHAR);
                 }
                 c1 |= 32; c2 |= 32;
                 c1 = (c1 >= 'a') ? (c1 - 'a' + 10) : (c1 - '0');
@@ -528,7 +528,7 @@ private:
                 c = char(c2 + (c1 * 16));
                 next_char();
                 next_char();
-                return;
+                return true;
             }
             default:
                 if ((current >= '0') && (current <= '7')) {
@@ -545,28 +545,28 @@ private:
                             int r = (c3 + (c2 * 8) + (c1 * 64));
                             if (r > 0xFF) {
                                 ls_buf.set("octal escape out of bounds");
-                                lex_error(TOK_CHAR);
+                                return lex_error(TOK_CHAR);
                             }
                             c = char(r);
-                            return;
+                            return true;
                         } else {
                             /* 2 octal digits */
                             c = char(c2 + (c1 * 8));
-                            return;
+                            return true;
                         }
                     } else {
                         /* 1 octal digit */
                         c = char(c1);
-                        return;
+                        return true;
                     }
                 }
                 ls_buf.set("malformed escape sequence");
-                lex_error(TOK_CHAR);
-                return;
+                return lex_error(TOK_CHAR);
         }
+        return true;
     }
 
-    int lex(lex_token &tok) {
+    int lex(lex_token &tok) WARN_UNUSED_RET {
         for (;;) switch (current) {
             case '\0':
                 return -1;
@@ -590,7 +590,7 @@ private:
                         next_char();
                     }
                     ls_buf.set("unterminated comment");
-                    syntax_error();
+                    return int(syntax_error());
                 } else if (current != '/') {
                     /* just / */
                     return '/';
@@ -693,16 +693,18 @@ cont:
                 next_char();
                 if (current == '\0') {
                     ls_buf.set("unterminated literal");
-                    lex_error(TOK_CHAR);
+                    return int(lex_error(TOK_CHAR));
                 } else if (current == '\\') {
-                    read_escape(tok.value.c);
+                    if (!read_escape(tok.value.c)) {
+                        return 0;
+                    }
                 } else {
                     tok.value.c = char(current);
                     next_char();
                 }
                 if (current != '\'') {
                     ls_buf.set("unterminated literal");
-                    lex_error(TOK_CHAR);
+                    return int(lex_error(TOK_CHAR));
                 }
                 next_char();
                 tok.numtag = ast::c_expr_type::CHAR;
@@ -725,11 +727,13 @@ cont:
                     }
                     if (current == '\0') {
                         ls_buf.set("unterminated string");
-                        lex_error(TOK_STRING);
+                        return int(lex_error(TOK_STRING));
                     }
                     if (current == '\\') {
                         char c = '\0';
-                        read_escape(c);
+                        if (!read_escape(c)) {
+                            return 0;
+                        }
                         lb.push_back(c);
                     } else {
                         lb.push_back(char(current));
@@ -746,7 +750,9 @@ cont:
                     next_char();
                     continue;
                 } else if (isdigit(current)) {
-                    read_integer(tok);
+                    if (!read_integer(tok)) {
+                        return 0;
+                    }
                     return TOK_INTEGER;
                 }
                 if (isalpha(current) || (current == '_')) {
