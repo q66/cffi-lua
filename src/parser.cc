@@ -153,17 +153,18 @@ struct lex_state {
 
     ~lex_state() {}
 
-    int get() {
+    void get() {
         if (lahead.token >= 0) {
             t = util::move(lahead);
             lahead.token = -1;
-            return t.token;
+            return;
         }
-        return (t.token = lex(t));
+        t.token = lex(t);
     }
 
-    int lookahead() {
-        return (lahead.token = lex(t));
+    bool lookahead(int &tok) {
+        tok = lahead.token = lex(t);
+        return true;
     }
 
     bool lex_error(int tok, int linenum) {
@@ -1270,7 +1271,11 @@ static bool parse_paramlist(lex_state &ls, util::vector<ast::c_param> &params) {
     ls.get();
 
     if (ls.t.token == TOK_void) {
-        if (ls.lookahead() == ')') {
+        int lah = 0;
+        if (!ls.lookahead(lah)) {
+            return false;
+        }
+        if (lah == ')') {
             ls.get();
             goto done_params;
         }
@@ -1580,7 +1585,11 @@ newlevel:
             break;
         } else if (ls.t.token == '(') {
             /* these indicate not an arglist, so keep going */
-            switch (ls.lookahead()) {
+            int lah = 0;
+            if (!ls.lookahead(lah)) {
+                return false;
+            }
+            switch (lah) {
                 case TOK___cdecl:
                 case TOK___fastcall:
                 case TOK___stdcall:
