@@ -1263,11 +1263,9 @@ static uint32_t parse_callconv_ms(lex_state &ls) {
     return ast::C_FUNC_DEFAULT;
 }
 
-static util::vector<ast::c_param> parse_paramlist(lex_state &ls) {
+static bool parse_paramlist(lex_state &ls, util::vector<ast::c_param> &params) {
     int linenum = ls.line_number;
     ls.get();
-
-    util::vector<ast::c_param> params;
 
     if (ls.t.token == TOK_void) {
         if (ls.lookahead() == ')') {
@@ -1298,8 +1296,7 @@ static util::vector<ast::c_param> parse_paramlist(lex_state &ls) {
             ls_buf.append('\'');
             pt.serialize(ls_buf);
             ls_buf.append("' cannot be passed by value");
-            ls.syntax_error();
-            break;
+            return ls.syntax_error();
         }
         if (pname[0] == '?') {
             pname.clear();
@@ -1311,9 +1308,7 @@ static util::vector<ast::c_param> parse_paramlist(lex_state &ls) {
     }
 
 done_params:
-    check_match(ls, ')', '(', linenum);
-
-    return params;
+    return check_match(ls, ')', '(', linenum);
 }
 
 /* represents a level of parens pair when parsing a type; so e.g. in
@@ -1379,16 +1374,17 @@ struct arrdim {
 static thread_local util::vector<arrdim> dimstack{};
 
 /* FIXME: when in var declarations, all components must be complete */
-static size_t parse_array(lex_state &ls, int &flags) {
+static bool parse_array(lex_state &ls, size_t &ret, int &flags) {
     flags = 0;
     size_t ndims = 0;
     if (ls.t.token != '[') {
-        return ndims;
+        ret = ndims;
+        return true;
     }
     ls.get();
     uint32_t cv = 0;
     if (!parse_cv(ls, cv)) {
-        //TODO
+        return false;
     }
     if (ls.t.token == ']') {
         flags |= ast::C_TYPE_NOSIZE;
@@ -1401,38 +1397,45 @@ static size_t parse_array(lex_state &ls, int &flags) {
         dimstack.push_back({0, cv});
         ++ndims;
         ls.get();
-        check_next(ls, ']');
+        if (!check_next(ls, ']')) {
+            return false;
+        }
     } else {
         ast::c_expr exp;
         if (!parse_cexpr(ls, exp)) {
-            //TODO
+            return false;
         }
         size_t arrs;
         if (!get_arrsize(ls, util::move(exp), arrs)) {
-            //TODO
+            return false;
         }
         dimstack.push_back({arrs, cv});
         ++ndims;
-        check_next(ls, ']');
+        if (!check_next(ls, ']')) {
+            return false;
+        }
     }
     while (ls.t.token == '[') {
         ls.get();
         if (!parse_cv(ls, cv)) {
-            //TODO
+            return false;
         }
         ast::c_expr exp;
         if (!parse_cexpr(ls, exp)) {
-            //TODO
+            return false;
         }
         size_t arrs;
         if (!get_arrsize(ls, util::move(exp), arrs)) {
-            //TODO
+            return false;
         }
         dimstack.push_back({arrs, cv});
         ++ndims;
-        check_next(ls, ']');
+        if (!check_next(ls, ']')) {
+            return false;
+        }
     }
-    return ndims;
+    ret = ndims;
+    return true;
 }
 
 /* this attempts to implement the complete syntax of how types are parsed
@@ -1643,7 +1646,10 @@ newlevel:
             /* we know it's a paramlist, since all starting '(' of levels
              * are already consumed since before
              */
-            auto argl = parse_paramlist(ls);
+            util::vector<ast::c_param> argl{};
+            if (!parse_paramlist(ls, argl)) {
+                //TODO
+            }
             auto &clev = pcvq[ridx];
             new (&clev.argl) util::vector<ast::c_param>(util::move(argl));
             clev.is_func = true;
@@ -1658,8 +1664,12 @@ newlevel:
             }
         } else if (ls.t.token == '[') {
             /* array dimensions may be multiple */
-            int flags;
-            pcvq[ridx].arrd = parse_array(ls, flags);
+            int flags = 0;
+            size_t arrd = 0;
+            if (!parse_array(ls, arrd, flags)) {
+                //TODO
+            }
+            pcvq[ridx].arrd = arrd;
             pcvq[ridx].flags = flags;
         }
         if (!pcvq[ridx].is_func && (prevconv != ast::C_FUNC_DEFAULT)) {
