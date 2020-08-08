@@ -225,7 +225,9 @@ struct lex_state {
         if (t.token != '$') {
             return true;
         }
-        ensure_pidx();
+        if (!ensure_pidx()) {
+            return false;
+        }
         size_t len;
         char const *str = lua_tolstring(p_L, p_pidx, &len);
         if (!str) {
@@ -244,7 +246,9 @@ struct lex_state {
         if (t.token != '$') {
             return true;
         }
-        ensure_pidx();
+        if (!ensure_pidx()) {
+            return false;
+        }
         lua_Integer d = lua_tointeger(p_L, p_pidx);
         if (!d && !lua_isnumber(p_L, p_pidx)) {
             ls_buf.set("integer expected");
@@ -264,7 +268,9 @@ struct lex_state {
     }
 
     bool param_get_type(ast::c_type &res) WARN_UNUSED_RET {
-        ensure_pidx();
+        if (!ensure_pidx()) {
+            return false;
+        }
         if (!luaL_testudata(p_L, p_pidx, lua::CFFI_CDATA_MT)) {
             ls_buf.set("type expected");
             return syntax_error();
@@ -279,11 +285,12 @@ struct lex_state {
     }
 
 private:
-    void ensure_pidx() {
+    bool ensure_pidx() WARN_UNUSED_RET {
         if ((p_pidx <= 0) || lua_isnone(p_L, p_pidx)) {
             ls_buf.set("wrong number of type parameters");
-            syntax_error();
+            return syntax_error();
         }
+        return true;
     }
 
     bool is_newline(int c) {
