@@ -931,8 +931,8 @@ static bool parse_type(
     lex_state &ls, ast::c_type &ret, util::strbuf *fpname = nullptr
 );
 
-static ast::c_record const &parse_record(lex_state &ls, bool *newst = nullptr);
-static ast::c_enum const &parse_enum(lex_state &ls);
+static ast::c_record const *parse_record(lex_state &ls, bool *newst = nullptr);
+static ast::c_enum const *parse_enum(lex_state &ls);
 
 static bool parse_cexpr_simple(lex_state &ls, ast::c_expr &ret) {
     auto unop = get_unop(ls.t.token);
@@ -1616,7 +1616,9 @@ newlevel:
      * a dummy value to tell the caller what happened
      */
     if (fpname) {
-        ls.param_maybe_name();
+        if (!ls.param_maybe_name()) {
+            return false;
+        }
         if (needn || (ls.t.token == TOK_NAME)) {
             /* we're in a context where name can be provided, e.g. if
              * parsing a typedef or a prototype, this will be the name
@@ -1884,10 +1886,18 @@ static bool parse_typebase_core(
         }
         goto newtype;
     } else if ((ls.t.token == TOK_struct) || (ls.t.token == TOK_union)) {
-        ret = ast::c_type{&parse_record(ls), quals};
+        auto *st = parse_record(ls);
+        if (!st) {
+            return false;
+        }
+        ret = ast::c_type{st, quals};
         return true;
     } else if (ls.t.token == TOK_enum) {
-        ret = ast::c_type{&parse_enum(ls), quals};
+        auto *en = parse_enum(ls);
+        if (!en) {
+            return false;
+        }
+        ret = ast::c_type{en, quals};
         return true;
     }
 
@@ -2068,7 +2078,7 @@ static bool parse_type(lex_state &ls, ast::c_type &ret, util::strbuf *fpn) {
     return (parse_typebase(ls, ret) && parse_type_ptr(ls, ret, fpn, false));
 }
 
-static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
+static ast::c_record const *parse_record(lex_state &ls, bool *newst) {
     int sline = ls.line_number;
     bool is_uni = (ls.t.token == TOK_union);
     ls.get(); /* struct/union keyword */
@@ -2076,7 +2086,9 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
     /* name is optional */
     bool named = false;
     util::strbuf sname{is_uni ? "union " : "struct "};
-    ls.param_maybe_name();
+    if (!ls.param_maybe_name()) {
+        return nullptr;
+    }
     if (ls.t.token == TOK_NAME) {
         sname.append(ls_buf);
         ls.get();
@@ -2090,27 +2102,32 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
 
     int linenum = ls.line_number;
 
-    auto mode_error = [&ls, named]() {
+    auto mode_error = [&ls, named]() -> bool {
         if (named && (ls.mode() == PARSE_MODE_NOTCDEF)) {
             ls_buf.set("struct declaration not allowed in this context");
-            ls.syntax_error();
+            return ls.syntax_error();
         }
+        return true;
     };
 
     /* opaque */
     if (!test_next(ls, '{')) {
         auto *oldecl = ls.lookup(sname.data());
         if (!oldecl || (oldecl->obj_type() != ast::c_object_type::RECORD)) {
-            mode_error();
+            if (!mode_error()) {
+                return nullptr;
+            }
             /* different type or not stored yet, raise error or store */
             auto *p = new ast::c_record{util::move(sname), is_uni};
             ls.store_decl(p, sline);
-            return *p;
+            return p;
         }
-        return oldecl->as<ast::c_record>();
+        return &oldecl->as<ast::c_record>();
     }
 
-    mode_error();
+    if (!mode_error()) {
+        return nullptr;
+    }
 
     util::vector<ast::c_record::field> fields;
 
@@ -2118,19 +2135,22 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
         ast::c_type tpb{};
         if ((ls.t.token == TOK_struct) || (ls.t.token == TOK_union)) {
             bool transp = false;
-            auto &st = parse_record(ls, &transp);
+            auto *st = parse_record(ls, &transp);
+            if (!st) {
+                return nullptr;
+            }
             if (transp && test_next(ls, ';')) {
-                fields.emplace_back(util::strbuf{}, ast::c_type{&st, 0});
+                fields.emplace_back(util::strbuf{}, ast::c_type{st, 0});
                 continue;
             }
             uint32_t cv = 0;
             if (!parse_cv(ls, cv)) {
-                //TODO
+                return nullptr;
             }
-            tpb = ast::c_type{&st, cv};
+            tpb = ast::c_type{st, cv};
         } else {
             if (!parse_typebase(ls, tpb)) {
-                //TODO
+                return nullptr;
             }
         }
         bool flexible = false;
@@ -2138,7 +2158,7 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
             util::strbuf fpn;
             auto tp = tpb;
             if (!parse_type_ptr(ls, tp, &fpn, false)) {
-                //TODO
+                return nullptr;
             }
             if (fpn[0] == '?') {
                 /* nameless field declarations do nothing */
@@ -2152,14 +2172,18 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
             }
         } while (test_next(ls, ','));
 field_end:
-        check_next(ls, ';');
+        if (!check_next(ls, ';')) {
+            return nullptr;
+        }
         /* unbounded array must be the last in the struct */
         if (flexible) {
             break;
         }
     }
 
-    check_match(ls, '}', '{', linenum);
+    if (!check_match(ls, '}', '{', linenum)) {
+        return nullptr;
+    }
 
     auto *oldecl = ls.lookup(sname.data());
     if (oldecl && (oldecl->obj_type() == ast::c_object_type::RECORD)) {
@@ -2170,7 +2194,7 @@ field_end:
             if (newst) {
                 *newst = true;
             }
-            return st;
+            return &st;
         }
     }
 
@@ -2179,17 +2203,19 @@ field_end:
     }
     auto *p = new ast::c_record{util::move(sname), util::move(fields), is_uni};
     ls.store_decl(p, sline);
-    return *p;
+    return p;
 }
 
-static ast::c_enum const &parse_enum(lex_state &ls) {
+static ast::c_enum const *parse_enum(lex_state &ls) {
     int eline = ls.line_number;
     ls.get();
 
     /* name is optional */
     bool named = false;
     util::strbuf ename{"enum "};
-    ls.param_maybe_name();
+    if (!ls.param_maybe_name()) {
+        return nullptr;
+    }
     if (ls.t.token == TOK_NAME) {
         ename.append(ls_buf);
         ls.get();
@@ -2203,32 +2229,38 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
 
     int linenum = ls.line_number;
 
-    auto mode_error = [&ls, named]() {
+    auto mode_error = [&ls, named]() -> bool {
         if (named && (ls.mode() == PARSE_MODE_NOTCDEF)) {
             ls_buf.set("enum declaration not allowed in this context");
-            ls.syntax_error();
+            return ls.syntax_error();
         }
+        return true;
     };
 
     if (!test_next(ls, '{')) {
         auto *oldecl = ls.lookup(ename.data());
         if (!oldecl || (oldecl->obj_type() != ast::c_object_type::ENUM)) {
-            mode_error();
+            if (!mode_error()) {
+                return nullptr;
+            }
             auto *p = new ast::c_enum{util::move(ename)};
             ls.store_decl(p, eline);
-            return *p;
+            return p;
         }
-        return oldecl->as<ast::c_enum>();
+        return &oldecl->as<ast::c_enum>();
     }
 
-    mode_error();
+    if (!mode_error()) {
+        return nullptr;
+    }
 
     util::vector<ast::c_enum::field> fields;
 
     while (ls.t.token != '}') {
         int eln = ls.line_number;
-        ls.param_maybe_name();
-        check(ls, TOK_NAME);
+        if (!ls.param_maybe_name() || !check(ls, TOK_NAME)) {
+            return nullptr;
+        }
         util::strbuf fname{ls_buf};
         ls.get();
         if (ls.t.token == '=') {
@@ -2236,7 +2268,7 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
             eln = ls.line_number;
             ast::c_expr exp;
             if (!parse_cexpr(ls, exp)) {
-                //TODO
+                return nullptr;
             }
             ast::c_expr_type et;
             auto val = exp.eval(et, true);
@@ -2251,7 +2283,7 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
                 default:
                     ls_buf.set("unsupported type");
                     ls.syntax_error();
-                    break;
+                    return nullptr;
             }
             fields.emplace_back(util::move(fname), val.i);
         } else {
@@ -2276,7 +2308,9 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
         }
     }
 
-    check_match(ls, '}', '{', linenum);
+    if (!check_match(ls, '}', '{', linenum)) {
+        return nullptr;
+    }
 
     auto *oldecl = ls.lookup(ename.data());
     if (oldecl && (oldecl->obj_type() == ast::c_object_type::ENUM)) {
@@ -2284,13 +2318,13 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
         if (st.opaque()) {
             /* previous declaration was opaque; prevent redef errors */
             st.set_fields(util::move(fields));
-            return st;
+            return &st;
         }
     }
 
     auto *p = new ast::c_enum{util::move(ename), util::move(fields)};
     ls.store_decl(p, eline);
-    return *p;
+    return p;
 }
 
 static bool parse_decl(lex_state &ls) {
