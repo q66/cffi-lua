@@ -1451,8 +1451,8 @@ static bool parse_array(lex_state &ls, size_t &ret, int &flags) {
  *
  * below is described how it works:
  */
-static ast::c_type parse_type_ptr(
-    lex_state &ls, ast::c_type tp, util::strbuf *fpname, bool needn
+static bool parse_type_ptr(
+    lex_state &ls, ast::c_type &tp, util::strbuf *fpname, bool needn
 ) {
     /* our input is the left-side qualified type; that means constructs such
      * as 'const int' or 'unsigned long int const'
@@ -1555,7 +1555,7 @@ newlevel:
             pcvq.emplace_back();
             uint32_t cv = 0;
             if (!parse_cv(ls, cv)) {
-                //TODO
+                return false;
             }
             pcvq.back().cv = cv;
         }
@@ -1600,7 +1600,7 @@ newlevel:
         if (pcvq[pidx].cconv == ast::C_FUNC_DEFAULT) {
             uint32_t conv = 0;
             if (!parse_callconv_attrib(ls, conv)) {
-                //TODO
+                return false;
             }
             pcvq[pidx].cconv = conv;
         }
@@ -1616,7 +1616,9 @@ newlevel:
             /* we're in a context where name can be provided, e.g. if
              * parsing a typedef or a prototype, this will be the name
              */
-            check(ls, TOK_NAME);
+            if (!check(ls, TOK_NAME)) {
+                return false;
+            }
             *fpname = ls_buf;
             ls.get();
         } else {
@@ -1648,7 +1650,7 @@ newlevel:
              */
             util::vector<ast::c_param> argl{};
             if (!parse_paramlist(ls, argl)) {
-                //TODO
+                return false;
             }
             auto &clev = pcvq[ridx];
             new (&clev.argl) util::vector<ast::c_param>(util::move(argl));
@@ -1656,7 +1658,7 @@ newlevel:
             /* attribute style calling convention after paramlist */
             uint32_t conv = 0;
             if (!parse_callconv_attrib(ls, conv)) {
-                //TODO
+                return false;
             }
             clev.cconv = conv;
             if (clev.cconv == ast::C_FUNC_DEFAULT) {
@@ -1667,14 +1669,14 @@ newlevel:
             int flags = 0;
             size_t arrd = 0;
             if (!parse_array(ls, arrd, flags)) {
-                //TODO
+                return false;
             }
             pcvq[ridx].arrd = arrd;
             pcvq[ridx].flags = flags;
         }
         if (!pcvq[ridx].is_func && (prevconv != ast::C_FUNC_DEFAULT)) {
             ls_buf.set("calling convention on non-function declaration");
-            ls.syntax_error();
+            return ls.syntax_error();
         }
         prevconv = pcvq[ridx].cconv;
         --ridx;
@@ -1682,7 +1684,9 @@ newlevel:
         if (ridx < pidx) {
             break;
         }
-        check_next(ls, ')');
+        if (!check_next(ls, ')')) {
+            return false;
+        }
     }
     /* now that arglists and arrays are attached to their respective levels,
      * we can iterate the queue forward, and execute the appropriate binding
@@ -1739,7 +1743,7 @@ newlevel:
              */
             if (tp.is_ref()) {
                 ls_buf.set("references must be trailing");
-                ls.syntax_error();
+                return ls.syntax_error();
             }
             if (pcvq[cidx].is_ref) {
                 tp.add_ref();
@@ -1768,7 +1772,7 @@ newlevel:
                 ls_buf.append('\'');
                 tp.serialize(ls_buf);
                 ls_buf.append("' cannot be passed by value");
-                ls.syntax_error();
+                return ls.syntax_error();
                 break;
             }
             ast::c_function cf{util::move(tp), util::move(olev->argl), fflags};
@@ -1776,7 +1780,7 @@ newlevel:
         } else if (olev->arrd) {
             if (tp.vla() || tp.unbounded()) {
                 ls_buf.set("only first bound of an array may have unknown size");
-                ls.syntax_error();
+                return ls.syntax_error();
             }
             while (olev->arrd) {
                 size_t dim = dimstack.back().size;
@@ -1802,11 +1806,11 @@ newlevel:
         (ls.mode() == PARSE_MODE_DEFAULT) && (tp.type() == ast::C_BUILTIN_VOID)
     ) {
         ls_buf.set("void type in forbidden context");
-        ls.syntax_error();
+        return ls.syntax_error();
     }
     /* shrink it back to what it was, these resources can be reused later */
     pcvq.shrink(pidx);
-    return tp;
+    return true;
 }
 
 enum type_signedness {
@@ -2050,7 +2054,11 @@ static ast::c_type parse_typebase(
 }
 
 static ast::c_type parse_type(lex_state &ls, util::strbuf *fpn) {
-    return parse_type_ptr(ls, parse_typebase(ls), fpn, false);
+    auto tp = parse_typebase(ls);
+    if (!parse_type_ptr(ls, tp, fpn, false)) {
+        //TODO
+    }
+    return tp;
 }
 
 static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
@@ -2119,7 +2127,10 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
         bool flexible = false;
         do {
             util::strbuf fpn;
-            auto tp = parse_type_ptr(ls, tpb, &fpn, false);
+            auto tp = tpb;
+            if (!parse_type_ptr(ls, tp, &fpn, false)) {
+                //TODO
+            }
             if (fpn[0] == '?') {
                 /* nameless field declarations do nothing */
                 goto field_end;
@@ -2288,12 +2299,15 @@ static bool parse_decl(lex_state &ls) {
         if (tdef) {
             oldmode = ls.mode(PARSE_MODE_TYPEDEF);
         }
-        auto tp = parse_type_ptr(ls, tpb, &dname, !first);
+        auto tp = tpb;
+        if (!parse_type_ptr(ls, tp, &dname, !first)) {
+            return false;
+        }
         first = false;
         if (cconv != ast::C_FUNC_DEFAULT) {
             if (tp.type() != ast::C_BUILTIN_FUNC) {
                 ls_buf.set("calling convention on non-function declaration");
-                ls.syntax_error();
+                return ls.syntax_error();
             }
             auto *func = const_cast<ast::c_function *>(&tp.function());
             func->callconv(cconv);
@@ -2320,15 +2334,18 @@ static bool parse_decl(lex_state &ls) {
         /* symbol redirection */
         if (test_next(ls, TOK___asm__)) {
             int lnum = ls.line_number;
-            check_next(ls, '(');
-            check(ls, TOK_STRING);
+            if (!check_next(ls, '(') || !check(ls, TOK_STRING)) {
+                return false;
+            }
             if (ls_buf.empty()) {
                 ls_buf.set("empty symbol name");
-                ls.syntax_error();
+                return ls.syntax_error();
             }
             sym = ls_buf;
             ls.get();
-            check_match(ls, ')', '(', lnum);
+            if (!check_match(ls, ')', '(', lnum)) {
+                return false;
+            }
         }
         ls.store_decl(new ast::c_variable{
             util::move(dname), util::move(sym), util::move(tp)
