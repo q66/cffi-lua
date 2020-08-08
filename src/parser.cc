@@ -927,7 +927,9 @@ static constexpr int ifprec = 1;
 static bool parse_cexpr(lex_state &ls, ast::c_expr &ret);
 static bool parse_cexpr_bin(lex_state &ls, int min_prec, ast::c_expr &ret);
 
-static ast::c_type parse_type(lex_state &ls, util::strbuf *fpname = nullptr);
+static bool parse_type(
+    lex_state &ls, ast::c_type &ret, util::strbuf *fpname = nullptr
+);
 
 static ast::c_record const &parse_record(lex_state &ls, bool *newst = nullptr);
 static ast::c_enum const &parse_enum(lex_state &ls);
@@ -1014,8 +1016,8 @@ static bool parse_cexpr_simple(lex_state &ls, ast::c_expr &ret) {
             if (!check_next(ls, '(')) {
                 return false;
             }
-            auto tp = parse_type(ls);
-            if (!check_match(ls, ')', '(', line)) {
+            ast::c_type tp{};
+            if (!parse_type(ls, tp) || !check_match(ls, ')', '(', line)) {
                 return false;
             }
             size_t align = tp.libffi_type()->size;
@@ -1035,8 +1037,8 @@ static bool parse_cexpr_simple(lex_state &ls, ast::c_expr &ret) {
             if (!check_next(ls, '(')) {
                 return false;
             }
-            auto tp = parse_type(ls);
-            if (!check_match(ls, ')', '(', line)) {
+            ast::c_type tp{};
+            if (!parse_type(ls, tp) || !check_match(ls, ')', '(', line)) {
                 return false;
             }
             size_t align = tp.libffi_type()->alignment;
@@ -1288,8 +1290,11 @@ static bool parse_paramlist(lex_state &ls, util::vector<ast::c_param> &params) {
             /* varargs ends the arglist */
             break;
         }
-        util::strbuf pname;
-        auto pt = parse_type(ls, &pname);
+        util::strbuf pname{};
+        ast::c_type pt{};
+        if (!parse_type(ls, pt, &pname)) {
+            return false;
+        }
         /* check if argument type can be passed by value */
         if (!pt.passable()) {
             ls_buf.clear();
@@ -1831,22 +1836,23 @@ using signed_size_t = util::conditional_t<
     >
 >;
 
-static ast::c_type parse_typebase_core(lex_state &ls, bool *tdef, bool *extr) {
+static bool parse_typebase_core(
+    lex_state &ls, ast::c_type &ret, bool *tdef, bool *extr
+) {
     /* left-side cv */
     uint32_t quals = 0;
     if (!parse_cv(ls, quals, tdef, extr)) {
-        //TODO
+        return false;
     }
     uint32_t squals = 0;
 
     /* parameterized types */
     if (ls.t.token == '$') {
-        ast::c_type ret;
         if (!ls.param_get_type(ret)) {
-            //TODO
+            return false;
         }
         ret.cv(quals);
-        return ret;
+        return true;
     }
 
     ast::c_builtin cbt = ast::C_BUILTIN_INVALID;
@@ -1878,9 +1884,11 @@ static ast::c_type parse_typebase_core(lex_state &ls, bool *tdef, bool *extr) {
         }
         goto newtype;
     } else if ((ls.t.token == TOK_struct) || (ls.t.token == TOK_union)) {
-        return ast::c_type{&parse_record(ls), quals};
+        ret = ast::c_type{&parse_record(ls), quals};
+        return true;
     } else if (ls.t.token == TOK_enum) {
-        return ast::c_type{&parse_enum(ls), quals};
+        ret = ast::c_type{&parse_enum(ls), quals};
+        return true;
     }
 
 qualified:
@@ -1890,31 +1898,32 @@ qualified:
         if (!decl) {
             ls_buf.prepend("undeclared symbol '");
             ls_buf.append('\'');
-            ls.syntax_error();
+            return ls.syntax_error();
         }
         switch (decl->obj_type()) {
             case ast::c_object_type::TYPEDEF: {
                 ls.get();
-                ast::c_type tp{decl->as<ast::c_typedef>().type()};
+                ret = ast::c_type{decl->as<ast::c_typedef>().type()};
                 /* merge qualifiers */
-                tp.cv(quals);
-                return tp;
+                ret.cv(quals);
+                return true;
             }
             case ast::c_object_type::RECORD: {
                 ls.get();
                 auto &tp = decl->as<ast::c_record>();
-                return ast::c_type{&tp, quals};
+                ret = ast::c_type{&tp, quals};
+                return true;
             }
             case ast::c_object_type::ENUM: {
                 ls.get();
                 auto &tp = decl->as<ast::c_enum>();
-                return ast::c_type{&tp, quals};
+                ret = ast::c_type{&tp, quals};
+                return true;
             }
             default: {
                 ls_buf.prepend("symbol '");
                 ls_buf.append("' is not a type");
-                ls.syntax_error();
-                break;
+                return ls.syntax_error();
             }
         }
     } else switch (ls.t.token) {
@@ -2031,34 +2040,32 @@ qualified:
             break;
         default:
             ls_buf.set("type name expected");
-            ls.syntax_error();
-            break;
+            return ls.syntax_error();
     }
 
 newtype:
     assert(cbt != ast::C_BUILTIN_INVALID);
-    return ast::c_type{cbt, quals};
+    ret = ast::c_type{cbt, quals};
+    return true;
 }
 
-static ast::c_type parse_typebase(
-    lex_state &ls, bool *tdef = nullptr, bool *extr = nullptr
+static bool parse_typebase(
+    lex_state &ls, ast::c_type &ret, bool *tdef = nullptr, bool *extr = nullptr
 ) {
-    auto tp = parse_typebase_core(ls, tdef, extr);
+    if (!parse_typebase_core(ls, ret, tdef, extr)) {
+        return false;
+    }
     /* right-side cv that can always apply */
     uint32_t cv = 0;
     if (!parse_cv(ls, cv, tdef, extr)) {
-        //TODO
+        return false;
     }
-    tp.cv(cv);
-    return tp;
+    ret.cv(cv);
+    return true;
 }
 
-static ast::c_type parse_type(lex_state &ls, util::strbuf *fpn) {
-    auto tp = parse_typebase(ls);
-    if (!parse_type_ptr(ls, tp, fpn, false)) {
-        //TODO
-    }
-    return tp;
+static bool parse_type(lex_state &ls, ast::c_type &ret, util::strbuf *fpn) {
+    return (parse_typebase(ls, ret) && parse_type_ptr(ls, ret, fpn, false));
 }
 
 static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
@@ -2108,7 +2115,7 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
     util::vector<ast::c_record::field> fields;
 
     while (ls.t.token != '}') {
-        ast::c_type tpb{ast::C_BUILTIN_INVALID, 0};
+        ast::c_type tpb{};
         if ((ls.t.token == TOK_struct) || (ls.t.token == TOK_union)) {
             bool transp = false;
             auto &st = parse_record(ls, &transp);
@@ -2122,7 +2129,9 @@ static ast::c_record const &parse_record(lex_state &ls, bool *newst) {
             }
             tpb = ast::c_type{&st, cv};
         } else {
-            tpb = parse_typebase(ls);
+            if (!parse_typebase(ls, tpb)) {
+                //TODO
+            }
         }
         bool flexible = false;
         do {
@@ -2291,7 +2300,10 @@ static bool parse_decl(lex_state &ls) {
         return false;
     }
     bool tdef = false, extr = false;
-    auto tpb = parse_typebase(ls, &tdef, &extr);
+    ast::c_type tpb{};
+    if (!parse_typebase(ls, tpb, &tdef, &extr)) {
+        return false;
+    }
     bool first = true;
     do {
         util::strbuf dname;
@@ -2422,7 +2434,10 @@ ast::c_type parse_type(
         lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF, paridx};
         try {
             ls.get();
-            auto tp = parse_type(ls);
+            ast::c_type tp{};
+            if (!parse_type(ls, tp)) {
+                throw false;
+            }
             ls.commit();
             return tp;
         } catch (bool) {
@@ -2454,7 +2469,9 @@ ast::c_expr_type parse_number(
         lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF};
         try {
             ls.get();
-            check(ls, TOK_INTEGER);
+            if (!check(ls, TOK_INTEGER)) {
+                throw false;
+            }
             v = ls.t.value;
             ls.commit();
             return ls.t.numtag;
