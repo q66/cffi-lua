@@ -171,7 +171,6 @@ struct lex_state {
     bool lex_error(int tok, int linenum) WARN_UNUSED_RET {
         ls_err.token = tok;
         ls_err.line_number = linenum;
-        throw false;
         return false;
     }
 
@@ -2536,14 +2535,7 @@ void parse(lua_State *L, char const *input, char const *iend, int paridx) {
     }
     {
         lex_state ls{L, input, iend, PARSE_MODE_DEFAULT, paridx};
-        try {
-            /* read first token */
-            if (!ls.get() || !parse_decls(ls)) {
-                throw false;
-            }
-            ls.commit();
-            return;
-        } catch (bool) {
+        if (!ls.get() || !parse_decls(ls)) {
             if (ls_err.token > 0) {
                 char buf[16];
                 lua_pushfstring(
@@ -2557,6 +2549,8 @@ void parse(lua_State *L, char const *input, char const *iend, int paridx) {
             }
             goto lerr;
         }
+        ls.commit();
+        return;
     }
 lerr:
     parse_err(L);
@@ -2570,14 +2564,8 @@ ast::c_type parse_type(
     }
     {
         lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF, paridx};
-        try {
-            ast::c_type tp{};
-            if (!ls.get() || !parse_type(ls, tp)) {
-                throw false;
-            }
-            ls.commit();
-            return tp;
-        } catch (bool) {
+        ast::c_type tp{};
+        if (!ls.get() || !parse_type(ls, tp)) {
             if (ls_err.token > 0) {
                 char buf[16];
                 lua_pushfstring(
@@ -2589,11 +2577,13 @@ ast::c_type parse_type(
             }
             goto lerr;
         }
+        ls.commit();
+        return tp;
     }
 lerr:
     parse_err(L);
     /* unreachable */
-    return ast::c_type{ast::C_BUILTIN_INVALID, 0};
+    return ast::c_type{};
 }
 
 ast::c_expr_type parse_number(
@@ -2604,14 +2594,7 @@ ast::c_expr_type parse_number(
     }
     {
         lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF};
-        try {
-            if (!ls.get() || !check(ls, TOK_INTEGER)) {
-                throw false;
-            }
-            v = ls.t.value;
-            ls.commit();
-            return ls.t.numtag;
-        } catch (bool) {
+        if (!ls.get() || !check(ls, TOK_INTEGER)) {
             if (ls_err.token > 0) {
                 char buf[16];
                 lua_pushfstring(
@@ -2623,6 +2606,9 @@ ast::c_expr_type parse_number(
             }
             goto lerr;
         }
+        v = ls.t.value;
+        ls.commit();
+        return ls.t.numtag;
     }
 lerr:
     parse_err(L);
