@@ -257,6 +257,9 @@ static_assert(
 #if (__GNUC__ >= 5) || ((__GNUC__ == 4) && (__GNUC_MINOR__ >= 6))
 #define FFI_DIAGNOSTIC_PRAGMA_GCC 1
 #endif
+#define WARN_UNUSED_RET __attribute__((warn_unused_result))
+#else
+#define WARN_UNUSED_RET
 #endif
 
 #if defined(__clang__)

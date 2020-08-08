@@ -153,7 +153,7 @@ struct lex_state {
 
     ~lex_state() {}
 
-    bool get() {
+    bool get() WARN_UNUSED_RET {
         if (lahead.token >= 0) {
             t = util::move(lahead);
             lahead.token = -1;
@@ -163,7 +163,7 @@ struct lex_state {
         return true;
     }
 
-    bool lookahead(int &tok) {
+    bool lookahead(int &tok) WARN_UNUSED_RET {
         tok = lahead.token = lex(t);
         return true;
     }
@@ -179,11 +179,11 @@ struct lex_state {
         return lex_error(tok, line_number);
     }
 
-    bool syntax_error() {
+    bool syntax_error() WARN_UNUSED_RET {
         return lex_error(t.token);
     }
 
-    bool store_decl(ast::c_object *obj, int lnum) {
+    bool store_decl(ast::c_object *obj, int lnum) WARN_UNUSED_RET {
         auto *old = p_dstore.add(obj);
         if (old) {
             ls_buf.clear();
@@ -221,7 +221,7 @@ struct lex_state {
         return ret;
     }
 
-    bool param_maybe_name() {
+    bool param_maybe_name() WARN_UNUSED_RET {
         if (t.token != '$') {
             return true;
         }
@@ -240,7 +240,7 @@ struct lex_state {
     }
 
     /* FIXME: very preliminary, should support more stuff, more types */
-    bool param_maybe_expr() {
+    bool param_maybe_expr() WARN_UNUSED_RET {
         if (t.token != '$') {
             return true;
         }
@@ -263,7 +263,7 @@ struct lex_state {
         return true;
     }
 
-    bool param_get_type(ast::c_type &res) {
+    bool param_get_type(ast::c_type &res) WARN_UNUSED_RET {
         ensure_pidx();
         if (!luaL_testudata(p_L, p_pidx, lua::CFFI_CDATA_MT)) {
             ls_buf.set("type expected");
@@ -800,6 +800,12 @@ static char const *token_to_str(int tok, char *buf) {
 
 /* parser */
 
+static bool error_expected(lex_state &ls, int tok) WARN_UNUSED_RET;
+static bool test_next(lex_state &ls, int tok) WARN_UNUSED_RET;
+static bool check(lex_state &ls, int tok) WARN_UNUSED_RET;
+static bool check_next(lex_state &ls, int tok) WARN_UNUSED_RET;
+static bool check_match(lex_state &ls, int what, int who, int where) WARN_UNUSED_RET;
+
 static bool error_expected(lex_state &ls, int tok) {
     char buf[16 + sizeof("'' expected")];
     char *bufp = buf;
@@ -1092,9 +1098,8 @@ static bool parse_cexpr_bin(lex_state &ls, int min_prec, ast::c_expr &lhs) {
             if (!parse_cexpr(ls, texp)) {
                 return false;
             }
-            check_next(ls, ':');
             ast::c_expr fexp;
-            if (!parse_cexpr_bin(ls, ifprec, fexp)) {
+            if (!check_next(ls, ':') || !parse_cexpr_bin(ls, ifprec, fexp)) {
                 return false;
             }
             ast::c_expr tern;
@@ -2176,7 +2181,9 @@ static ast::c_record const *parse_record(lex_state &ls, bool *newst) {
             }
             /* different type or not stored yet, raise error or store */
             auto *p = new ast::c_record{util::move(sname), is_uni};
-            ls.store_decl(p, sline);
+            if (!ls.store_decl(p, sline)) {
+                return nullptr;
+            }
             return p;
         }
         return &oldecl->as<ast::c_record>();
@@ -2259,7 +2266,9 @@ field_end:
         *newst = true;
     }
     auto *p = new ast::c_record{util::move(sname), util::move(fields), is_uni};
-    ls.store_decl(p, sline);
+    if (!ls.store_decl(p, sline)) {
+        return nullptr;
+    }
     return p;
 }
 
@@ -2304,7 +2313,9 @@ static ast::c_enum const *parse_enum(lex_state &ls) {
                 return nullptr;
             }
             auto *p = new ast::c_enum{util::move(ename)};
-            ls.store_decl(p, eline);
+            if (!ls.store_decl(p, eline)) {
+                return nullptr;
+            }
             return p;
         }
         return &oldecl->as<ast::c_enum>();
@@ -2343,8 +2354,9 @@ static ast::c_enum const *parse_enum(lex_state &ls) {
                 case ast::c_expr_type::ULLONG: val.i = int(val.ull); break;
                 default:
                     ls_buf.set("unsupported type");
-                    ls.syntax_error();
-                    return nullptr;
+                    if (!ls.syntax_error()) {
+                        return nullptr;
+                    }
             }
             fields.emplace_back(util::move(fname), val.i);
         } else {
@@ -2361,7 +2373,9 @@ static ast::c_enum const *parse_enum(lex_state &ls) {
         auto *p = new ast::c_constant{
             fld.name, ast::c_type{ast::C_BUILTIN_INT, 0}, fval
         };
-        ls.store_decl(p, eln);
+        if (!ls.store_decl(p, eln)) {
+            return nullptr;
+        }
         if (ls.t.token != ',') {
             break;
         } else if (!ls.get()) {
@@ -2384,7 +2398,9 @@ static ast::c_enum const *parse_enum(lex_state &ls) {
     }
 
     auto *p = new ast::c_enum{util::move(ename), util::move(fields)};
-    ls.store_decl(p, eline);
+    if (!ls.store_decl(p, eline)) {
+        return nullptr;
+    }
     return p;
 }
 
@@ -2425,9 +2441,11 @@ static bool parse_decl(lex_state &ls) {
                 /* store if the name is non-empty, if it's empty there is no
                  * way to access the type and it'd be unique either way
                  */
-                ls.store_decl(new ast::c_typedef{
+                if (!ls.store_decl(new ast::c_typedef{
                     util::move(dname), util::move(tp)
-                }, dline);
+                }, dline)) {
+                    return false;
+                }
                 continue;
             } else {
                 /* unnamed typedef must not be a list */
@@ -2453,9 +2471,11 @@ static bool parse_decl(lex_state &ls) {
                 return false;
             }
         }
-        ls.store_decl(new ast::c_variable{
+        if (!ls.store_decl(new ast::c_variable{
             util::move(dname), util::move(sym), util::move(tp)
-        }, dline);
+        }, dline)) {
+            return false;
+        }
     } while (test_next(ls, ','));
     return true;
 }
@@ -2475,7 +2495,9 @@ static bool parse_decls(lex_state &ls) {
         if (!ls.t.token) {
             break;
         }
-        check_next(ls, ';');
+        if (!check_next(ls, ';')) {
+            return false;
+        }
     }
     return true;
 }
