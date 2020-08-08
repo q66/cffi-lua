@@ -1207,16 +1207,21 @@ static bool parse_cv(
     return true;
 }
 
-static uint32_t parse_callconv_attrib(lex_state &ls) {
+static bool parse_callconv_attrib(lex_state &ls, uint32_t &ret) {
     if (ls.t.token != TOK___attribute__) {
-        return ast::C_FUNC_DEFAULT;
+        ret = ast::C_FUNC_DEFAULT;
+        return true;
     }
     int omod = ls.mode(PARSE_MODE_ATTRIB);
     ls.get();
     int ln = ls.line_number;
-    check_next(ls, TOK_ATTRIBB);
-    int conv = -1;
-    check(ls, TOK_NAME);
+    if (!check_next(ls, TOK_ATTRIBB)) {
+        return false;
+    }
+    uint32_t conv;
+    if (!check(ls, TOK_NAME)) {
+        return false;
+    }
     if (!strcmp(ls_buf.data(), "cdecl")) {
         conv = ast::C_FUNC_CDECL;
     } else if (!strcmp(ls_buf.data(), "fastcall")) {
@@ -1227,12 +1232,15 @@ static uint32_t parse_callconv_attrib(lex_state &ls) {
         conv = ast::C_FUNC_THISCALL;
     } else {
         ls_buf.set("invalid calling convention");
-        ls.syntax_error();
+        return ls.syntax_error();
     }
     ls.get();
-    check_match(ls, TOK_ATTRIBE, TOK_ATTRIBB, ln);
+    if (!check_match(ls, TOK_ATTRIBE, TOK_ATTRIBB, ln)) {
+        return false;
+    }
     ls.mode(omod);
-    return conv;
+    ret = conv;
+    return true;
 }
 
 static uint32_t parse_callconv_ms(lex_state &ls) {
@@ -1587,7 +1595,11 @@ newlevel:
     if (nolev) {
         pcvq[pidx].cconv = parse_callconv_ms(ls);
         if (pcvq[pidx].cconv == ast::C_FUNC_DEFAULT) {
-            pcvq[pidx].cconv = parse_callconv_attrib(ls);
+            uint32_t conv = 0;
+            if (!parse_callconv_attrib(ls, conv)) {
+                //TODO
+            }
+            pcvq[pidx].cconv = conv;
         }
     }
     /* if 'fpname' was passed, it means we might want to handle a named type
@@ -1636,7 +1648,11 @@ newlevel:
             new (&clev.argl) util::vector<ast::c_param>(util::move(argl));
             clev.is_func = true;
             /* attribute style calling convention after paramlist */
-            clev.cconv = parse_callconv_attrib(ls);
+            uint32_t conv = 0;
+            if (!parse_callconv_attrib(ls, conv)) {
+                //TODO
+            }
+            clev.cconv = conv;
             if (clev.cconv == ast::C_FUNC_DEFAULT) {
                 clev.cconv = prevconv;
             }
@@ -2249,7 +2265,10 @@ static ast::c_enum const &parse_enum(lex_state &ls) {
 
 static bool parse_decl(lex_state &ls) {
     int dline = ls.line_number;
-    uint32_t cconv = parse_callconv_attrib(ls);
+    uint32_t cconv = 0;
+    if (!parse_callconv_attrib(ls, cconv)) {
+        return false;
+    }
     bool tdef = false, extr = false;
     auto tpb = parse_typebase(ls, &tdef, &extr);
     bool first = true;
