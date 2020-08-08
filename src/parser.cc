@@ -1261,24 +1261,25 @@ static bool parse_callconv_attrib(lex_state &ls, uint32_t &ret) {
     return true;
 }
 
-static uint32_t parse_callconv_ms(lex_state &ls) {
+static bool parse_callconv_ms(lex_state &ls, uint32_t &ret) {
     switch (ls.t.token) {
         case TOK___cdecl:
-            ls.get();
-            return ast::C_FUNC_CDECL;
+            ret = ast::C_FUNC_CDECL;
+            return ls.get();
         case TOK___fastcall:
-            ls.get();
-            return ast::C_FUNC_FASTCALL;
+            ret = ast::C_FUNC_FASTCALL;
+            return ls.get();
         case TOK___stdcall:
-            ls.get();
-            return ast::C_FUNC_STDCALL;
+            ret = ast::C_FUNC_STDCALL;
+            return ls.get();
         case TOK___thiscall:
-            ls.get();
-            return ast::C_FUNC_THISCALL;
+            ret = ast::C_FUNC_THISCALL;
+            return ls.get();
         default:
             break;
     }
-    return ast::C_FUNC_DEFAULT;
+    ret = ast::C_FUNC_DEFAULT;
+    return true;
 }
 
 static bool parse_paramlist(lex_state &ls, util::vector<ast::c_param> &params) {
@@ -1577,7 +1578,11 @@ newlevel:
         pcvq.emplace_back();
         pcvq.back().is_term = true;
         if (!nolev) {
-            pcvq.back().cconv = parse_callconv_ms(ls);
+            uint32_t conv = 0;
+            if (!parse_callconv_ms(ls, conv)) {
+                return false;
+            }
+            pcvq.back().cconv = conv;
         } else {
             pcvq.back().cconv = ast::C_FUNC_DEFAULT;
         }
@@ -1633,9 +1638,12 @@ newlevel:
      * calling convention can go before the name
      */
     if (nolev) {
-        pcvq[pidx].cconv = parse_callconv_ms(ls);
+        uint32_t conv = 0;
+        if (!parse_callconv_ms(ls, conv)) {
+            return false;
+        }
+        pcvq[pidx].cconv = conv;
         if (pcvq[pidx].cconv == ast::C_FUNC_DEFAULT) {
-            uint32_t conv = 0;
             if (!parse_callconv_attrib(ls, conv)) {
                 return false;
             }
