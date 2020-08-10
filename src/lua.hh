@@ -1,6 +1,8 @@
 #ifndef LUA_HH
 #define LUA_HH
 
+#include <cassert>
+
 #include "platform.hh"
 
 #if defined(FFI_DIAGNOSTIC_PRAGMA_CLANG)
@@ -123,6 +125,30 @@ static inline void mark_lib(lua_State *L) {
 }
 
 struct custom_size { size_t sz; };
+struct no_gc {};
+
+inline lua_Alloc get_allocator(lua_State *L, void *&ud) {
+    lua_Alloc af = lua_getallocf(L, &ud);
+    assert(af);
+    return af;
+}
+
+inline void *alloc_mem(lua_State *L, size_t n) {
+    void *ud;
+    auto af = get_allocator(L, ud);
+    auto *p = static_cast<void **>(
+        af(ud, nullptr, 0, n + sizeof(void *))
+    );
+    *reinterpret_cast<size_t *>(p) = n + sizeof(void *);
+    return p + 1;
+}
+
+inline void free_mem(lua_State *L, void *p) {
+    void *ud;
+    auto af = get_allocator(L, ud);
+    auto *op = static_cast<void **>(p) - 1;
+    af(ud, op, *reinterpret_cast<size_t *>(op), 0);
+}
 
 } /* namespace lua */
 
@@ -136,6 +162,14 @@ inline void *operator new(size_t n, lua_State *L, size_t extra) {
 
 inline void *operator new(size_t, lua_State *L, lua::custom_size n) {
     return lua_newuserdata(L, n.sz);
+}
+
+inline void *operator new(size_t n, lua_State *L, lua::no_gc) {
+    return lua::alloc_mem(L, n);
+}
+
+inline void *operator new[](size_t n, lua_State *L, lua::no_gc) {
+    return lua::alloc_mem(L, n);
 }
 
 #endif /* LUA_HH */
