@@ -102,12 +102,10 @@ static void init_kwmap() {
     }
 }
 
-struct lex_state_error {
+static thread_local struct {
     int token;
     int line_number;
-};
-
-static thread_local lex_state_error ls_err{};
+} ls_err{};
 
 enum parse_mode {
     PARSE_MODE_DEFAULT,
