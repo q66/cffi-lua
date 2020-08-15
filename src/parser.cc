@@ -1807,7 +1807,10 @@ newlevel:
             if (pcvq[cidx].is_ref) {
                 tp.add_ref();
             } else {
-                ast::c_type ntp{util::move(tp), pcvq[cidx].cv, ast::C_BUILTIN_PTR};
+                ast::c_type ntp{
+                    new ast::c_type{util::move(tp)}, pcvq[cidx].cv,
+                    ast::C_BUILTIN_PTR, false
+                };
                 tp = util::move(ntp);
             }
             ++cidx;

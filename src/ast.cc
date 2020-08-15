@@ -1174,7 +1174,9 @@ int decl_store::request_name(char *buf, size_t bufsize) const {
 c_type from_lua_type(lua_State *L, int index) {
     switch (lua_type(L, index)) {
         case LUA_TNIL:
-            return c_type{c_type{C_BUILTIN_VOID, 0}, 0};
+            return c_type{
+                new c_type{C_BUILTIN_VOID, 0}, 0, C_BUILTIN_PTR, false
+            };
         case LUA_TBOOLEAN:
             return c_type{C_BUILTIN_BOOL, 0};
         case LUA_TNUMBER:
@@ -1192,17 +1194,23 @@ c_type from_lua_type(lua_State *L, int index) {
             }
             return c_type{builtin_v<lua_Number>, 0};
         case LUA_TSTRING:
-            return c_type{c_type{C_BUILTIN_CHAR, C_CV_CONST}, 0};
+            return c_type{
+                new c_type{C_BUILTIN_CHAR, C_CV_CONST}, 0, C_BUILTIN_PTR, false
+            };
         case LUA_TTABLE:
         case LUA_TFUNCTION:
         case LUA_TTHREAD:
         case LUA_TLIGHTUSERDATA:
             /* by default use a void pointer, some will fail, that's ok */
-            return c_type{c_type{C_BUILTIN_VOID, 0}, 0};
+            return c_type{
+                new c_type{C_BUILTIN_VOID, 0}, 0, C_BUILTIN_PTR, false
+            };
         case LUA_TUSERDATA: {
             auto *cd = ffi::testcdata<ffi::noval>(L, index);
             if (!cd) {
-                return c_type{c_type{C_BUILTIN_VOID, 0}, 0};
+                return c_type{
+                    new c_type{C_BUILTIN_VOID, 0}, 0, C_BUILTIN_PTR, false
+                };
             }
             return cd->decl;
         }

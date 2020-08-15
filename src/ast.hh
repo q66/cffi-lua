@@ -527,18 +527,14 @@ struct c_type: c_object {
         p_ptr{nullptr}, p_ttype{uint32_t(cbt)}, p_flags{0}, p_cv{qual}
     {}
 
-    c_type(c_type tp, uint32_t qual, c_builtin cbt = C_BUILTIN_PTR):
-        p_ptr{new c_type{util::move(tp)}}, p_ttype{uint32_t(cbt)},
-        p_flags{0}, p_cv{qual}
-    {}
-
     c_type(c_type tp, uint32_t qual, size_t arrlen, uint32_t flags):
         p_ptr{new c_type{util::move(tp)}}, p_asize{arrlen},
         p_ttype{C_BUILTIN_ARRAY}, p_flags{flags}, p_cv{qual}
     {}
 
-    c_type(c_type const *ctp, uint32_t qual, c_builtin cbt = C_BUILTIN_PTR):
-        p_cptr{ctp}, p_ttype{uint32_t(cbt)}, p_flags{C_TYPE_WEAK}, p_cv{qual}
+    c_type(c_type const *ctp, uint32_t qual, c_builtin cbt, bool weak):
+        p_cptr{ctp}, p_ttype{uint32_t(cbt)},
+        p_flags{weak ? uint32_t(C_TYPE_WEAK) : 0}, p_cv{qual}
     {}
 
     c_type(c_function tp, uint32_t qual, bool cb = false);
