@@ -261,14 +261,14 @@ template<typename T>
 static inline cdata<T> &newcdata(
     lua_State *L, ast::c_type const &tp, size_t extra = 0
 ) {
-    return newcdata<T>(L, ast::c_type{tp}, extra);
+    return newcdata<T>(L, tp.copy(), extra);
 }
 
 static inline cdata<ffi::noval> &newcdata(
     lua_State *L, ast::c_type const &tp, size_t vals
 ) {
     auto ssz = vals + cdata_value_base();
-    auto *cd = new (L, lua::custom_size{ssz}) cdata<ffi::noval>{tp};
+    auto *cd = new (L, lua::custom_size{ssz}) cdata<ffi::noval>{tp.copy()};
     cd->gc_ref = LUA_REFNIL;
     cd->aux = 0;
     lua::mark_cdata(L);

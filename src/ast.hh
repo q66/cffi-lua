@@ -576,6 +576,12 @@ struct c_type: c_object {
         return c_object_type::TYPE;
     }
 
+    c_type copy() const {
+        c_type ret{};
+        ret.copy(*this);
+        return ret;
+    }
+
     void do_serialize(util::strbuf &o, c_object_cont_f cont, void *data) const;
 
     char const *name() const {
@@ -665,13 +671,13 @@ struct c_type: c_object {
     }
 
     c_type unref() const {
-        auto ret = *this;
+        auto ret = copy();
         ret.p_flags ^= C_TYPE_REF;
         return ret;
     }
 
     c_type as_ref() const {
-        auto ret = *this;
+        auto ret = copy();
         ret.add_ref();
         return ret;
     }
@@ -731,7 +737,7 @@ struct c_type: c_object {
 
     /* only use this with ref and ptr types */
     c_type as_type(int cbt) const {
-        auto ret = c_type{*this};
+        auto ret = copy();
         ret.p_ttype ^= ret.type();
         ret.p_ttype |= cbt;
         return ret;

@@ -1039,7 +1039,7 @@ struct ffi_module {
             if (ffi::isctype(cd)) {
                 return cd.decl;
             }
-            auto &ct = ffi::newctype(L, cd.decl);
+            auto &ct = ffi::newctype(L, cd.decl.copy());
             lua_replace(L, idx);
             return ct.decl;
         }

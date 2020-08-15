@@ -598,9 +598,10 @@ void c_type::copy(c_type const &v) {
     bool weak = !owns();
     int tp = type();
     if (tp == C_BUILTIN_FUNC) {
+        // FIXME: this forces c_type to be copyable
         p_fptr = weak ? v.p_fptr : new c_function{*v.p_fptr};
     } else if ((tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_ARRAY)) {
-        p_ptr = weak ? v.p_ptr : new c_type{*v.p_ptr};
+        p_ptr = weak ? v.p_ptr : new c_type{v.p_ptr->copy()};
     } else if ((tp == C_BUILTIN_RECORD) || (tp == C_BUILTIN_ENUM)) {
         p_ptr = v.p_ptr;
     }
@@ -1207,7 +1208,7 @@ c_type from_lua_type(lua_State *L, int index) {
                     new c_type{C_BUILTIN_VOID, 0}, 0, C_BUILTIN_PTR, false
                 };
             }
-            return cd->decl;
+            return cd->decl.copy();
         }
         default:
             break;

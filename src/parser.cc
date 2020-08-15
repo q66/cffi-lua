@@ -272,7 +272,7 @@ struct lex_state {
             ls_buf.set("type expected");
             return syntax_error();
         }
-        res = *lua::touserdata<ast::c_type>(p_L, p_pidx);
+        res = lua::touserdata<ast::c_type>(p_L, p_pidx)->copy();
         /* consume $ */
         if (!get()) {
             return false;
@@ -1973,7 +1973,7 @@ qualified:
                 if (!ls.get()) {
                     return false;
                 }
-                ret = ast::c_type{decl->as<ast::c_typedef>().type()};
+                ret = decl->as<ast::c_typedef>().type().copy();
                 /* merge qualifiers */
                 ret.cv(quals);
                 return true;
@@ -2242,7 +2242,7 @@ static ast::c_record const *parse_record(lex_state &ls, bool *newst) {
         bool flexible = false;
         do {
             util::strbuf fpn;
-            auto tp = tpb;
+            auto tp = tpb.copy();
             if (!parse_type_ptr(ls, tp, &fpn, false)) {
                 return nullptr;
             }
@@ -2444,7 +2444,7 @@ static bool parse_decl(lex_state &ls) {
         if (tdef) {
             oldmode = ls.mode(PARSE_MODE_TYPEDEF);
         }
-        auto tp = tpb;
+        auto tp = tpb.copy();
         if (!parse_type_ptr(ls, tp, &dname, !first)) {
             return false;
         }
