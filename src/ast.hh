@@ -537,11 +537,11 @@ struct c_type: c_object {
         p_flags{weak ? uint32_t(C_TYPE_WEAK) : 0}, p_cv{qual}
     {}
 
-    c_type(c_function tp, uint32_t qual, bool cb = false);
-
-    c_type(c_function const *ctp, uint32_t qual, bool cb = false):
+    c_type(c_function const *ctp, uint32_t qual, bool cb, bool weak):
         p_cfptr{ctp}, p_ttype{C_BUILTIN_FUNC},
-        p_flags{uint32_t(C_TYPE_WEAK | (cb ? C_TYPE_CLOSURE : 0))}, p_cv{qual}
+        p_flags{uint32_t(
+            (weak ? C_TYPE_WEAK : 0) | (cb ? C_TYPE_CLOSURE : 0)
+        )}, p_cv{qual}
     {}
 
     c_type(c_record const *ctp, uint32_t qual):

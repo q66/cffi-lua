@@ -577,11 +577,6 @@ void c_function::do_serialize(
     o.append("()");
 }
 
-c_type::c_type(c_function tp, uint32_t qual, bool cb):
-    p_fptr{new c_function{util::move(tp)}}, p_ttype{C_BUILTIN_FUNC},
-    p_flags{uint32_t(cb ? C_TYPE_CLOSURE : 0)}, p_cv{qual}
-{}
-
 void c_type::clear() {
     if (!owns()) {
         return;

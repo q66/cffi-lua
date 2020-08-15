@@ -225,7 +225,7 @@ static void make_cdata_func(
      *     } val;
      * }
      */
-    ast::c_type funct{&func, 0, funp == nullptr};
+    ast::c_type funct{&func, 0, funp == nullptr, true};
     auto &fud = newcdata<fdata>(
         L, fptr ? ast::c_type{
             new ast::c_type{util::move(funct)}, 0, ast::C_BUILTIN_PTR, false
