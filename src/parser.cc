@@ -1851,8 +1851,8 @@ newlevel:
                 dimstack.pop_back();
                 --olev->arrd;
                 ast::c_type atp{
-                    util::move(tp), quals, dim,
-                    (!olev->arrd ? olev->flags : uint32_t(0))
+                    new ast::c_type{util::move(tp)}, quals, dim,
+                    (!olev->arrd ? olev->flags : uint32_t(0)), false
                 };
                 tp = util::move(atp);
             }
