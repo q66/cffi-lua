@@ -1852,7 +1852,7 @@ newlevel:
                 --olev->arrd;
                 ast::c_type atp{
                     util::make_rc<ast::c_type>(util::move(tp)),
-                    quals, dim, (!olev->arrd ? olev->flags : uint32_t(0)), false
+                    quals, dim, (!olev->arrd ? olev->flags : uint32_t(0))
                 };
                 tp = util::move(atp);
             }

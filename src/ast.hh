@@ -528,11 +528,9 @@ struct c_type: c_object {
     {}
 
     c_type(
-        util::rc_obj<c_type> ctp, uint32_t qual, size_t arrlen,
-        uint32_t flags, bool weak
+        util::rc_obj<c_type> ctp, uint32_t qual, size_t arrlen, uint32_t flags
     ):
-        p_asize{arrlen}, p_ttype{C_BUILTIN_ARRAY},
-        p_flags{(weak ? uint32_t(C_TYPE_WEAK) : 0) | flags}, p_cv{qual}
+        p_asize{arrlen}, p_ttype{C_BUILTIN_ARRAY}, p_flags{flags}, p_cv{qual}
     {
         new (&p_ptr) util::rc_obj<c_type>{util::move(ctp)};
     }
