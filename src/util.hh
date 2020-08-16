@@ -337,8 +337,10 @@ inline constexpr T limit_max() {
 
 template<typename T>
 struct rc_obj {
+    struct construct {};
+
     template<typename ...A>
-    rc_obj(A &&...cargs) {
+    rc_obj(construct, A &&...cargs) {
         auto *np = new unsigned char[sizeof(T) + RC_SIZE];
         /* initial acquire */
         *reinterpret_cast<size_t *>(np) = 1;
@@ -352,21 +354,11 @@ struct rc_obj {
         incr();
     }
 
-    rc_obj(rc_obj &&op) {
-        swap(op);
-    }
-
     ~rc_obj() {
         decr();
     }
 
-    rc_obj &operator=(rc_obj const &op) {
-        decr();
-        p_ptr = op.p_ptr;
-        incr();
-    }
-
-    rc_obj &operator=(rc_obj &&op) {
+    rc_obj &operator=(rc_obj op) {
         swap(op);
         return *this;
     }
@@ -426,6 +418,11 @@ private:
 
     T *p_ptr;
 };
+
+template<typename T, typename ...A>
+rc_obj<T> make_rc(A &&...args) {
+    return rc_obj<T>{typename rc_obj<T>::construct{}, util::forward<A>(args)...};
+}
 
 /* vector */
 

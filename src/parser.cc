@@ -1808,8 +1808,8 @@ newlevel:
                 tp.add_ref();
             } else {
                 ast::c_type ntp{
-                    new ast::c_type{util::move(tp)}, pcvq[cidx].cv,
-                    ast::C_BUILTIN_PTR, false
+                    util::make_rc<ast::c_type>(util::move(tp)),
+                    pcvq[cidx].cv, ast::C_BUILTIN_PTR, false
                 };
                 tp = util::move(ntp);
             }
@@ -1851,8 +1851,8 @@ newlevel:
                 dimstack.pop_back();
                 --olev->arrd;
                 ast::c_type atp{
-                    new ast::c_type{util::move(tp)}, quals, dim,
-                    (!olev->arrd ? olev->flags : uint32_t(0)), false
+                    util::make_rc<ast::c_type>(util::move(tp)),
+                    quals, dim, (!olev->arrd ? olev->flags : uint32_t(0)), false
                 };
                 tp = util::move(atp);
             }

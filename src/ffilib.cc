@@ -1155,7 +1155,7 @@ struct ffi_module {
     static int addressof_f(lua_State *L) {
         auto &cd = ffi::checkcdata<void *>(L, 1);
         ffi::newcdata<void *>(L, ast::c_type{
-            new ast::c_type{util::move(cd.decl.unref())},
+            util::make_rc<ast::c_type>(util::move(cd.decl.unref())),
             0, ast::C_BUILTIN_PTR, false
         }).val =
             cd.decl.is_ref() ? cd.val : &cd.val;
@@ -1535,8 +1535,8 @@ struct ffi_module {
 
         /* NULL = (void *)0 */
         ffi::newcdata<void *>(L, ast::c_type{
-            new ast::c_type{ast::C_BUILTIN_VOID, 0}, 0,
-            ast::C_BUILTIN_PTR, false
+            util::make_rc<ast::c_type>(ast::C_BUILTIN_VOID, 0),
+            0, ast::C_BUILTIN_PTR, false
         }).val = nullptr;
         lua_setfield(L, -2, "nullptr");
     }

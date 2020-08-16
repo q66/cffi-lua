@@ -585,7 +585,8 @@ void c_type::clear() {
     if (tp == C_BUILTIN_FUNC) {
         delete p_fptr;
     } else if ((tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_ARRAY)) {
-        delete p_ptr;
+        using T = util::rc_obj<c_type>;
+        p_ptr.~T();
     }
 }
 
@@ -601,24 +602,31 @@ void c_type::copy(c_type const &v) {
         // FIXME: this forces c_type to be copyable
         p_fptr = weak ? v.p_fptr : new c_function{*v.p_fptr};
     } else if ((tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_ARRAY)) {
-        p_ptr = weak ? v.p_ptr : new c_type{v.p_ptr->copy()};
+        new (&p_ptr) util::rc_obj<c_type>{v.p_ptr};
     } else if ((tp == C_BUILTIN_RECORD) || (tp == C_BUILTIN_ENUM)) {
-        p_ptr = v.p_ptr;
+        p_crec = v.p_crec;
     }
 }
 
 c_type::c_type(c_type &&v):
-    p_ptr{util::exchange(v.p_ptr, nullptr)},
     p_asize{v.p_asize}, p_ttype{v.p_ttype}, p_flags{v.p_flags}, p_cv{v.p_cv}
 {
     v.p_ttype = C_BUILTIN_INVALID;
     v.p_flags = 0;
     v.p_cv = 0;
+    auto tp = type();
+    if ((tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_ARRAY)) {
+        using T = util::rc_obj<c_type>;
+        new (&p_ptr) T{v.p_ptr};
+        v.p_ptr.~T();
+    } else {
+        p_fptr = v.p_fptr;
+        v.p_fptr = nullptr;
+    }
 }
 
 c_type &c_type::operator=(c_type &&v) {
     clear();
-    p_ptr = util::exchange(v.p_ptr, nullptr);
     p_asize = v.p_asize;
     p_ttype = v.p_ttype;
     p_flags = v.p_flags;
@@ -626,6 +634,15 @@ c_type &c_type::operator=(c_type &&v) {
     v.p_ttype = C_BUILTIN_INVALID;
     v.p_flags = 0;
     v.p_cv = 0;
+    auto tp = type();
+    if ((tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_ARRAY)) {
+        using T = util::rc_obj<c_type>;
+        new (&p_ptr) T{v.p_ptr};
+        v.p_ptr.~T();
+    } else {
+        p_fptr = v.p_fptr;
+        v.p_fptr = nullptr;
+    }
     return *this;
 }
 
@@ -802,7 +819,7 @@ size_t c_type::alloc_size() const {
              * allocation size). That's fine, this is never relied upon
              * in contexts where that would be important
              */
-            return p_asize * p_cptr->alloc_size();
+            return p_asize * p_ptr->alloc_size();
         default:
             break;
     }
@@ -878,7 +895,7 @@ bool c_type::is_same(
             if (type() != other.type()) {
                 return false;
             }
-            return p_cptr->is_same(*other.p_cptr);
+            return p_ptr->is_same(*other.p_ptr);
 
         case C_BUILTIN_ARRAY:
             if (type() != other.type()) {
@@ -887,7 +904,7 @@ bool c_type::is_same(
             if (p_asize != other.p_asize) {
                 return false;
             }
-            return p_cptr->is_same(*other.p_cptr);
+            return p_ptr->is_same(*other.p_ptr);
 
         case C_BUILTIN_INVALID:
             break;
@@ -1171,7 +1188,8 @@ c_type from_lua_type(lua_State *L, int index) {
     switch (lua_type(L, index)) {
         case LUA_TNIL:
             return c_type{
-                new c_type{C_BUILTIN_VOID, 0}, 0, C_BUILTIN_PTR, false
+                util::make_rc<c_type>(C_BUILTIN_VOID, 0),
+                0, C_BUILTIN_PTR, false
             };
         case LUA_TBOOLEAN:
             return c_type{C_BUILTIN_BOOL, 0};
@@ -1191,7 +1209,8 @@ c_type from_lua_type(lua_State *L, int index) {
             return c_type{builtin_v<lua_Number>, 0};
         case LUA_TSTRING:
             return c_type{
-                new c_type{C_BUILTIN_CHAR, C_CV_CONST}, 0, C_BUILTIN_PTR, false
+                util::make_rc<c_type>(C_BUILTIN_CHAR, C_CV_CONST),
+                0, C_BUILTIN_PTR, false
             };
         case LUA_TTABLE:
         case LUA_TFUNCTION:
@@ -1199,13 +1218,15 @@ c_type from_lua_type(lua_State *L, int index) {
         case LUA_TLIGHTUSERDATA:
             /* by default use a void pointer, some will fail, that's ok */
             return c_type{
-                new c_type{C_BUILTIN_VOID, 0}, 0, C_BUILTIN_PTR, false
+                util::make_rc<c_type>(C_BUILTIN_VOID, 0),
+                0, C_BUILTIN_PTR, false
             };
         case LUA_TUSERDATA: {
             auto *cd = ffi::testcdata<ffi::noval>(L, index);
             if (!cd) {
                 return c_type{
-                    new c_type{C_BUILTIN_VOID, 0}, 0, C_BUILTIN_PTR, false
+                    util::make_rc<c_type>(C_BUILTIN_VOID, 0),
+                    0, C_BUILTIN_PTR, false
                 };
             }
             return cd->decl.copy();
