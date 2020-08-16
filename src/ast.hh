@@ -715,11 +715,11 @@ struct c_type: c_object {
     }
 
     /* only use if you know it's callable() */
-    c_function const &function() const {
+    util::rc_obj<c_function> const &function() const {
         if (type() == C_BUILTIN_FUNC) {
-            return *p_func;
+            return p_func;
         }
-        return *ptr_base().p_func;
+        return ptr_base().p_func;
     }
 
     c_record const &record() const {

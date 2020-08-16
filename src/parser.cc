@@ -2454,7 +2454,7 @@ static bool parse_decl(lex_state &ls) {
                 ls_buf.set("calling convention on non-function declaration");
                 return ls.syntax_error();
             }
-            auto *func = const_cast<ast::c_function *>(&tp.function());
+            auto *func = const_cast<ast::c_function *>(&*tp.function());
             func->callconv(cconv);
         }
         if (tdef) {

@@ -104,7 +104,7 @@ void destroy_cdata(lua_State *L, cdata<noval> &cd) {
             goto free_aux;
         free_aux:
         case ast::C_BUILTIN_FUNC: {
-            if (!fd.decl.function().variadic()) {
+            if (!fd.decl.function()->variadic()) {
                 break;
             }
             fdata_free_aux(fd.val);
@@ -124,7 +124,7 @@ void destroy_closure(closure_data *cd) {
 static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
     auto &fud = *static_cast<cdata<fdata> *>(data);
     auto &fun = fud.decl.function();
-    auto &pars = fun.params();
+    auto &pars = fun->params();
     size_t fargs = pars.size();
 
     closure_data &cd = *fud.val.cd;
@@ -133,12 +133,12 @@ static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
         to_lua(cd.L, pars[i].type(), args[i], RULE_PASS);
     }
 
-    if (fun.result().type() != ast::C_BUILTIN_VOID) {
+    if (fun->result().type() != ast::C_BUILTIN_VOID) {
         lua_call(cd.L, int(fargs), 1);
         arg_stor_t stor;
         size_t rsz;
         void *rp = from_lua(
-            cd.L, fun.result(), &stor, -1, rsz, RULE_RET
+            cd.L, fun->result(), &stor, -1, rsz, RULE_RET
         );
         memcpy(ret, rp, rsz);
         lua_pop(cd.L, 1);
@@ -177,23 +177,24 @@ static inline ffi_abi to_libffi_abi(int) {
  * dynamically before every call
  */
 static bool prepare_cif(
-    ast::c_function const &func, ffi_cif &cif, ffi_type **targs, size_t nargs
+    util::rc_obj<ast::c_function> const &func, ffi_cif &cif,
+    ffi_type **targs, size_t nargs
 ) {
     for (size_t i = 0; i < nargs; ++i) {
-        targs[i] = func.params()[i].libffi_type();
+        targs[i] = func->params()[i].libffi_type();
     }
     using U = unsigned int;
     return (ffi_prep_cif(
-        &cif, to_libffi_abi(func.callconv()), U(nargs),
-        func.result().libffi_type(), targs
+        &cif, to_libffi_abi(func->callconv()), U(nargs),
+        func->result().libffi_type(), targs
     ) == FFI_OK);
 }
 
 static void make_cdata_func(
-    lua_State *L, void (*funp)(), ast::c_function const &func, bool fptr,
+    lua_State *L, void (*funp)(), util::rc_obj<ast::c_function> func, bool fptr,
     closure_data *cd
 ) {
-    size_t nargs = func.params().size();
+    size_t nargs = func->params().size();
 
     /* MEMORY LAYOUT:
      *
@@ -226,21 +227,19 @@ static void make_cdata_func(
      * }
      */
     /* FIXME: just pass the original ref */
-    ast::c_type funct{
-        util::make_rc<ast::c_function>(func), 0, funp == nullptr, true
-    };
+    ast::c_type funct{func, 0, funp == nullptr, false};
     auto &fud = newcdata<fdata>(
         L, fptr ? ast::c_type{
             util::make_rc<ast::c_type>(util::move(funct)),
             0, ast::C_BUILTIN_PTR
         } : util::move(funct),
-        func.variadic() ? sizeof(void *) : (
+        func->variadic() ? sizeof(void *) : (
             sizeof(arg_stor_t) * nargs + sizeof(void *) * nargs * 2
         )
     );
     fud.val.sym = funp;
 
-    if (func.variadic()) {
+    if (func->variadic()) {
         fdata_get_aux(fud.val) = nullptr;
         if (!funp) {
             luaL_error(L, "variadic callbacks are not supported");
@@ -251,7 +250,7 @@ static void make_cdata_func(
     if (!prepare_cif(
         func, fud.val.cif, fargs_types(fud.val.args(), nargs), nargs
     )) {
-        luaL_error(L, "unexpected failure setting up '%s'", func.name());
+        luaL_error(L, "unexpected failure setting up '%s'", func->name());
     }
 
     if (!funp) {
@@ -271,7 +270,7 @@ static void make_cdata_func(
         ));
         if (!cd->closure) {
             destroy_closure(cd);
-            func.serialize(L);
+            func->serialize(L);
             luaL_error(
                 L, "failed allocating callback for '%s'",
                 lua_tostring(L, -1)
@@ -279,14 +278,14 @@ static void make_cdata_func(
         }
         if (!prepare_cif(fud.decl.function(), cd->cif, cd->targs(), nargs)) {
             destroy_closure(cd);
-            luaL_error(L, "unexpected failure setting up '%s'", func.name());
+            luaL_error(L, "unexpected failure setting up '%s'", func->name());
         }
         if (ffi_prep_closure_loc(
             cd->closure, &fud.val.cif, cb_bind, &fud,
             reinterpret_cast<void *>(fud.val.sym)
         ) != FFI_OK) {
             destroy_closure(cd);
-            func.serialize(L);
+            func->serialize(L);
             luaL_error(
                 L, "failed initializing closure for '%s'",
                 lua_tostring(L, -1)
@@ -315,7 +314,7 @@ static bool prepare_cif_var(
 
     ffi_type **targs = fargs_types(auxptr, nargs);
     for (size_t i = 0; i < fargs; ++i) {
-        targs[i] = func.params()[i].libffi_type();
+        targs[i] = func->params()[i].libffi_type();
     }
     for (size_t i = fargs; i < nargs; ++i) {
         targs[i] = lua_to_vararg(L, int(i + 2));
@@ -323,14 +322,14 @@ static bool prepare_cif_var(
 
     using U = unsigned int;
     return (ffi_prep_cif_var(
-        &fud.val.cif, to_libffi_abi(func.callconv()), U(fargs), U(nargs),
-        func.result().libffi_type(), targs
+        &fud.val.cif, to_libffi_abi(func->callconv()), U(fargs), U(nargs),
+        func->result().libffi_type(), targs
     ) == FFI_OK);
 }
 
 int call_cif(cdata<fdata> &fud, lua_State *L, size_t largs) {
     auto &func = fud.decl.function();
-    auto &pdecls = func.params();
+    auto &pdecls = func->params();
 
     size_t nargs = pdecls.size();
     size_t targs = nargs;
@@ -338,10 +337,10 @@ int call_cif(cdata<fdata> &fud, lua_State *L, size_t largs) {
     arg_stor_t *pvals = fud.val.args();
     void *rval = fdata_retval(fud.val);
 
-    if (func.variadic()) {
+    if (func->variadic()) {
         targs = util::max(largs, nargs);
         if (!prepare_cif_var(L, fud, targs, nargs)) {
-            luaL_error(L, "unexpected failure setting up '%s'", func.name());
+            luaL_error(L, "unexpected failure setting up '%s'", func->name());
         }
         pvals = fdata_get_aux(fud.val);
     }
@@ -379,13 +378,13 @@ int call_cif(cdata<fdata> &fud, lua_State *L, size_t largs) {
      *
      * there shouldn't be any other places that make this assumption
      */
-    auto rsz = func.result().alloc_size();
+    auto rsz = func->result().alloc_size();
     if (rsz < sizeof(ffi_arg)) {
         auto *p = static_cast<unsigned char *>(rval);
         rval = p + sizeof(ffi_arg) - rsz;
     }
 #endif
-    return to_lua(L, func.result(), rval, RULE_RET);
+    return to_lua(L, func->result(), rval, RULE_RET);
 }
 
 template<typename T>
@@ -723,7 +722,7 @@ isptr:
         if (cd.type() == ast::C_BUILTIN_FUNC) {
             /* plain function: check convertible, init from addr */
             if (!func_convertible(
-                cd.function(), tp.ptr_base().function()
+                *cd.function(), *tp.ptr_base().function()
             )) {
                 fail_convert_cd(L, cd, tp);
             }
@@ -738,7 +737,7 @@ isptr:
         }
         /* and it must satisfy convertible check */
         if (!func_convertible(
-            cd.ptr_ref_base().function(), tp.ptr_ref_base().function()
+            *cd.ptr_ref_base().function(), *tp.ptr_ref_base().function()
         )) {
             fail_convert_cd(L, cd, tp);
         }
@@ -867,7 +866,7 @@ static void *from_lua_cdata(
             if (tp.ptr_ref_base().type() != ast::C_BUILTIN_FUNC) {
                 fail_convert_cd(L, cd, tp);
             }
-            if (!func_convertible(cd.function(), tp.ptr_ref_base().function())) {
+            if (!func_convertible(*cd.function(), *tp.ptr_ref_base().function())) {
                 fail_convert_cd(L, cd, tp);
             }
             dsz = sizeof(void *);
