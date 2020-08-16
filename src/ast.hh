@@ -556,17 +556,10 @@ struct c_type: c_object {
         p_cenum{ctp}, p_ttype{C_BUILTIN_ENUM}, p_flags{0}, p_cv{qual}
     {}
 
-    c_type(c_type const &tp) {
-        copy(tp);
-    }
-
+    c_type(c_type const &tp) = delete;
     c_type(c_type &&);
 
-    c_type &operator=(c_type const &tp) {
-        clear();
-        copy(tp);
-        return *this;
-    }
+    c_type &operator=(c_type const &tp) = delete;
     c_type &operator=(c_type &&);
 
     ~c_type() {
