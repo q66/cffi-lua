@@ -331,71 +331,42 @@ inline constexpr T limit_max() {
     return detail::limits<T>::max;
 }
 
-/* like shared_ptr, very basic for now */
-
-namespace detail {
-    struct ref_counter {
-        ref_counter(): p_count{nullptr} {}
-        ref_counter(ref_counter const &rc): p_count{rc.p_count} {}
-
-        size_t count() const {
-            if (p_count) {
-                return *p_count;
-            }
-            return 0;
-        }
-
-        template<typename T>
-        void acquire(T *ptr) {
-            if (ptr) {
-                if (!p_count) {
-                    p_count = new size_t{1};
-                } else {
-                    ++(*p_count);
-                }
-            }
-        }
-
-        template<typename T>
-        void release(T *ptr) {
-            if (p_count) {
-                if (!--(*p_count)) {
-                    delete ptr;
-                }
-                p_count = nullptr;
-            }
-        }
-
-        void swap(ref_counter &orc) {
-            util::swap(p_count, orc.p_count);
-        }
-    private:
-        size_t *p_count;
-    };
-} /* namespace detail */
+/* a refernce counted object; manages its own memory,
+ * so it can avoid separately allocating the refcount
+ */
 
 template<typename T>
-struct rc_ptr {
-    rc_ptr(): p_ptr{nullptr}, p_rc{} {}
-
-    rc_ptr(rc_ptr const &op): p_rc{op.p_rc} {
-        acquire(op.p_ptr);
+struct rc_obj {
+    template<typename ...A>
+    rc_obj(A &&...cargs) {
+        auto *np = new unsigned char[sizeof(T) + RC_SIZE];
+        /* initial acquire */
+        *reinterpret_cast<size_t *>(np) = 1;
+        /* store */
+        p_ptr = reinterpret_cast<T *>(np + RC_SIZE);
+        /* construct */
+        new (p_ptr) T(util::forward<A>(cargs)...);
     }
 
-    template<typename U>
-    rc_ptr(rc_ptr<U> const &op): p_rc{op.p_rc} {
-        acquire(static_cast<T *>(op.p_ptr));
+    rc_obj(rc_obj const &op): p_ptr{op.p_ptr} {
+        incr();
     }
 
-    explicit rc_ptr(T *ptr): p_rc{} {
-        acquire(ptr);
+    rc_obj(rc_obj &&op) {
+        swap(op);
     }
 
-    ~rc_ptr() {
-        reset();
+    ~rc_obj() {
+        decr();
     }
 
-    rc_ptr &operator=(rc_ptr op) {
+    rc_obj &operator=(rc_obj const &op) {
+        decr();
+        p_ptr = op.p_ptr;
+        incr();
+    }
+
+    rc_obj &operator=(rc_obj &&op) {
         swap(op);
         return *this;
     }
@@ -417,42 +388,43 @@ struct rc_ptr {
     }
 
     size_t count() const {
-        return p_rc.count();
+        return *counter();
     }
 
     bool unique() const {
         return (count() == 1);
     }
 
-    void reset() {
-        release();
+    void release() {
+        decr();
     }
 
-    void reset(T *ptr) {
-        reset();
-        acquire(ptr);
-    }
-
-    void swap(rc_ptr &op) {
+    void swap(rc_obj &op) {
         util::swap(p_ptr, op.p_ptr);
-        p_rc.swap(op.p_rc);
     }
 
 private:
-    template<typename U> friend struct rc_ptr;
+    static constexpr size_t RC_SIZE =
+        (alignof(T) > sizeof(size_t)) ? alignof(T) : sizeof(size_t);
 
-    void acquire(T *ptr) {
-        p_rc.acquire(ptr);
-        p_ptr = ptr;
+    size_t *counter() const {
+        auto *op = reinterpret_cast<unsigned char *>(p_ptr) - RC_SIZE;
+        return reinterpret_cast<size_t *>(op);
     }
 
-    void release() {
-        p_rc.release(p_ptr);
-        p_ptr = nullptr;
+    void incr() {
+        ++*counter();
+    }
+
+    void decr() {
+        auto *ptr = counter();
+        if (!--*ptr) {
+            p_ptr->~T();
+            delete[] reinterpret_cast<unsigned char *>(ptr);
+        }
     }
 
     T *p_ptr;
-    detail::ref_counter p_rc;
 };
 
 /* vector */
