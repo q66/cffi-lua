@@ -541,21 +541,19 @@ struct c_type: c_object {
         new (&p_ptr) util::rc_obj<c_type>{util::move(ctp)};
     }
 
-    c_type(util::rc_obj<c_function> ctp, uint32_t qual, bool cb, bool weak):
+    c_type(util::rc_obj<c_function> ctp, uint32_t qual, bool cb):
         p_ttype{C_BUILTIN_FUNC},
-        p_flags{uint32_t(
-            (weak ? C_TYPE_WEAK : 0) | (cb ? C_TYPE_CLOSURE : 0)
-        )}, p_cv{qual}
+        p_flags{uint32_t(cb ? C_TYPE_CLOSURE : 0)}, p_cv{qual}
     {
         new (&p_func) util::rc_obj<c_function>{util::move(ctp)};
     }
 
     c_type(c_record const *ctp, uint32_t qual):
-        p_crec{ctp}, p_ttype{C_BUILTIN_RECORD}, p_flags{C_TYPE_WEAK}, p_cv{qual}
+        p_crec{ctp}, p_ttype{C_BUILTIN_RECORD}, p_flags{0}, p_cv{qual}
     {}
 
     c_type(c_enum const *ctp, uint32_t qual):
-        p_cenum{ctp}, p_ttype{C_BUILTIN_ENUM}, p_flags{C_TYPE_WEAK}, p_cv{qual}
+        p_cenum{ctp}, p_ttype{C_BUILTIN_ENUM}, p_flags{0}, p_cv{qual}
     {}
 
     c_type(c_type const &tp) {
@@ -617,10 +615,6 @@ struct c_type: c_object {
 
     int cv() const {
         return p_cv;
-    }
-
-    bool owns() const {
-        return !bool(p_flags & C_TYPE_WEAK);
     }
 
     bool vla() const {

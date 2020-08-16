@@ -578,9 +578,6 @@ void c_function::do_serialize(
 }
 
 void c_type::clear() {
-    if (!owns()) {
-        return;
-    }
     int tp = type();
     if (tp == C_BUILTIN_FUNC) {
         using T = util::rc_obj<c_function>;
