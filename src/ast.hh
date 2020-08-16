@@ -537,9 +537,8 @@ struct c_type: c_object {
         new (&p_ptr) util::rc_obj<c_type>{util::move(ctp)};
     }
 
-    c_type(util::rc_obj<c_type> ctp, uint32_t qual, c_builtin cbt, bool weak):
-        p_ttype{uint32_t(cbt)},
-        p_flags{weak ? uint32_t(C_TYPE_WEAK) : 0}, p_cv{qual}
+    c_type(util::rc_obj<c_type> ctp, uint32_t qual, c_builtin cbt):
+        p_ttype{uint32_t(cbt)}, p_flags{0}, p_cv{qual}
     {
         new (&p_ptr) util::rc_obj<c_type>{util::move(ctp)};
     }

@@ -597,7 +597,6 @@ void c_type::copy(c_type const &v) {
     p_flags = v.p_flags;
     p_cv = v.p_cv;
 
-    bool weak = !owns();
     int tp = type();
     if (tp == C_BUILTIN_FUNC) {
         new (&p_func) util::rc_obj<c_function>{v.p_func};
@@ -1197,7 +1196,7 @@ c_type from_lua_type(lua_State *L, int index) {
         case LUA_TNIL:
             return c_type{
                 util::make_rc<c_type>(C_BUILTIN_VOID, 0),
-                0, C_BUILTIN_PTR, false
+                0, C_BUILTIN_PTR
             };
         case LUA_TBOOLEAN:
             return c_type{C_BUILTIN_BOOL, 0};
@@ -1218,7 +1217,7 @@ c_type from_lua_type(lua_State *L, int index) {
         case LUA_TSTRING:
             return c_type{
                 util::make_rc<c_type>(C_BUILTIN_CHAR, C_CV_CONST),
-                0, C_BUILTIN_PTR, false
+                0, C_BUILTIN_PTR
             };
         case LUA_TTABLE:
         case LUA_TFUNCTION:
@@ -1227,14 +1226,14 @@ c_type from_lua_type(lua_State *L, int index) {
             /* by default use a void pointer, some will fail, that's ok */
             return c_type{
                 util::make_rc<c_type>(C_BUILTIN_VOID, 0),
-                0, C_BUILTIN_PTR, false
+                0, C_BUILTIN_PTR
             };
         case LUA_TUSERDATA: {
             auto *cd = ffi::testcdata<ffi::noval>(L, index);
             if (!cd) {
                 return c_type{
                     util::make_rc<c_type>(C_BUILTIN_VOID, 0),
-                    0, C_BUILTIN_PTR, false
+                    0, C_BUILTIN_PTR
                 };
             }
             return cd->decl.copy();

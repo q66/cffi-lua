@@ -1809,7 +1809,7 @@ newlevel:
             } else {
                 ast::c_type ntp{
                     util::make_rc<ast::c_type>(util::move(tp)),
-                    pcvq[cidx].cv, ast::C_BUILTIN_PTR, false
+                    pcvq[cidx].cv, ast::C_BUILTIN_PTR
                 };
                 tp = util::move(ntp);
             }

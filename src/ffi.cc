@@ -232,7 +232,7 @@ static void make_cdata_func(
     auto &fud = newcdata<fdata>(
         L, fptr ? ast::c_type{
             util::make_rc<ast::c_type>(util::move(funct)),
-            0, ast::C_BUILTIN_PTR, false
+            0, ast::C_BUILTIN_PTR
         } : util::move(funct),
         func.variadic() ? sizeof(void *) : (
             sizeof(arg_stor_t) * nargs + sizeof(void *) * nargs * 2
