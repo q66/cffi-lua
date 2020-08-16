@@ -331,6 +331,130 @@ inline constexpr T limit_max() {
     return detail::limits<T>::max;
 }
 
+/* like shared_ptr, very basic for now */
+
+namespace detail {
+    struct ref_counter {
+        ref_counter(): p_count{nullptr} {}
+        ref_counter(ref_counter const &rc): p_count{rc.p_count} {}
+
+        size_t count() const {
+            if (p_count) {
+                return *p_count;
+            }
+            return 0;
+        }
+
+        template<typename T>
+        void acquire(T *ptr) {
+            if (ptr) {
+                if (!p_count) {
+                    p_count = new size_t{1};
+                } else {
+                    ++(*p_count);
+                }
+            }
+        }
+
+        template<typename T>
+        void release(T *ptr) {
+            if (p_count) {
+                if (!--(*p_count)) {
+                    delete ptr;
+                }
+                p_count = nullptr;
+            }
+        }
+
+        void swap(ref_counter &orc) {
+            util::swap(p_count, orc.p_count);
+        }
+    private:
+        size_t *p_count;
+    };
+} /* namespace detail */
+
+template<typename T>
+struct rc_ptr {
+    rc_ptr(): p_ptr{nullptr}, p_rc{} {}
+
+    rc_ptr(rc_ptr const &op): p_rc{op.p_rc} {
+        acquire(op.p_ptr);
+    }
+
+    template<typename U>
+    rc_ptr(rc_ptr<U> const &op): p_rc{op.p_rc} {
+        acquire(static_cast<T *>(op.p_ptr));
+    }
+
+    explicit rc_ptr(T *ptr): p_rc{} {
+        acquire(ptr);
+    }
+
+    ~rc_ptr() {
+        reset();
+    }
+
+    rc_ptr &operator=(rc_ptr op) {
+        swap(op);
+        return *this;
+    }
+
+    T &operator*() const {
+        return *p_ptr;
+    }
+
+    T *operator->() const {
+        return p_ptr;
+    }
+
+    T *get() const {
+        return p_ptr;
+    }
+
+    explicit operator bool() const {
+        return (count() > 0);
+    }
+
+    size_t count() const {
+        return p_rc.count();
+    }
+
+    bool unique() const {
+        return (count() == 1);
+    }
+
+    void reset() {
+        release();
+    }
+
+    void reset(T *ptr) {
+        reset();
+        acquire(ptr);
+    }
+
+    void swap(rc_ptr &op) {
+        util::swap(p_ptr, op.p_ptr);
+        p_rc.swap(op.p_rc);
+    }
+
+private:
+    template<typename U> friend struct rc_ptr;
+
+    void acquire(T *ptr) {
+        p_rc.acquire(ptr);
+        p_ptr = ptr;
+    }
+
+    void release() {
+        p_rc.release(p_ptr);
+        p_ptr = nullptr;
+    }
+
+    T *p_ptr;
+    detail::ref_counter p_rc;
+};
+
 /* vector */
 
 template<typename T>
