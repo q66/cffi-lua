@@ -225,7 +225,10 @@ static void make_cdata_func(
      *     } val;
      * }
      */
-    ast::c_type funct{&func, 0, funp == nullptr, true};
+    /* FIXME: just pass the original ref */
+    ast::c_type funct{
+        util::make_rc<ast::c_function>(func), 0, funp == nullptr, true
+    };
     auto &fud = newcdata<fdata>(
         L, fptr ? ast::c_type{
             util::make_rc<ast::c_type>(util::move(funct)),

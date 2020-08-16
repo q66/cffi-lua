@@ -520,11 +520,11 @@ struct c_enum;
 
 struct c_type: c_object {
     c_type():
-        p_fptr{nullptr}, p_ttype{C_BUILTIN_INVALID}, p_flags{0}, p_cv{0}
+        p_crec{nullptr}, p_ttype{C_BUILTIN_INVALID}, p_flags{0}, p_cv{0}
     {}
 
     c_type(c_builtin cbt, uint32_t qual):
-        p_fptr{nullptr}, p_ttype{uint32_t(cbt)}, p_flags{0}, p_cv{qual}
+        p_crec{nullptr}, p_ttype{uint32_t(cbt)}, p_flags{0}, p_cv{qual}
     {}
 
     c_type(
@@ -544,12 +544,14 @@ struct c_type: c_object {
         new (&p_ptr) util::rc_obj<c_type>{util::move(ctp)};
     }
 
-    c_type(c_function const *ctp, uint32_t qual, bool cb, bool weak):
-        p_cfptr{ctp}, p_ttype{C_BUILTIN_FUNC},
+    c_type(util::rc_obj<c_function> ctp, uint32_t qual, bool cb, bool weak):
+        p_ttype{C_BUILTIN_FUNC},
         p_flags{uint32_t(
             (weak ? C_TYPE_WEAK : 0) | (cb ? C_TYPE_CLOSURE : 0)
         )}, p_cv{qual}
-    {}
+    {
+        new (&p_func) util::rc_obj<c_function>{util::move(ctp)};
+    }
 
     c_type(c_record const *ctp, uint32_t qual):
         p_crec{ctp}, p_ttype{C_BUILTIN_RECORD}, p_flags{C_TYPE_WEAK}, p_cv{qual}
@@ -718,9 +720,9 @@ struct c_type: c_object {
     /* only use if you know it's callable() */
     c_function const &function() const {
         if (type() == C_BUILTIN_FUNC) {
-            return *p_fptr;
+            return *p_func;
         }
-        return *ptr_base().p_fptr;
+        return *ptr_base().p_func;
     }
 
     c_record const &record() const {
@@ -754,8 +756,7 @@ private:
     /* maybe a pointer? */
     union {
         util::rc_obj<c_type> p_ptr;
-        c_function *p_fptr;
-        c_function const *p_cfptr;
+        util::rc_obj<c_function> p_func;
         c_record const *p_crec;
         c_enum const *p_cenum;
     };

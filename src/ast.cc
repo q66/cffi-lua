@@ -583,7 +583,8 @@ void c_type::clear() {
     }
     int tp = type();
     if (tp == C_BUILTIN_FUNC) {
-        delete p_fptr;
+        using T = util::rc_obj<c_function>;
+        p_func.~T();
     } else if ((tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_ARRAY)) {
         using T = util::rc_obj<c_type>;
         p_ptr.~T();
@@ -599,8 +600,7 @@ void c_type::copy(c_type const &v) {
     bool weak = !owns();
     int tp = type();
     if (tp == C_BUILTIN_FUNC) {
-        // FIXME: this forces c_type to be copyable
-        p_fptr = weak ? v.p_fptr : new c_function{*v.p_fptr};
+        new (&p_func) util::rc_obj<c_function>{v.p_func};
     } else if ((tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_ARRAY)) {
         new (&p_ptr) util::rc_obj<c_type>{v.p_ptr};
     } else if ((tp == C_BUILTIN_RECORD) || (tp == C_BUILTIN_ENUM)) {
@@ -619,9 +619,13 @@ c_type::c_type(c_type &&v):
         using T = util::rc_obj<c_type>;
         new (&p_ptr) T{v.p_ptr};
         v.p_ptr.~T();
+    } else if (tp == C_BUILTIN_FUNC) {
+        using T = util::rc_obj<c_function>;
+        new (&p_func) T{v.p_func};
+        v.p_func.~T();
     } else {
-        p_fptr = v.p_fptr;
-        v.p_fptr = nullptr;
+        p_crec = v.p_crec;
+        v.p_crec = nullptr;
     }
 }
 
@@ -639,9 +643,13 @@ c_type &c_type::operator=(c_type &&v) {
         using T = util::rc_obj<c_type>;
         new (&p_ptr) T{v.p_ptr};
         v.p_ptr.~T();
+    } else if (tp == C_BUILTIN_FUNC) {
+        using T = util::rc_obj<c_function>;
+        new (&p_func) T{v.p_func};
+        v.p_func.~T();
     } else {
-        p_fptr = v.p_fptr;
-        v.p_fptr = nullptr;
+        p_crec = v.p_crec;
+        v.p_crec = nullptr;
     }
     return *this;
 }
@@ -727,7 +735,7 @@ void c_type::do_serialize(
             }, &val);
             break;
         case C_BUILTIN_FUNC:
-            p_fptr->do_serialize(o, cont, data);
+            p_func->do_serialize(o, cont, data);
             return;
         case C_BUILTIN_RECORD:
             p_crec->do_serialize(o, cont, data);
@@ -770,7 +778,7 @@ ffi_type *c_type::libffi_type() const {
         C_BUILTIN_CASE(VA_LIST)
 
         case C_BUILTIN_FUNC:
-            return p_fptr->libffi_type();
+            return p_func->libffi_type();
 
         case C_BUILTIN_RECORD:
             return p_crec->libffi_type();
@@ -808,7 +816,7 @@ ffi_type *c_type::libffi_type() const {
 size_t c_type::alloc_size() const {
     switch (c_builtin(type())) {
         case C_BUILTIN_FUNC:
-            return p_fptr->alloc_size();
+            return p_func->alloc_size();
         case C_BUILTIN_RECORD:
             return p_crec->alloc_size();
         case C_BUILTIN_ENUM:
@@ -869,7 +877,7 @@ bool c_type::is_same(
                 }
                 return false;
             } else if (other.type() == C_BUILTIN_FUNC) {
-                return p_cfptr->is_same(*other.p_cfptr);
+                return p_func->is_same(*other.p_func);
             }
             return false;
 

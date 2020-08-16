@@ -1837,9 +1837,9 @@ newlevel:
                 return ls.syntax_error();
                 break;
             }
-            tp = ast::c_type{new ast::c_function{
+            tp = ast::c_type{util::make_rc<ast::c_function>(
                 util::move(tp), util::move(olev->argl), fflags
-            }, 0, false, false};
+            ), 0, false, false};
         } else if (olev->arrd) {
             if (tp.vla() || tp.unbounded()) {
                 ls_buf.set("only first bound of an array may have unknown size");
