@@ -498,7 +498,7 @@ private:
             case '\"':
             case '\\':
             case '?':
-                c = current;
+                c = char(current);
                 next_char();
                 return true;
             case 'e': /* extension */
@@ -528,39 +528,39 @@ private:
                 return true;
             }
             default:
-                if ((current >= '0') && (current <= '7')) {
-                    int c1 = current - '0';
-                    next_char();
-                    if ((current >= '0') && (current <= '7')) {
-                        /* 2 or more octal digits */
-                        int c2 = current - '0';
-                        next_char();
-                        if ((current >= '0') && (current <= '7')) {
-                            /* 3 octal digits, may be more than 255 */
-                            int c3 = current - '0';
-                            next_char();
-                            int r = (c3 + (c2 * 8) + (c1 * 64));
-                            if (r > 0xFF) {
-                                ls_buf.set("octal escape out of bounds");
-                                return lex_error(TOK_CHAR);
-                            }
-                            c = char(r);
-                            return true;
-                        } else {
-                            /* 2 octal digits */
-                            c = char(c2 + (c1 * 8));
-                            return true;
-                        }
-                    } else {
-                        /* 1 octal digit */
-                        c = char(c1);
-                        return true;
-                    }
-                }
-                ls_buf.set("malformed escape sequence");
-                return lex_error(TOK_CHAR);
+                break;
         }
-        return true;
+        if ((current >= '0') && (current <= '7')) {
+            int c1 = current - '0';
+            next_char();
+            if ((current >= '0') && (current <= '7')) {
+                /* 2 or more octal digits */
+                int c2 = current - '0';
+                next_char();
+                if ((current >= '0') && (current <= '7')) {
+                    /* 3 octal digits, may be more than 255 */
+                    int c3 = current - '0';
+                    next_char();
+                    int r = (c3 + (c2 * 8) + (c1 * 64));
+                    if (r > 0xFF) {
+                        ls_buf.set("octal escape out of bounds");
+                        return lex_error(TOK_CHAR);
+                    }
+                    c = char(r);
+                    return true;
+                } else {
+                    /* 2 octal digits */
+                    c = char(c2 + (c1 * 8));
+                    return true;
+                }
+            } else {
+                /* 1 octal digit */
+                c = char(c1);
+                return true;
+            }
+        }
+        ls_buf.set("malformed escape sequence");
+        return lex_error(TOK_CHAR);
     }
 
     int lex(lex_token &tok) WARN_UNUSED_RET {
@@ -1229,8 +1229,9 @@ static bool parse_cv(
             *extr = true;
             break;
         default:
-            return true;
+            goto end;
     }
+end:
     return true;
 }
 
