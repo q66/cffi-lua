@@ -341,11 +341,11 @@ struct rc_obj {
 
     template<typename ...A>
     rc_obj(construct, A &&...cargs) {
-        auto *np = new unsigned char[sizeof(T) + RC_SIZE];
+        auto *np = new unsigned char[sizeof(T) + get_rc_size()];
         /* initial acquire */
         *reinterpret_cast<size_t *>(np) = 1;
         /* store */
-        p_ptr = reinterpret_cast<T *>(np + RC_SIZE);
+        p_ptr = reinterpret_cast<T *>(np + get_rc_size());
         /* construct */
         new (p_ptr) T(util::forward<A>(cargs)...);
     }
@@ -396,11 +396,12 @@ struct rc_obj {
     }
 
 private:
-    static constexpr size_t RC_SIZE =
-        (alignof(T) > sizeof(size_t)) ? alignof(T) : sizeof(size_t);
+    static constexpr size_t get_rc_size() {
+        return (alignof(T) > sizeof(size_t)) ? alignof(T) : sizeof(size_t);
+    }
 
     size_t *counter() const {
-        auto *op = reinterpret_cast<unsigned char *>(p_ptr) - RC_SIZE;
+        auto *op = reinterpret_cast<unsigned char *>(p_ptr) - get_rc_size();
         return reinterpret_cast<size_t *>(op);
     }
 
