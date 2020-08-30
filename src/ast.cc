@@ -9,9 +9,7 @@
 namespace ast {
 
 /* This unholy spaghetti implements integer promotions as well as conversion
- * rules in arithmetic operations etc. as the C standard defines it... it does
- * not handle errors yet (FIXME) and only covers types that can be emitted by
- * literals (i.e. no handling of names and so on).
+ * rules in arithmetic operations etc. as the C standard defines it...
  */
 
 static void promote_int(c_value &v, c_expr_type &et) {
@@ -343,7 +341,9 @@ static bool eval_binary(
             case c_expr_type::FLOAT: retv.f = lval.f op rval.f; break; \
             case c_expr_type::DOUBLE: retv.d = lval.d op rval.d; break; \
             case c_expr_type::LDOUBLE: retv.ld = lval.ld op rval.ld; break; \
-            default: assert(false); break; \
+            default: \
+                lua_pushliteral(L, "invalid type(s) for (expr1 " #op " expr2)"); \
+                return false; \
         } \
         break;
 
@@ -365,7 +365,9 @@ static bool eval_binary(
             case c_expr_type::FLOAT: retv.b = lval.f op rval.f; break; \
             case c_expr_type::DOUBLE: retv.b = lval.d op rval.d; break; \
             case c_expr_type::LDOUBLE: retv.b = lval.ld op rval.ld; break; \
-            default: assert(false); break; \
+            default: \
+                lua_pushliteral(L, "invalid type(s) for (expr1 " #op " expr2)"); \
+                return false; \
         } \
         break;
 
@@ -387,9 +389,11 @@ static bool eval_binary(
             case c_expr_type::FLOAT: \
             case c_expr_type::DOUBLE: \
             case c_expr_type::LDOUBLE: \
-                assert(false); \
-                break; \
-            default: assert(false); break; \
+                lua_pushliteral(L, "operator " #op " cannot be applied to floating point types"); \
+                return false; \
+            default: \
+                lua_pushliteral(L, "invalid type(s) for (expr1 " #op " expr2)"); \
+                return false; \
         } \
         break;
 
@@ -421,7 +425,9 @@ static bool eval_binary(
             } \
             break; \
         case c_expr_type::ULLONG: retv.fn = lval.fn op rval.ull; break; \
-        default: assert(false); break; \
+        default: \
+            lua_pushliteral(L, "invalid type(s) for (expr1 " #op " expr2)"); \
+            return false; \
     }
 
 #define SHIFT_CASE(opn, op, nop) \
@@ -436,7 +442,9 @@ static bool eval_binary(
             case c_expr_type::ULONG: SHIFT_CASE_INNER(ul, op, nop); break; \
             case c_expr_type::LLONG: SHIFT_CASE_INNER(ll, op, nop); break; \
             case c_expr_type::ULLONG: SHIFT_CASE_INNER(ull, op, nop); break; \
-            default: assert(false); break; \
+            default: \
+                lua_pushliteral(L, "invalid type(s) for (expr1 " #op " expr2)"); \
+                return false; \
         } \
         break;
 
@@ -455,7 +463,9 @@ static bool eval_binary(
         case c_expr_type::CHAR: retv.b = lv op rval.c; break; \
         case c_expr_type::NULLPTR: retv.b = lv op nullptr; break; \
         case c_expr_type::BOOL: retv.b = lv op rval.b; break; \
-        default: assert(false); break; \
+        default: \
+            lua_pushliteral(L, "invalid type(s) for (expr1 " #op " expr2)"); \
+            return false; \
     }
 
 #define BOOL_CASE(opn, op) \
@@ -475,7 +485,9 @@ static bool eval_binary(
             case c_expr_type::CHAR: BOOL_CASE_INNER(lval.c, op); break; \
             case c_expr_type::NULLPTR: BOOL_CASE_INNER(nullptr, op); break; \
             case c_expr_type::BOOL: BOOL_CASE_INNER(lval.b, op); break; \
-            default: assert(false); break; \
+            default: \
+                lua_pushliteral(L, "invalid type(s) for (expr1 " #op " expr2)"); \
+                return false; \
         } \
         break;
 
@@ -503,8 +515,8 @@ static bool eval_binary(
         SHIFT_CASE(RSH, >>, <<)
 
         default:
-            assert(false);
-            break;
+            lua_pushfstring(L, "bug: unhandled operator %d", int(e.bin.op));
+            return false;
     }
 
 #undef BOOL_CASE
@@ -514,7 +526,6 @@ static bool eval_binary(
 #undef CMP_BOOL_CASE
 #undef BINOP_CASE
 
-    // FIXME
     return true;
 }
 
