@@ -236,62 +236,77 @@ static bool eval_unary(
     switch (e.un.op) {
         case c_expr_unop::UNP:
             promote_int(baseval, et);
-            break;
+            switch (et) {
+                case c_expr_type::INT:
+                case c_expr_type::UINT:
+                case c_expr_type::LONG:
+                case c_expr_type::ULONG:
+                case c_expr_type::LLONG:
+                case c_expr_type::ULLONG:
+                    return true;
+                default: break;
+            }
+            lua_pushliteral(L, "invalid type for +(expr)");
+            return false;
         case c_expr_unop::UNM:
             promote_int(baseval, et);
             switch (et) {
-                case c_expr_type::INT: baseval.i = -baseval.i; break;
+                case c_expr_type::INT: baseval.i = -baseval.i; return true;
                 case c_expr_type::UINT:
                     if (baseval.u) {
                         baseval.u = UINT_MAX - baseval.u + 1;
                     }
-                    break;
-                case c_expr_type::LONG: baseval.l = -baseval.l; break;
+                    return true;
+                case c_expr_type::LONG: baseval.l = -baseval.l; return true;
                 case c_expr_type::ULONG:
                     if (baseval.ul) {
                         baseval.ul = ULONG_MAX - baseval.ul + 1;
                     }
-                    break;
-                case c_expr_type::LLONG: baseval.ll = -baseval.ll; break;
+                    return true;
+                case c_expr_type::LLONG: baseval.ll = -baseval.ll; return true;
                 case c_expr_type::ULLONG:
                     if (baseval.ull) {
                         baseval.ull = ULLONG_MAX - baseval.ull + 1;
                     }
-                    break;
+                    return true;
                 default: break;
             }
-            break;
+            lua_pushliteral(L, "invalid type for -(expr)");
+            return false;
         case c_expr_unop::NOT:
             switch (et) {
-                case c_expr_type::BOOL: baseval.b = !baseval.b; break;
-                case c_expr_type::CHAR: baseval.c = !baseval.c; break;
-                case c_expr_type::INT: baseval.i = !baseval.i; break;
-                case c_expr_type::UINT: baseval.u = !baseval.u; break;
-                case c_expr_type::LONG: baseval.l = !baseval.l; break;
-                case c_expr_type::ULONG: baseval.ul = !baseval.ul; break;
-                case c_expr_type::LLONG: baseval.ll = !baseval.ll; break;
-                case c_expr_type::ULLONG: baseval.ull = !baseval.ull; break;
+                case c_expr_type::BOOL: baseval.b = !baseval.b; return true;
+                case c_expr_type::CHAR: baseval.c = !baseval.c; return true;
+                case c_expr_type::INT: baseval.i = !baseval.i; return true;
+                case c_expr_type::UINT: baseval.u = !baseval.u; return true;
+                case c_expr_type::LONG: baseval.l = !baseval.l; return true;
+                case c_expr_type::ULONG: baseval.ul = !baseval.ul; return true;
+                case c_expr_type::LLONG: baseval.ll = !baseval.ll; return true;
+                case c_expr_type::ULLONG:
+                    baseval.ull = !baseval.ull; return true;
                 default: break;
             }
-            break;
+            lua_pushliteral(L, "invalid type for !(expr)");
+            return false;
         case c_expr_unop::BNOT:
             promote_int(baseval, et);
             switch (et) {
-                case c_expr_type::INT: baseval.i = ~baseval.i; break;
-                case c_expr_type::UINT: baseval.u = ~baseval.u; break;
-                case c_expr_type::LONG: baseval.l = ~baseval.l; break;
-                case c_expr_type::ULONG: baseval.ul = ~baseval.ul; break;
-                case c_expr_type::LLONG: baseval.ll = ~baseval.ll; break;
-                case c_expr_type::ULLONG: baseval.ull = ~baseval.ull; break;
+                case c_expr_type::INT: baseval.i = ~baseval.i; return true;
+                case c_expr_type::UINT: baseval.u = ~baseval.u; return true;
+                case c_expr_type::LONG: baseval.l = ~baseval.l; return true;
+                case c_expr_type::ULONG: baseval.ul = ~baseval.ul; return true;
+                case c_expr_type::LLONG: baseval.ll = ~baseval.ll; return true;
+                case c_expr_type::ULLONG:
+                    baseval.ull = ~baseval.ull; return true;
                 default: break;
             }
-            break;
+            lua_pushliteral(L, "invalid type for ~(expr)");
+            return false;
         default:
-            assert(false);
             break;
     }
-    // FIXME
-    return true;
+    lua_pushliteral(L, "bug: unreachable code");
+    return false;
 }
 
 static bool eval_binary(
