@@ -138,7 +138,7 @@ static bool convert_bin(
             default:
                 break;
         }
-        lua_pushliteral(L, "bug: unreachable code");
+        LUA_BUG_MSG(L, "unreachable code");
         return false;
     }
 
@@ -154,7 +154,7 @@ static bool convert_bin(
             default:
                 break;
         }
-        lua_pushliteral(L, "bug: unreachable code");
+        LUA_BUG_MSG(L, "unreachable code");
         return false;
     }
 
@@ -217,7 +217,7 @@ static bool convert_bin(
 
 #undef CONVERT_RVAL
 
-    lua_pushliteral(L, "bug: unreachable code");
+    LUA_BUG_MSG(L, "unreachable code");
     return false;
 }
 
@@ -303,7 +303,7 @@ static bool eval_unary(
         default:
             break;
     }
-    lua_pushliteral(L, "bug: unreachable code");
+    LUA_BUG_MSG(L, "unreachable code");
     return false;
 }
 
@@ -515,7 +515,9 @@ static bool eval_binary(
         SHIFT_CASE(RSH, >>, <<)
 
         default:
-            lua_pushfstring(L, "bug: unhandled operator %d", int(e.bin.op));
+            LUA_BUG_MSG(L, "unhandled operator ");
+            lua_pushfstring(L, "%d", int(e.bin.op));
+            lua_concat(L, 2);
             return false;
     }
 
