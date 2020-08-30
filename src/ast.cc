@@ -470,11 +470,14 @@ static c_value eval_binary(c_expr const &e, c_expr_type &et) {
     return retv;
 }
 
-static c_value eval_ternary(c_expr const &e, c_expr_type &et) {
+static bool eval_ternary(
+    lua_State *L, c_value &ret, c_expr const &e, c_expr_type &et
+) {
     c_expr_type cet;
     c_value cval;
-    // FIXME
-    e.tern.cond->eval(nullptr, cval, cet, false);
+    if (!e.tern.cond->eval(L, cval, cet, false)) {
+        return false;
+    }
     bool tval = false;
     switch (cet) {
         case c_expr_type::INT: tval = cval.i; break;
@@ -494,25 +497,22 @@ static c_value eval_ternary(c_expr const &e, c_expr_type &et) {
             assert(false);
             break;
     }
-    // FIXME
-    c_value ret;
     if (tval) {
-        e.tern.texpr->eval(nullptr, ret, et, true);
-    } else {
-        e.tern.fexpr->eval(nullptr, ret, et, true);
+        return e.tern.texpr->eval(L, ret, et, true);
     }
-    return ret;
+    return e.tern.fexpr->eval(L, ret, et, true);
 }
 
-static c_value c_expr_eval(c_expr const &ce, c_expr_type &et, bool promote) {
-    c_value ret;
+static bool c_expr_eval(
+    lua_State *L, c_value &ret, c_expr const &ce, c_expr_type &et, bool promote
+) {
     switch (ce.type()) {
         case c_expr_type::BINARY:
-            return eval_binary(ce, et);
+            ret = eval_binary(ce, et); return true;
         case c_expr_type::UNARY:
-            return eval_unary(ce, et);
+            ret = eval_unary(ce, et); return true;
         case c_expr_type::TERNARY:
-            return eval_ternary(ce, et);
+            return eval_ternary(L, ret, ce, et);
         case c_expr_type::INT:
             ret.i = ce.val.i; et = c_expr_type::INT; break;
         case c_expr_type::UINT:
@@ -534,18 +534,22 @@ static c_value c_expr_eval(c_expr const &ce, c_expr_type &et, bool promote) {
         case c_expr_type::BOOL:
             ret.b = ce.val.b; et = c_expr_type::BOOL; break;
         default:
-            ret.i = 0; et = c_expr_type::INVALID; break;
+            ret.i = 0; et = c_expr_type::INVALID;
+            lua_pushliteral(L, "invalid expression type");
+            return false;
     }
     if (promote) {
         promote_int(ret, et);
     }
-    return ret;
+    return true;
 }
 
-bool c_expr::eval(lua_State *, c_value &v, c_expr_type &et, bool promote) const {
-    v = c_expr_eval(*this, et, promote);
-    // FIXME
-    return true;
+bool c_expr::eval(
+    lua_State *L, c_value &v, c_expr_type &et, bool promote
+) const {
+    /* clear first */
+    v = c_value{};
+    return c_expr_eval(L, v, *this, et, promote);
 }
 
 /* params ignore continuation func */
