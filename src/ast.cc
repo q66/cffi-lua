@@ -212,10 +212,12 @@ static void convert_bin(
     assert(false);
 }
 
-static c_value eval_unary(c_expr const &e, c_expr_type &et) {
-    c_value baseval;
-    // FIXME
-    e.un.expr->eval(nullptr, baseval, et, false);
+static bool eval_unary(
+    lua_State *L, c_value &baseval, c_expr const &e, c_expr_type &et
+) {
+    if (!e.un.expr->eval(L, baseval, et, false)) {
+        return false;
+    }
     switch (e.un.op) {
         case c_expr_unop::UNP:
             promote_int(baseval, et);
@@ -273,16 +275,21 @@ static c_value eval_unary(c_expr const &e, c_expr_type &et) {
             assert(false);
             break;
     }
-    return baseval;
+    // FIXME
+    return true;
 }
 
-static c_value eval_binary(c_expr const &e, c_expr_type &et) {
+static bool eval_binary(
+    lua_State *L, c_value &retv, c_expr const &e, c_expr_type &et
+) {
     c_expr_type let, ret;
     c_value lval, rval;
-    // FIXME
-    e.bin.lhs->eval(nullptr, lval, let, false);
-    e.bin.rhs->eval(nullptr, rval, ret, false);
-    c_value retv{};
+    if (!e.bin.lhs->eval(L, lval, let, false)) {
+        return false;
+    }
+    if (!e.bin.rhs->eval(L, rval, ret, false)) {
+        return false;
+    }
 
 #define BINOP_CASE(opn, op) \
     case c_expr_binop::opn: \
@@ -467,7 +474,8 @@ static c_value eval_binary(c_expr const &e, c_expr_type &et) {
 #undef CMP_BOOL_CASE
 #undef BINOP_CASE
 
-    return retv;
+    // FIXME
+    return true;
 }
 
 static bool eval_ternary(
@@ -508,9 +516,9 @@ static bool c_expr_eval(
 ) {
     switch (ce.type()) {
         case c_expr_type::BINARY:
-            ret = eval_binary(ce, et); return true;
+            return eval_binary(L, ret, ce, et);
         case c_expr_type::UNARY:
-            ret = eval_unary(ce, et); return true;
+            return eval_unary(L, ret, ce, et);
         case c_expr_type::TERNARY:
             return eval_ternary(L, ret, ce, et);
         case c_expr_type::INT:
