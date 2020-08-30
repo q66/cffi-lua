@@ -281,6 +281,10 @@ struct lex_state {
         return true;
     }
 
+    lua_State *lua_state() const {
+        return p_L;
+    }
+
 private:
     bool ensure_pidx() WARN_UNUSED_RET {
         if ((p_pidx <= 0) || lua_isnone(p_L, p_pidx)) {
@@ -1144,7 +1148,14 @@ static bool parse_cexpr(lex_state &ls, ast::c_expr &ret) {
 
 static bool get_arrsize(lex_state &ls, ast::c_expr const &exp, size_t &ret) {
     ast::c_expr_type et;
-    auto val = exp.eval(et, true);
+    ast::c_value val;
+    if (!exp.eval(ls.lua_state(), val, et, true)) {
+        size_t strl;
+        char const *errm = lua_tolstring(ls.lua_state(), -1, &strl);
+        ls_buf.set(errm, strl);
+        lua_pop(ls.lua_state(), 1);
+        return ls.syntax_error();
+    }
 
     long long sval = 0;
     unsigned long long uval = 0;
@@ -2366,7 +2377,16 @@ static ast::c_enum const *parse_enum(lex_state &ls) {
                 return nullptr;
             }
             ast::c_expr_type et;
-            auto val = exp.eval(et, true);
+            ast::c_value val;
+            if (!exp.eval(ls.lua_state(), val, et, true)) {
+                size_t strl;
+                char const *errm = lua_tolstring(ls.lua_state(), -1, &strl);
+                ls_buf.set(errm, strl);
+                lua_pop(ls.lua_state(), 1);
+                if (!ls.syntax_error()) {
+                    return nullptr;
+                }
+            }
             /* for now large types just get truncated */
             switch (et) {
                 case ast::c_expr_type::INT: break;

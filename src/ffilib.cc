@@ -508,7 +508,11 @@ struct cdata_meta {
         bexp.bin.op = op;
         bexp.bin.lhs = &lhs;
         bexp.bin.rhs = &rhs;
-        return bexp.eval(retp, true);
+        ast::c_value ret;
+        if (!bexp.eval(L, ret, retp, true)) {
+            lua_error(L);
+        }
+        return ret;
     }
 
     static void arith_64bit_bin(lua_State *L, ast::c_expr_binop op) {
@@ -699,7 +703,10 @@ struct cdata_meta {
         uexp.type(ast::c_expr_type::UNARY);
         uexp.un.op = uop;
         uexp.un.expr = &exp;
-        auto rv = uexp.eval(et, true);
+        ast::c_value rv;
+        if (!uexp.eval(L, rv, et, true)) {
+            lua_error(L);
+        }
         ffi::make_cdata_arith(L, et, rv);
         return 1;
     }
@@ -871,7 +878,10 @@ struct cdata_meta {
         bexp.bin.op = bop;
         bexp.bin.lhs = &lhs;
         bexp.bin.rhs = &rhs;
-        auto rv = bexp.eval(retp, true);
+        ast::c_value rv;
+        if (!bexp.eval(L, rv, retp, true)) {
+            lua_error(L);
+        }
         ffi::make_cdata_arith(L, retp, rv);
         return 1;
     }

@@ -213,7 +213,9 @@ static void convert_bin(
 }
 
 static c_value eval_unary(c_expr const &e, c_expr_type &et) {
-    c_value baseval = e.un.expr->eval(et);
+    c_value baseval;
+    // FIXME
+    e.un.expr->eval(nullptr, baseval, et, false);
     switch (e.un.op) {
         case c_expr_unop::UNP:
             promote_int(baseval, et);
@@ -276,8 +278,10 @@ static c_value eval_unary(c_expr const &e, c_expr_type &et) {
 
 static c_value eval_binary(c_expr const &e, c_expr_type &et) {
     c_expr_type let, ret;
-    c_value lval = e.bin.lhs->eval(let);
-    c_value rval = e.bin.rhs->eval(ret);
+    c_value lval, rval;
+    // FIXME
+    e.bin.lhs->eval(nullptr, lval, let, false);
+    e.bin.rhs->eval(nullptr, rval, ret, false);
     c_value retv{};
 
 #define BINOP_CASE(opn, op) \
@@ -468,7 +472,9 @@ static c_value eval_binary(c_expr const &e, c_expr_type &et) {
 
 static c_value eval_ternary(c_expr const &e, c_expr_type &et) {
     c_expr_type cet;
-    c_value cval = e.tern.cond->eval(cet);
+    c_value cval;
+    // FIXME
+    e.tern.cond->eval(nullptr, cval, cet, false);
     bool tval = false;
     switch (cet) {
         case c_expr_type::INT: tval = cval.i; break;
@@ -488,41 +494,45 @@ static c_value eval_ternary(c_expr const &e, c_expr_type &et) {
             assert(false);
             break;
     }
+    // FIXME
+    c_value ret;
     if (tval) {
-        return e.tern.texpr->eval(et, true);
+        e.tern.texpr->eval(nullptr, ret, et, true);
+    } else {
+        e.tern.fexpr->eval(nullptr, ret, et, true);
     }
-    return e.tern.fexpr->eval(et, true);
+    return ret;
 }
 
-c_value c_expr::eval(c_expr_type &et, bool promote) const {
+static c_value c_expr_eval(c_expr const &ce, c_expr_type &et, bool promote) {
     c_value ret;
-    switch (type()) {
+    switch (ce.type()) {
         case c_expr_type::BINARY:
-            return eval_binary(*this, et);
+            return eval_binary(ce, et);
         case c_expr_type::UNARY:
-            return eval_unary(*this, et);
+            return eval_unary(ce, et);
         case c_expr_type::TERNARY:
-            return eval_ternary(*this, et);
+            return eval_ternary(ce, et);
         case c_expr_type::INT:
-            ret.i = val.i; et = c_expr_type::INT; break;
+            ret.i = ce.val.i; et = c_expr_type::INT; break;
         case c_expr_type::UINT:
-            ret.u = val.u; et = c_expr_type::UINT; break;
+            ret.u = ce.val.u; et = c_expr_type::UINT; break;
         case c_expr_type::LONG:
-            ret.l = val.l; et = c_expr_type::LONG; break;
+            ret.l = ce.val.l; et = c_expr_type::LONG; break;
         case c_expr_type::ULONG:
-            ret.ul = val.ul; et = c_expr_type::ULONG; break;
+            ret.ul = ce.val.ul; et = c_expr_type::ULONG; break;
         case c_expr_type::LLONG:
-            ret.ll = val.ll; et = c_expr_type::LLONG; break;
+            ret.ll = ce.val.ll; et = c_expr_type::LLONG; break;
         case c_expr_type::ULLONG:
-            ret.ull = val.ull; et = c_expr_type::ULLONG; break;
+            ret.ull = ce.val.ull; et = c_expr_type::ULLONG; break;
         case c_expr_type::FLOAT:
-            ret.f = val.f; et = c_expr_type::FLOAT; break;
+            ret.f = ce.val.f; et = c_expr_type::FLOAT; break;
         case c_expr_type::DOUBLE:
-            ret.d = val.d; et = c_expr_type::DOUBLE; break;
+            ret.d = ce.val.d; et = c_expr_type::DOUBLE; break;
         case c_expr_type::CHAR:
-            ret.c = val.c; et = c_expr_type::CHAR; break;
+            ret.c = ce.val.c; et = c_expr_type::CHAR; break;
         case c_expr_type::BOOL:
-            ret.b = val.b; et = c_expr_type::BOOL; break;
+            ret.b = ce.val.b; et = c_expr_type::BOOL; break;
         default:
             ret.i = 0; et = c_expr_type::INVALID; break;
     }
@@ -530,6 +540,12 @@ c_value c_expr::eval(c_expr_type &et, bool promote) const {
         promote_int(ret, et);
     }
     return ret;
+}
+
+bool c_expr::eval(lua_State *, c_value &v, c_expr_type &et, bool promote) const {
+    v = c_expr_eval(*this, et, promote);
+    // FIXME
+    return true;
 }
 
 /* params ignore continuation func */

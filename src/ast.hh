@@ -440,7 +440,7 @@ struct c_expr {
         c_value val;
     };
 
-    c_value eval(c_expr_type &et, bool promote = false) const;
+    bool eval(lua_State *L, c_value &v, c_expr_type &et, bool promote) const;
 
     c_expr_type type() const {
         return c_expr_type(p_etype);
