@@ -440,7 +440,9 @@ struct c_expr {
         c_value val;
     };
 
-    bool eval(lua_State *L, c_value &v, c_expr_type &et, bool promote) const;
+    bool eval(
+        lua_State *L, c_value &v, c_expr_type &et, bool promote
+    ) const WARN_UNUSED_RET;
 
     c_expr_type type() const {
         return c_expr_type(p_etype);
