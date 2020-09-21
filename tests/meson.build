@@ -11,7 +11,7 @@ runner = executable('runner', 'runner.cc',
     include_directories: [current_inc, runner_inc] + extra_inc,
     dependencies: [dl_lib, lua_dep],
     link_with: runner_link,
-    cpp_args: runner_cargs,
+    cpp_args: runner_cargs + extra_cxxflags,
     export_dynamic: true
 )
 

@@ -13,17 +13,19 @@ project('cffi-lua', ['cpp'],
 
 cxx = meson.get_compiler('cpp')
 
+extra_cxxflags = []
+
 if get_option('buildtype') != 'plain'
     if cxx.has_argument('-Wshadow')
-        add_global_arguments('-Wshadow', language: 'cpp')
+        extra_cxxflags += '-Wshadow'
     endif
     if cxx.has_argument('-Wold-style-cast')
-        add_global_arguments('-Wold-style-cast', language: 'cpp')
+        extra_cxxflags += '-Wold-style-cast'
     endif
 endif
 
 if cxx.has_argument('-fvisibility=hidden')
-    add_global_arguments('-fvisibility=hidden', language: 'cpp')
+    extra_cxxflags += '-fvisibility=hidden'
 endif
 
 # Configuration data; optional but helps
@@ -40,7 +42,7 @@ if cxx.has_header('endian.h')
     config_h.set10('HAVE_ENDIAN_H', true)
 endif
 
-add_global_arguments('-DHAVE_CONFIG_H=1', language: 'cpp')
+extra_cxxflags += '-DHAVE_CONFIG_H=1'
 
 # Vendor library path; used to find libs and also added to PATH for Windows
 
@@ -173,7 +175,8 @@ if get_option('static')
         install: true,
         pic: true,
         dependencies: cffi_deps,
-        include_directories: extra_inc
+        include_directories: extra_inc,
+        cpp_args: extra_cxxflags
     )
 else
     lua_modpath = get_option('lua_install_path')
@@ -188,7 +191,7 @@ else
         name_prefix: '',
         name_suffix: plugin_suffix,
         dependencies: cffi_deps,
-        cpp_args: ['-DCFFI_LUA_DLL'],
+        cpp_args: ['-DCFFI_LUA_DLL'] + extra_cxxflags,
         include_directories: extra_inc
     )
 endif
