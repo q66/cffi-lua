@@ -196,11 +196,16 @@ struct cdata_meta {
         return ffi::call_cif(fd, L, lua_gettop(L) - 1);
     }
 
-    template<typename F>
+    template<bool New, typename F>
     static bool index_common(lua_State *L, F &&func) {
         auto &cd = ffi::tocdata<void *>(L, 1);
         if (ffi::isctype(cd)) {
-            luaL_error(L, "'ctype' is not indexable");
+            if (New) {
+                luaL_error(L, "'ctype' is not indexable");
+            } else {
+                /* indexing ctypes is okay if they have __index */
+                return false;
+            }
         }
         void **valp = &cd.val;
         auto const *decl = &cd.decl;
@@ -308,7 +313,7 @@ struct cdata_meta {
             }
             return 0;
         }
-        if (index_common(L, [L](auto &decl, void *val) {
+        if (index_common<false>(L, [L](auto &decl, void *val) {
             void *pp = val;
             if (decl.type() == ast::C_BUILTIN_ARRAY) {
                 pp = &val;
@@ -334,6 +339,9 @@ struct cdata_meta {
                 return 1;
             }
         }
+        if (ffi::isctype(cd)) {
+            luaL_error(L, "'ctype' is not indexable");
+        }
         if (lua_type(L, 2) != LUA_TSTRING) {
             cd.decl.serialize(L);
             luaL_error(
@@ -351,7 +359,7 @@ struct cdata_meta {
     }
 
     static int newindex(lua_State *L) {
-        if (index_common(L, [L](auto &decl, void *val) {
+        if (index_common<true>(L, [L](auto &decl, void *val) {
             size_t rsz;
             ffi::from_lua(L, decl, val, 3, rsz, ffi::RULE_CONV);
         })) {
