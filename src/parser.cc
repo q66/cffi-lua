@@ -1,5 +1,4 @@
 #include <cstring>
-#include <cctype>
 #include <cstdint>
 #include <cassert>
 #include <ctime>
@@ -113,6 +112,36 @@ enum parse_mode {
     PARSE_MODE_NOTCDEF,
     PARSE_MODE_ATTRIB,
 };
+
+inline int is_digit(int c) {
+    return (c >= '0') && (c <= '9');
+}
+
+inline int is_hex_digit(int c) {
+    c |= 32; /* make lowercase */
+    return is_digit(c) || ((c >= 'a') && (c <= 'f'));
+}
+
+inline int is_space(int c) {
+    return (
+        (c ==  ' ') || (c == '\t') || (c == '\n') ||
+        (c == '\v') || (c == '\f') || (c == '\r')
+    );
+}
+
+inline int is_alpha(int c) {
+    c |= 32; /* lowercase */
+    return ((c >= 'a') && (c <= 'z'));
+}
+
+inline int is_alphanum(int c) {
+    return is_alpha(c) || is_digit(c);
+}
+
+inline int is_print(int c) {
+    /* between Space and ~ */
+    return (c >= 0x20) && (c <= 0x7E);
+}
 
 struct lex_state {
     lex_state() = delete;
@@ -456,11 +485,11 @@ private:
             if ((current | 32) == 'x') {
                 /* hex */
                 next_char();
-                if (!isxdigit(current)) {
+                if (!is_hex_digit(current)) {
                     ls_buf.set("malformed integer");
                     return lex_error(TOK_INTEGER);
                 }
-                return read_int_core<16>(isxdigit, [](int dig) {
+                return read_int_core<16>(is_hex_digit, [](int dig) {
                     dig |= 32;
                     dig = (dig >= 'a') ? (dig - 'a' + 10) : (dig - '0');
                     return dig;
@@ -487,7 +516,7 @@ private:
             }
         }
         /* decimal */
-        return read_int_core<10>(isdigit, [](int dig) {
+        return read_int_core<10>(is_digit, [](int dig) {
             return (dig - '0');
         }, tok);
     }
@@ -519,7 +548,7 @@ private:
             case 'x': {
                 next_char();
                 int c1 = current, c2 = upcoming();
-                if (!isxdigit(c1) || !isxdigit(c2)) {
+                if (!is_hex_digit(c1) || !is_hex_digit(c2)) {
                     ls_buf.set("malformed hex escape");
                     return lex_error(TOK_CHAR);
                 }
@@ -747,16 +776,16 @@ cont:
             }
             /* single-char tokens, number literals, keywords, names */
             default: {
-                if (isspace(current)) {
+                if (is_space(current)) {
                     next_char();
                     continue;
-                } else if (isdigit(current)) {
+                } else if (is_digit(current)) {
                     if (!read_integer(tok)) {
                         return 0;
                     }
                     return TOK_INTEGER;
                 }
-                if (isalpha(current) || (current == '_')) {
+                if (is_alpha(current) || (current == '_')) {
                     /* names, keywords */
                     /* what current pointed to */
                     /* keep reading until we readh non-matching char */
@@ -764,7 +793,7 @@ cont:
                     lb.clear();
                     do {
                         lb.push_back(next_char());
-                    } while (isalnum(current) || (current == '_'));
+                    } while (is_alphanum(current) || (current == '_'));
                     lb.push_back('\0');
                     /* could be a keyword? */
                     auto kwit = keyword_map.find(ls_buf.data());
@@ -801,7 +830,7 @@ static char const *token_to_str(int tok, char *buf) {
         return "<eof>";
     }
     if (tok < TOK_CUSTOM) {
-        if (isprint(tok)) {
+        if (is_print(tok)) {
             buf[0] = char(tok);
             buf[1] = '\0';
         } else {
