@@ -1,4 +1,3 @@
-#include <cstring>
 #include <cstdint>
 #include <cassert>
 #include <ctime>
@@ -1297,13 +1296,13 @@ static bool parse_callconv_attrib(lex_state &ls, uint32_t &ret) {
     if (!check(ls, TOK_NAME)) {
         return false;
     }
-    if (!strcmp(ls_buf.data(), "cdecl")) {
+    if (!util::str_cmp(ls_buf.data(), "cdecl")) {
         conv = ast::C_FUNC_CDECL;
-    } else if (!strcmp(ls_buf.data(), "fastcall")) {
+    } else if (!util::str_cmp(ls_buf.data(), "fastcall")) {
         conv = ast::C_FUNC_FASTCALL;
-    } else if (!strcmp(ls_buf.data(), "stdcall")) {
+    } else if (!util::str_cmp(ls_buf.data(), "stdcall")) {
         conv = ast::C_FUNC_STDCALL;
-    } else if (!strcmp(ls_buf.data(), "thiscall")) {
+    } else if (!util::str_cmp(ls_buf.data(), "thiscall")) {
         conv = ast::C_FUNC_THISCALL;
     } else {
         ls_buf.set("invalid calling convention");

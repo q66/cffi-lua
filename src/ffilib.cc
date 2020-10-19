@@ -1,5 +1,4 @@
 #include <cstdlib>
-#include <cstring>
 #include <cerrno>
 
 #include "platform.hh"
@@ -295,10 +294,10 @@ struct cdata_meta {
             /* callbacks have some methods */
             char const *mname = lua_tostring(L, 2);
             /* if we had more methods, we'd do a table */
-            if (!strcmp(mname, "free")) {
+            if (!util::str_cmp(mname, "free")) {
                 lua_pushcfunction(L, cb_free);
                 return 1;
-            } else if (!strcmp(mname, "set")) {
+            } else if (!util::str_cmp(mname, "set")) {
                 lua_pushcfunction(L, cb_set);
                 return 1;
             } else if (!mname) {

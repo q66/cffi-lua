@@ -409,6 +409,16 @@ inline void *mem_move(void * dest, void const *src, size_t n) {
     return dest;
 }
 
+/* str_cmp */
+
+inline int str_cmp(char const *l, char const *r) {
+    for (; *l && (*l == *r); ++l) { ++r; }
+    return (
+        *reinterpret_cast<unsigned char const *>(l) -
+        *reinterpret_cast<unsigned char const *>(r)
+    );
+}
+
 /* simple writers for base 10 to avoid printf family */
 
 size_t write_i(char *buf, size_t bufsize, long long v);
@@ -987,7 +997,7 @@ struct str_hash: fnv1a<size_t, size_t(2166136261U), size_t(16777619U)> {};
 
 struct str_equal {
     bool operator()(char const *k1, char const *k2) const {
-        return !strcmp(k1, k2);
+        return !str_cmp(k1, k2);
     }
 };
 
