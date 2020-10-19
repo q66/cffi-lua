@@ -34,18 +34,6 @@ option('static',
     description: 'Build a static library, not a module'
 )
 
-option('no_libc',
-    type: 'feature',
-    value: 'auto',
-    description: 'Avoid using libc (see documentation)'
-)
-
-option('no_intrinsics',
-    type: 'feature',
-    value: 'disabled',
-    description: 'Avoid using intrinsics for no_libc builds'
-)
-
 option('tests',
     type: 'boolean',
     value: 'true',

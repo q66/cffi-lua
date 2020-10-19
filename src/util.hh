@@ -340,47 +340,14 @@ inline constexpr T limit_max() {
 
 /* mem_copy */
 
-#if !defined(FFI_NO_LIBC)
-
-/* just using libc */
-inline void *mem_copy(
-    void * RESTRICT dest, void const * RESTRICT src, size_t n
-} {
-    return memcpy(dest, src, n);
-}
-
-#elif defined(__GNUC__) && !defined(FFI_NO_INTRINSICS)
-
-/* FIXME: __builtin_memcpy can emit calls to libc, for now not a concern */
-inline void *mem_copy(
-    void * RESTRICT dest, void const * RESTRICT src, size_t n
-) {
-    return __builtin_memcpy(dest, src, n);
-}
-
-#elif defined(_MSC_VER) && !defined(FFI_NO_INTRINSICS)
-
-/* using msvc intrinsic */
-#pragma intrinsic(memcpy)
-inline void *mem_copy(void *dest, void const *src, size_t n) {
-    return memcpy(dest, src, n);
-}
-
-#else
-
-/* fallback implementation */
-inline void *mem_copy(
-    void * RESTRICT dest, void const * RESTRICT src, size_t n
-) {
-    auto *dp = static_cast<unsigned char *>(dest);
-    auto *sp = static_cast<unsigned char const *>(src);
-    for (size_t i = 0; i < n; ++i) {
-        dp[i] = sp[i];
-    }
-    return dest;
-}
-
+#if defined(_MSC_VER)
+#  pragma intrinsic(memcpy)
 #endif
+inline void *mem_copy(
+    void * RESTRICT dest, void const * RESTRICT src, size_t n
+) {
+    return memcpy(dest, src, n);
+}
 
 /* mem_move */
 

@@ -233,24 +233,3 @@ $ ninja test
 ```
 
 You can see the available test cases in `tests`, they also serve as examples.
-
-## Runtime-less builds
-
-**NOTE:** runtime-less builds are currently a work in progress
-
-The `no_libc` option for `meson` can be used to create a runtime-less build. That
-basically means avoiding using the C standard library.
-
-This is `enabled` by default whenever using either `msvc`, `gcc`, `clang` or `clang-cl`
-compilers. That means it is typically always enabled on most setups, but especially
-Windows. It is `disabled` in all other cases.
-
-You can override the setting by explicitly passing it.
-
-The `no_intrinsics` (`disabled` by default always) only takes effect when `no_libc`
-is `enabled`, and will result in portable paths being taken regardless of if the
-toolchain supports intrinsics or not.
-
-The main purpose to runtime-less builds is to be able to create portable builds on
-Windows (to avoid having to ship several binary versions for different versions of
-the CRT) but it can also be utilized in various embedded scenarios.

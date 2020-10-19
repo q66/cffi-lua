@@ -28,25 +28,6 @@ if cxx.has_argument('-fvisibility=hidden')
     extra_cxxflags += '-fvisibility=hidden'
 endif
 
-# Runtime-less build handling
-
-if get_option('no_intrinsics').enabled()
-    extra_cxxflags += '-DFFI_NO_INTRINSICS'
-endif
-
-no_libc = get_option('no_libc').enabled()
-
-if get_option('no_libc').auto()
-    if cxx.get_id() == 'gcc' or cxx.get_id() == 'clang' or \
-       cxx.get_id() == 'msvc' or cxx.get_id() == 'clang-cl'
-        no_libc = true
-    endif
-endif
-
-if no_libc
-    extra_cxxflags += '-DFFI_NO_LIBC'
-endif
-
 # Configuration data; optional but helps
 
 config_h = configuration_data()
