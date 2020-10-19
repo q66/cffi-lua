@@ -871,9 +871,12 @@ static void *from_lua_cdata(
             }
             dsz = sizeof(void *);
             return sval;
-        case ast::C_BUILTIN_RECORD:
-            /* we can initialize pointers and references by address */
-            if ((tp.type() != ast::C_BUILTIN_PTR) && !tp.is_ref()) {
+        case ast::C_BUILTIN_RECORD: {
+            /* we can initialize structs by value in conversion context,
+             * as well as pointers and references by address
+             */
+            bool do_copy = ((tp.type() != ast::C_BUILTIN_PTR) && !tp.is_ref());
+            if (do_copy && (rule != RULE_CONV)) {
                 break;
             }
             if (rule != RULE_CAST) {
@@ -881,8 +884,13 @@ static void *from_lua_cdata(
                     fail_convert_cd(L, cd, tp);
                 }
             }
+            if (do_copy) {
+                dsz = cd.alloc_size();
+                return sval;
+            }
             dsz = sizeof(void *);
             return &(*static_cast<void **>(stor) = sval);
+        }
         default:
             if (cd.is_same(tp, true)) {
                 dsz = cd.alloc_size();

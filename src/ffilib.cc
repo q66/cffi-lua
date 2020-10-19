@@ -365,7 +365,9 @@ struct cdata_meta {
     static int newindex(lua_State *L) {
         if (index_common<true>(L, [L](auto &decl, void *val) {
             size_t rsz;
-            ffi::from_lua(L, decl, val, 3, rsz, ffi::RULE_CONV);
+            ffi::arg_stor_t sv{};
+            auto *vp = ffi::from_lua(L, decl, &sv, 3, rsz, ffi::RULE_CONV);
+            util::mem_copy(val, vp, rsz);
         })) {
             return 0;
         };

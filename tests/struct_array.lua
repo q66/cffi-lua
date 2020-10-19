@@ -25,6 +25,14 @@ ffi.cdef [[
         };
         unsigned short z;
     };
+
+    struct baz {
+        int x, y;
+    };
+
+    struct sbaz {
+        struct baz x, y, z;
+    };
 ]]
 
 -- struct
@@ -104,3 +112,34 @@ if ffi.abi("le") then
 else
     assert(x.z == 0x50A)
 end
+
+-- array of structs
+
+local x = ffi.new("struct baz[4]");
+assert(ffi.sizeof(x) == ffi.sizeof("int") * 8)
+
+local st = ffi.typeof("struct baz")
+x[0] = st(10, 15)
+x[2] = x[0]
+
+assert(x[0].x == 10)
+assert(x[0].y == 15)
+assert(x[1].x == 0)
+assert(x[1].y == 0)
+assert(x[2].x == 10)
+assert(x[2].y == 15)
+assert(x[3].x == 0)
+assert(x[3].y == 0)
+
+-- struct of structs assignment
+
+local x = ffi.new("struct sbaz")
+x.x = st(20, 25)
+x.z = x.x
+
+assert(x.x.x == 20)
+assert(x.x.y == 25)
+assert(x.y.x == 0)
+assert(x.y.y == 0)
+assert(x.z.x == 20)
+assert(x.z.y == 25)
