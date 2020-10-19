@@ -1167,6 +1167,10 @@ struct ffi_module {
 
     static int typeof_f(lua_State *L) {
         check_ct(L, 1, (lua_gettop(L) > 1) ? 2 : -1);
+        /* make sure the type we've checked out is the result,
+         * and not the last argument it's parameterized with
+         */
+        lua_pushvalue(L, 1);
         return 1;
     }
 
