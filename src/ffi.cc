@@ -1162,7 +1162,7 @@ static void from_lua_table_record(
         return;
     }
     if (uni && !filled) {
-        memset(stor, 0, rsz);
+        util::mem_set(stor, 0, rsz);
     }
 }
 
@@ -1179,7 +1179,7 @@ static void from_lua_table(
     }
 
     if (ninit <= 0) {
-        memset(stor, 0, rsz);
+        util::mem_set(stor, 0, rsz);
         return;
     }
 
@@ -1229,7 +1229,7 @@ static void from_lua_table(
     }
     if (ninit < int(nelems)) {
         /* fill possible remaining space with zeroes */
-        memset(val, 0, bsize * (nelems - ninit));
+        util::mem_set(val, 0, bsize * (nelems - ninit));
     }
 }
 
@@ -1381,7 +1381,7 @@ newdata:
         void *dptr = nullptr;
         size_t msz = rsz;
         if (!cdp) {
-            memset(&cd.val, 0, rsz);
+            util::mem_set(&cd.val, 0, rsz);
             if (decl.type() == ast::C_BUILTIN_ARRAY) {
                 auto *bval = reinterpret_cast<unsigned char *>(&cd.val);
                 dptr = bval + sizeof(arg_stor_t);

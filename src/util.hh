@@ -340,7 +340,7 @@ inline constexpr T limit_max() {
 
 /* mem_copy */
 
-#if defined(_MSC_VER)
+#ifdef _MSC_VER
 #  pragma intrinsic(memcpy)
 #endif
 inline void *mem_copy(
@@ -374,6 +374,15 @@ inline void *mem_move(void * dest, void const *src, size_t n) {
     }
 
     return dest;
+}
+
+/* mem_set */
+
+#ifdef _MSC_VER
+#  pragma intrinsic(memset)
+#endif
+inline void *mem_set(void *p, int c, size_t n) {
+    return memset(p, c, n);
 }
 
 /* str_cmp */
@@ -851,7 +860,7 @@ private:
 public:
     map(size_t sz = DEFAULT_SIZE): p_size{sz} {
         p_buckets = new bucket *[sz];
-        memset(p_buckets, 0, sz * sizeof(bucket *));
+        mem_set(p_buckets, 0, sz * sizeof(bucket *));
     }
 
     ~map() {
@@ -899,7 +908,7 @@ public:
         }
         p_nelems = 0;
         p_unused = nullptr;
-        memset(p_buckets, 0, p_size * sizeof(bucket *));
+        mem_set(p_buckets, 0, p_size * sizeof(bucket *));
         drop_chunks();
     }
 

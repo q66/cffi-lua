@@ -1392,7 +1392,7 @@ struct ffi_module {
         void *dst = check_voidptr(L, 1);
         size_t len = ffi::check_arith<size_t>(L, 2);
         int byte = int(luaL_optinteger(L, 3, 0));
-        memset(dst, byte, len);
+        util::mem_set(dst, byte, len);
         return 0;
     }
 
