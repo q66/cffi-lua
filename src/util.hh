@@ -23,10 +23,6 @@
 #include <memory.h>
 #endif
 
-#if !defined(__has_builtin)
-# define __has_builtin(x) 0
-#endif
-
 /* allocation */
 
 #ifndef _MSC_VER
@@ -353,9 +349,9 @@ inline void *mem_copy(
     return memcpy(dest, src, n);
 }
 
-#elif __has_builtin(__builtin_memcpy) && !defined(FFI_NO_INTRINSICS)
+#elif defined(__GNUC__) && !defined(FFI_NO_INTRINSICS)
 
-/* using gcc-style builtin */
+/* FIXME: __builtin_memcpy can emit calls to libc, for now not a concern */
 inline void *mem_copy(
     void * RESTRICT dest, void const * RESTRICT src, size_t n
 ) {
@@ -385,6 +381,33 @@ inline void *mem_copy(
 }
 
 #endif
+
+/* mem_move */
+
+inline void *mem_move(void * dest, void const *src, size_t n) {
+    auto *dp = static_cast<unsigned char *>(dest);
+    auto *sp = static_cast<unsigned char const *>(src);
+
+    if (dp == sp) {
+        return dp;
+    }
+    if ((uintptr_t(sp) - uintptr_t(dp) - n) <= (-2 * n)) {
+        return mem_copy(dest, src, n);
+    }
+
+    if (dp < sp) {
+        for (; n; --n) {
+            *dp++ = *sp++;
+        }
+    } else {
+        while (n) {
+            --n;
+            dp[n] = sp[n];
+        }
+    }
+
+    return dest;
+}
 
 /* simple writers for base 10 to avoid printf family */
 
@@ -706,7 +729,7 @@ struct strbuf {
     void prepend(char const *str, size_t n) {
         auto sz = p_buf.size();
         p_buf.reserve(sz + n);
-        memmove(&p_buf[n], &p_buf[0], sz);
+        mem_move(&p_buf[n], &p_buf[0], sz);
         mem_copy(&p_buf[0], str, n);
         p_buf.setlen(sz + n);
     }
@@ -718,7 +741,7 @@ struct strbuf {
     void prepend(char c) {
         auto sz = p_buf.size();
         p_buf.reserve(sz + 1);
-        memmove(&p_buf[1], &p_buf[0], sz);
+        mem_move(&p_buf[1], &p_buf[0], sz);
         p_buf[0] = c;
         p_buf.setlen(sz + 1);
     }
@@ -730,7 +753,7 @@ struct strbuf {
     void insert(char const *str, size_t n, size_t idx) {
         auto sz = p_buf.size();
         p_buf.reserve(sz + n);
-        memmove(&p_buf[idx + n], &p_buf[idx], sz - idx);
+        mem_move(&p_buf[idx + n], &p_buf[idx], sz - idx);
         mem_copy(&p_buf[idx], str, n);
         p_buf.setlen(sz + n);
     }
