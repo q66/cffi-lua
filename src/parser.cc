@@ -204,7 +204,7 @@ struct lex_state {
         return p_dstore.lookup(name);
     }
 
-    int request_name(char *buf, size_t bufsize) const {
+    size_t request_name(char *buf, size_t bufsize) const {
         return p_dstore.request_name(buf, bufsize);
     }
 
@@ -2197,7 +2197,7 @@ static ast::c_record const *parse_record(lex_state &ls, bool *newst) {
     } else {
         char buf[32];
         auto wn = ls.request_name(buf, sizeof(buf));
-        assert((wn > 0) && (wn < int(sizeof(buf))));
+        assert(wn < sizeof(buf));
         sname.append(buf);
     }
 
@@ -2331,7 +2331,7 @@ static ast::c_enum const *parse_enum(lex_state &ls) {
     } else {
         char buf[32];
         auto wn = ls.request_name(buf, sizeof(buf));
-        assert((wn > 0) && (wn < int(sizeof(buf))));
+        assert(wn < sizeof(buf));
         ename.append(buf);
     }
 

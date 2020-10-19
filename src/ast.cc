@@ -1266,7 +1266,7 @@ c_object *decl_store::lookup(char const *name) {
     return nullptr;
 }
 
-int decl_store::request_name(char *buf, size_t bufsize) const {
+size_t decl_store::request_name(char *buf, size_t bufsize) const {
     /* could do something better, this will do to avoid clashes for now... */
     size_t n = 0;
     decl_store const *pb = this;
