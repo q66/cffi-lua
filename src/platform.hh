@@ -258,8 +258,10 @@ static_assert(
 #define FFI_DIAGNOSTIC_PRAGMA_GCC 1
 #endif
 #define WARN_UNUSED_RET __attribute__((warn_unused_result))
+#define RESTRICT __restrict__
 #else
 #define WARN_UNUSED_RET
+#define RESTRICT
 #endif
 
 #if defined(__clang__)

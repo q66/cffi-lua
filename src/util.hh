@@ -23,6 +23,10 @@
 #include <memory.h>
 #endif
 
+#if !defined(__has_builtin)
+# define __has_builtin(x) 0
+#endif
+
 /* allocation */
 
 #ifndef _MSC_VER
@@ -338,30 +342,40 @@ inline constexpr T limit_max() {
 
 /* core standard library stuff */
 
-#if defined(_MSC_VER)
+/* mem_copy */
 
-/* visual studio and compatible */
+#if !defined(FFI_NO_LIBC)
 
+/* just using libc */
+inline void *mem_copy(
+    void * RESTRICT dest, void const * RESTRICT src, size_t n
+} {
+    return memcpy(dest, src, n);
+}
+
+#elif __has_builtin(__builtin_memcpy) && !defined(FFI_NO_INTRINSICS)
+
+/* using gcc-style builtin */
+inline void *mem_copy(
+    void * RESTRICT dest, void const * RESTRICT src, size_t n
+) {
+    return __builtin_memcpy(dest, src, n);
+}
+
+#elif defined(_MSC_VER) && !defined(FFI_NO_INTRINSICS)
+
+/* using msvc intrinsic */
 #pragma intrinsic(memcpy)
 inline void *mem_copy(void *dest, void const *src, size_t n) {
     return memcpy(dest, src, n);
 }
 
-#elif defined(__GNUC__)
-
-/* gcc and compatible */
-
-inline void *mem_copy(
-    void * __restrict__ dest, void const * __restrict__ src, size_t n
-) {
-    return __builtin_memcpy(dest, src, n);
-}
-
 #else
 
-/* fallbacks */
-
-inline void *mem_copy(void *dest, void const *src, size_t n) {
+/* fallback implementation */
+inline void *mem_copy(
+    void * RESTRICT dest, void const * RESTRICT src, size_t n
+) {
     auto *dp = static_cast<unsigned char *>(dest);
     auto *sp = static_cast<unsigned char const *>(src);
     for (size_t i = 0; i < n; ++i) {
