@@ -331,6 +331,11 @@ inline constexpr T limit_max() {
     return detail::limits<T>::max;
 }
 
+/* simple writers for base 10 to avoid printf family */
+
+size_t write_i(char *buf, size_t bufsize, long long v);
+size_t write_u(char *buf, size_t bufsize, unsigned long long v);
+
 /* a refernce counted object; manages its own memory,
  * so it can avoid separately allocating the refcount
  */

@@ -813,7 +813,7 @@ void c_type::do_serialize(
                     out.append('?');
                 } else if (!d.ct->unbounded()) {
                     char buf[32];
-                    snprintf(buf, sizeof(buf), "%zu", d.ct->array_size());
+                    util::write_u(buf, sizeof(buf), d.ct->array_size());
                     out.append(buf);
                 }
                 out.append(']');
@@ -1274,7 +1274,7 @@ int decl_store::request_name(char *buf, size_t bufsize) const {
         n += pb->p_dlist.size();
         pb = pb->p_base;
     } while (pb);
-    return snprintf(buf, bufsize, "%zu", n);
+    return util::write_u(buf, bufsize, n);
 }
 
 c_type from_lua_type(lua_State *L, int index) {

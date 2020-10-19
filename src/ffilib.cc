@@ -150,13 +150,17 @@ struct cdata_meta {
             char buf[32];
             int written;
             if (tp->is_unsigned()) {
-                written = snprintf(
-                    buf, sizeof(buf), "%lluULL", val->as<unsigned long long>()
+                written = util::write_u(
+                    buf, sizeof(buf), val->as<unsigned long long>()
                 );
+                memcpy(&buf[written], "ULL", 4);
+                written += 4;
             } else {
-                written = snprintf(
-                    buf, sizeof(buf), "%lldLL", val->as<long long>()
+                written = util::write_i(
+                    buf, sizeof(buf), val->as<long long>()
                 );
+                memcpy(&buf[written], "LL", 3);
+                written += 3;
             }
             lua_pushlstring(L, buf, written);
             return 1;

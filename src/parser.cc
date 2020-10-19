@@ -805,7 +805,12 @@ static char const *token_to_str(int tok, char *buf) {
             buf[0] = char(tok);
             buf[1] = '\0';
         } else {
-            snprintf(buf, 16, "char(%d)", tok);
+            char *bufp = buf;
+            memcpy(bufp, "char(", 5);
+            bufp += 5;
+            bufp += util::write_i(bufp, 11, tok);
+            *bufp++ = ')';
+            *bufp++ = '\0';
         }
         return buf;
     }
@@ -870,7 +875,7 @@ static bool check_match(lex_state &ls, int what, int who, int where) {
     ls_buf.append("' expected (to close '");
     ls_buf.append(token_to_str(who, buf));
     ls_buf.append("' at line ");
-    snprintf(buf, sizeof(buf), "%d", where);
+    util::write_i(buf, sizeof(buf), where);
     ls_buf.append(buf);
     ls_buf.append(')');
     return ls.syntax_error();
