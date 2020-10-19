@@ -6,6 +6,8 @@
 
 namespace parser {
 
+void init(lua_State *L);
+
 void parse(
     lua_State *L, char const *input, char const *iend = nullptr, int paridx = -1
 );

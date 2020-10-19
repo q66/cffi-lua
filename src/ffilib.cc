@@ -1591,6 +1591,7 @@ struct ffi_module {
 
     static void open(lua_State *L) {
         setup_dstor(L); /* declaration store */
+        parser::init(L);
 
         /* cdata handles */
         cdata_meta::setup(L);

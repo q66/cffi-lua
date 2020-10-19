@@ -85,25 +85,81 @@ struct lex_token {
     ast::c_value value{};
 };
 
-static thread_local util::str_map<int> keyword_map{};
-static thread_local util::strbuf ls_buf{};
+/* represents a level of parens pair when parsing a type; so e.g. in
+ *
+ * void (*(*(*(*&))))
+ *
+ * we have 4 levels.
+ */
+struct parser_type_level {
+    parser_type_level():
+        arrd{0}, cv{0}, flags{0}, is_term{false}, is_func{false},
+        is_ref{false}
+    {}
+    ~parser_type_level() {
+        if (is_func) {
+            using DT = util::vector<ast::c_param>;
+            argl.~DT();
+        }
+    }
+    parser_type_level(parser_type_level &&v):
+        cv{v.cv}, flags{v.flags}, cconv{v.cconv}, is_term{v.is_term},
+        is_func{v.is_func}, is_ref{v.is_ref}
+    {
+        if (is_func) {
+            new (&argl) util::vector<ast::c_param>(util::move(v.argl));
+        } else {
+            arrd = v.arrd;
+        }
+    }
 
-static void init_kwmap() {
-    if (!keyword_map.empty()) {
+    union {
+        util::vector<ast::c_param> argl;
+        size_t arrd;
+    };
+    uint32_t cv: 2;
+    uint32_t flags: 6;
+    uint32_t cconv: 6;
+    uint32_t is_term: 1;
+    uint32_t is_func: 1;
+    uint32_t is_ref: 1;
+};
+
+/* this stack stores whatever parse_array parses, the number of elements
+ * per single parse_type_ptr call is stored above in the level struct; each
+ * level with non-zero arrd will pop off arrd items
+ */
+struct parser_array_dim {
+    size_t size;
+    uint32_t quals;
+};
+
+/* global parser state, one per lua_State * */
+struct parser_state {
+    /* a mapping from keyword id to keyword name, populated on init */
+    util::str_map<int> keyword_map;
+    /* all-purpose string buffer used when parsing, also for error messages */
+    util::strbuf ls_buf;
+    /* used when parsing types */
+    util::vector<parser_type_level> plevel_queue{};
+    util::vector<parser_array_dim> arrdim_stack{};
+    /* stores the token id when throwing errors */
+    int err_token;
+    /* stores the line number when throwing errors */
+    int err_lnum;
+};
+
+static void init_kwmap(util::str_map<int> &km) {
+    if (!km.empty()) {
         return;
     }
     auto nkw = int(
         sizeof(tokens) / sizeof(tokens[0]) + TOK_CUSTOM - TOK_NAME - 1
     );
     for (int i = 1; i <= nkw; ++i) {
-        keyword_map[tokens[TOK_NAME - TOK_CUSTOM + i]] = i;
+        km[tokens[TOK_NAME - TOK_CUSTOM + i]] = i;
     }
 }
-
-static thread_local struct {
-    int token;
-    int line_number;
-} ls_err{};
 
 enum parse_mode {
     PARSE_MODE_DEFAULT,
@@ -152,12 +208,19 @@ struct lex_state {
         p_mode(pmode), p_pidx(paridx), p_L(L), stream(str),
         send(estr), p_dstore{ast::decl_store::get_main(L)}
     {
-        /* thread-local, initialize for parsing thread */
-        init_kwmap();
+        lua_getfield(L, LUA_REGISTRYINDEX, lua::CFFI_PARSER_STATE);
+        if (!lua_isuserdata(L, -1)) {
+            luaL_error(L, "internal error: no parser state");
+        }
+        p_P = lua::touserdata<parser_state>(L, -1);
+        if (!p_P) {
+            luaL_error(L, "internal error: parser state is null");
+        }
+        lua_pop(L, 1);
 
         /* this should be enough that we should never have to resize it */
-        ls_buf.clear();
-        ls_buf.reserve(256);
+        p_P->ls_buf.clear();
+        p_P->ls_buf.reserve(256);
 
         /* read first char */
         next_char();
@@ -195,8 +258,8 @@ struct lex_state {
     }
 
     bool lex_error(int tok, int linenum) WARN_UNUSED_RET {
-        ls_err.token = tok;
-        ls_err.line_number = linenum;
+        p_P->err_token = tok;
+        p_P->err_lnum = linenum;
         return false;
     }
 
@@ -211,10 +274,10 @@ struct lex_state {
     bool store_decl(ast::c_object *obj, int lnum) WARN_UNUSED_RET {
         auto *old = p_dstore.add(obj);
         if (old) {
-            ls_buf.clear();
-            ls_buf.append('\'');
-            ls_buf.append(old->name());
-            ls_buf.append("' redefined");
+            p_P->ls_buf.clear();
+            p_P->ls_buf.append('\'');
+            p_P->ls_buf.append(old->name());
+            p_P->ls_buf.append("' redefined");
             return lex_error(-1, lnum);
         }
         return true;
@@ -256,12 +319,12 @@ struct lex_state {
         size_t len;
         char const *str = lua_tolstring(p_L, p_pidx, &len);
         if (!str) {
-            ls_buf.set("name expected");
+            p_P->ls_buf.set("name expected");
             return syntax_error();
         }
         /* replace $ with name */
         t.token = TOK_NAME;
-        ls_buf.set(str, len);
+        p_P->ls_buf.set(str, len);
         ++p_pidx;
         return true;
     }
@@ -276,7 +339,7 @@ struct lex_state {
         }
         lua_Integer d = lua_tointeger(p_L, p_pidx);
         if (!d && !lua_isnumber(p_L, p_pidx)) {
-            ls_buf.set("integer expected");
+            p_P->ls_buf.set("integer expected");
             return syntax_error();
         }
         /* replace $ with integer */
@@ -297,7 +360,7 @@ struct lex_state {
             return false;
         }
         if (!luaL_testudata(p_L, p_pidx, lua::CFFI_CDATA_MT)) {
-            ls_buf.set("type expected");
+            p_P->ls_buf.set("type expected");
             return syntax_error();
         }
         res = lua::touserdata<ast::c_type>(p_L, p_pidx)->copy();
@@ -313,10 +376,34 @@ struct lex_state {
         return p_L;
     }
 
+    util::strbuf &get_buf() {
+        return p_P->ls_buf;
+    }
+
+    util::strbuf const &get_buf() const {
+        return p_P->ls_buf;
+    }
+
+    int err_token() const {
+        return p_P->err_token;
+    }
+
+    int err_line() const {
+        return p_P->err_lnum;
+    }
+
+    util::vector<parser_type_level> &type_level_queue() {
+        return p_P->plevel_queue;
+    }
+
+    util::vector<parser_array_dim> &array_dim_stack() {
+        return p_P->arrdim_stack;
+    }
+
 private:
     bool ensure_pidx() WARN_UNUSED_RET {
         if ((p_pidx <= 0) || lua_isnone(p_L, p_pidx)) {
-            ls_buf.set("wrong number of type parameters");
+            p_P->ls_buf.set("wrong number of type parameters");
             return syntax_error();
         }
         return true;
@@ -440,7 +527,7 @@ private:
         /* unsuffixed decimal and doesn't fit into signed long long,
          * or explicitly marked long and out of bounds
          */
-        ls_buf.set("value out of bounds");
+        p_P->ls_buf.set("value out of bounds");
         if (!lex_error(TOK_INTEGER)) {
             return ast::c_expr_type::INVALID;
         }
@@ -450,12 +537,12 @@ private:
 
     template<size_t base, typename F, typename G>
     bool read_int_core(F &&digf, G &&convf, lex_token &tok) {
-        auto &lb = ls_buf.raw();
+        auto &lb = p_P->ls_buf.raw();
         lb.clear();
         do {
             lb.push_back(next_char());
         } while (digf(current));
-        char const *numbeg = &ls_buf[0], *numend = &ls_buf[lb.size()];
+        char const *numbeg = &p_P->ls_buf[0], *numend = &p_P->ls_buf[lb.size()];
         /* go from the end */
         unsigned long long val = 0, mul = 1;
         do {
@@ -485,7 +572,7 @@ private:
                 /* hex */
                 next_char();
                 if (!is_hex_digit(current)) {
-                    ls_buf.set("malformed integer");
+                    p_P->ls_buf.set("malformed integer");
                     return lex_error(TOK_INTEGER);
                 }
                 return read_int_core<16>(is_hex_digit, [](int dig) {
@@ -497,7 +584,7 @@ private:
                 /* binary */
                 next_char();
                 if ((current != '0') && (current != '1')) {
-                    ls_buf.set("malformed integer");
+                    p_P->ls_buf.set("malformed integer");
                     return lex_error(TOK_INTEGER);
                 }
                 return read_int_core<2>([](int cur) {
@@ -524,7 +611,7 @@ private:
         next_char();
         switch (current) {
             case '\0':
-                ls_buf.set("unterminated escape sequence");
+                p_P->ls_buf.set("unterminated escape sequence");
                 return lex_error(TOK_CHAR);
             case '\'':
             case '\"':
@@ -548,7 +635,7 @@ private:
                 next_char();
                 int c1 = current, c2 = upcoming();
                 if (!is_hex_digit(c1) || !is_hex_digit(c2)) {
-                    ls_buf.set("malformed hex escape");
+                    p_P->ls_buf.set("malformed hex escape");
                     return lex_error(TOK_CHAR);
                 }
                 c1 |= 32; c2 |= 32;
@@ -575,7 +662,7 @@ private:
                     next_char();
                     int r = (c3 + (c2 * 8) + (c1 * 64));
                     if (r > 0xFF) {
-                        ls_buf.set("octal escape out of bounds");
+                        p_P->ls_buf.set("octal escape out of bounds");
                         return lex_error(TOK_CHAR);
                     }
                     c = char(r);
@@ -591,7 +678,7 @@ private:
                 return true;
             }
         }
-        ls_buf.set("malformed escape sequence");
+        p_P->ls_buf.set("malformed escape sequence");
         return lex_error(TOK_CHAR);
     }
 
@@ -618,7 +705,7 @@ private:
                         }
                         next_char();
                     }
-                    ls_buf.set("unterminated comment");
+                    p_P->ls_buf.set("unterminated comment");
                     return int(syntax_error());
                 } else if (current != '/') {
                     /* just / */
@@ -721,7 +808,7 @@ cont:
             case '\'': {
                 next_char();
                 if (current == '\0') {
-                    ls_buf.set("unterminated literal");
+                    p_P->ls_buf.set("unterminated literal");
                     return int(lex_error(TOK_CHAR));
                 } else if (current == '\\') {
                     if (!read_escape(tok.value.c)) {
@@ -732,7 +819,7 @@ cont:
                     next_char();
                 }
                 if (current != '\'') {
-                    ls_buf.set("unterminated literal");
+                    p_P->ls_buf.set("unterminated literal");
                     return int(lex_error(TOK_CHAR));
                 }
                 next_char();
@@ -741,7 +828,7 @@ cont:
             }
             /* string literal */
             case '\"': {
-                auto &lb = ls_buf.raw();
+                auto &lb = p_P->ls_buf.raw();
                 lb.clear();
                 next_char();
                 for (;;) {
@@ -755,7 +842,7 @@ cont:
                         }
                     }
                     if (current == '\0') {
-                        ls_buf.set("unterminated string");
+                        p_P->ls_buf.set("unterminated string");
                         return int(lex_error(TOK_STRING));
                     }
                     if (current == '\\') {
@@ -788,14 +875,14 @@ cont:
                     /* names, keywords */
                     /* what current pointed to */
                     /* keep reading until we readh non-matching char */
-                    auto &lb = ls_buf.raw();
+                    auto &lb = p_P->ls_buf.raw();
                     lb.clear();
                     do {
                         lb.push_back(next_char());
                     } while (is_alphanum(current) || (current == '_'));
                     lb.push_back('\0');
                     /* could be a keyword? */
-                    auto kwit = keyword_map.find(ls_buf.data());
+                    auto kwit = p_P->keyword_map.find(p_P->ls_buf.data());
                     if (kwit) {
                         return TOK_NAME + *kwit;
                     }
@@ -814,6 +901,7 @@ cont:
     int p_pidx;
 
     lua_State *p_L;
+    parser_state *p_P;
     char const *stream;
     char const *send;
 
@@ -864,7 +952,7 @@ static bool error_expected(lex_state &ls, int tok) {
     }
     bufp += tlen;
     util::mem_copy(bufp, "' expected", sizeof("' expected"));
-    ls_buf.set(buf);
+    ls.get_buf().set(buf);
     return ls.syntax_error();
 }
 
@@ -897,15 +985,16 @@ static bool check_match(lex_state &ls, int what, int who, int where) {
         return error_expected(ls, what);
     }
     char buf[16];
-    ls_buf.clear();
-    ls_buf.append('\'');
-    ls_buf.append(token_to_str(what, buf));
-    ls_buf.append("' expected (to close '");
-    ls_buf.append(token_to_str(who, buf));
-    ls_buf.append("' at line ");
+    auto &b = ls.get_buf();
+    b.clear();
+    b.append('\'');
+    b.append(token_to_str(what, buf));
+    b.append("' expected (to close '");
+    b.append(token_to_str(who, buf));
+    b.append("' at line ");
     util::write_i(buf, sizeof(buf), where);
-    ls_buf.append(buf);
-    ls_buf.append(')');
+    b.append(buf);
+    b.append(')');
     return ls.syntax_error();
 }
 
@@ -1015,10 +1104,10 @@ static bool parse_cexpr_simple(lex_state &ls, ast::c_expr &ret) {
             return ls.get();
         }
         case TOK_NAME: {
-            auto *o = ls.lookup(ls_buf.data());
+            auto *o = ls.lookup(ls.get_buf().data());
             if (!o || (o->obj_type() != ast::c_object_type::CONSTANT)) {
-                ls_buf.prepend("unknown constant '");
-                ls_buf.append('\'');
+                ls.get_buf().prepend("unknown constant '");
+                ls.get_buf().append('\'');
                 return ls.syntax_error();
             }
             auto &ct = o->as<ast::c_constant>();
@@ -1047,7 +1136,7 @@ static bool parse_cexpr_simple(lex_state &ls, ast::c_expr &ret) {
                     ret.type(ast::c_expr_type::BOOL); break;
                 default:
                     /* should be generally unreachable */
-                    ls_buf.set("unknown type");
+                    ls.get_buf().set("unknown type");
                     return ls.syntax_error();
             }
             ret.val = ct.value();
@@ -1115,7 +1204,7 @@ static bool parse_cexpr_simple(lex_state &ls, ast::c_expr &ret) {
         default:
             break;
     }
-    ls_buf.set("unexpected symbol");
+    ls.get_buf().set("unexpected symbol");
     return ls.syntax_error();
 }
 
@@ -1185,7 +1274,7 @@ static bool get_arrsize(lex_state &ls, ast::c_expr const &exp, size_t &ret) {
     if (!exp.eval(ls.lua_state(), val, et, true)) {
         size_t strl;
         char const *errm = lua_tolstring(ls.lua_state(), -1, &strl);
-        ls_buf.set(errm, strl);
+        ls.get_buf().set(errm, strl);
         lua_pop(ls.lua_state(), 1);
         return ls.syntax_error();
     }
@@ -1200,11 +1289,11 @@ static bool get_arrsize(lex_state &ls, ast::c_expr const &exp, size_t &ret) {
         case ast::c_expr_type::ULONG: uval = val.ul; goto done;
         case ast::c_expr_type::ULLONG: uval = val.ull; goto done;
         default:
-            ls_buf.set("invalid array size");
+            ls.get_buf().set("invalid array size");
             return ls.syntax_error();
     }
     if (sval < 0) {
-        ls_buf.set("array size is negative");
+        ls.get_buf().set("array size is negative");
         return ls.syntax_error();
     }
     uval = sval;
@@ -1212,7 +1301,7 @@ static bool get_arrsize(lex_state &ls, ast::c_expr const &exp, size_t &ret) {
 done:
     using ULL = unsigned long long;
     if (uval > ULL(~size_t(0))) {
-        ls_buf.set("array sie too big");
+        ls.get_buf().set("array sie too big");
         return ls.syntax_error();
     }
     ret = size_t(uval);
@@ -1227,7 +1316,7 @@ static bool parse_cv(
         case TOK_const:
         case TOK___const__:
             if (ret & ast::C_CV_CONST) {
-                ls_buf.set("duplicate const qualifier");
+                ls.get_buf().set("duplicate const qualifier");
                 return ls.syntax_error();
             }
             if (!ls.get()) {
@@ -1238,7 +1327,7 @@ static bool parse_cv(
         case TOK_volatile:
         case TOK___volatile__:
             if (ret & ast::C_CV_VOLATILE) {
-                ls_buf.set("duplicate volatile qualifier");
+                ls.get_buf().set("duplicate volatile qualifier");
                 return ls.syntax_error();
             }
             if (!ls.get()) {
@@ -1251,7 +1340,7 @@ static bool parse_cv(
                 return true;
             }
             if (*tdef) {
-                ls_buf.set("duplicate typedef qualifier");
+                ls.get_buf().set("duplicate typedef qualifier");
                 return ls.syntax_error();
             }
             if (!ls.get()) {
@@ -1264,7 +1353,7 @@ static bool parse_cv(
                 return true;
             }
             if (*extr) {
-                ls_buf.set("duplicate extern qualifier");
+                ls.get_buf().set("duplicate extern qualifier");
                 return ls.syntax_error();
             }
             if (!ls.get()) {
@@ -1296,16 +1385,17 @@ static bool parse_callconv_attrib(lex_state &ls, uint32_t &ret) {
     if (!check(ls, TOK_NAME)) {
         return false;
     }
-    if (!util::str_cmp(ls_buf.data(), "cdecl")) {
+    auto &b = ls.get_buf();
+    if (!util::str_cmp(b.data(), "cdecl")) {
         conv = ast::C_FUNC_CDECL;
-    } else if (!util::str_cmp(ls_buf.data(), "fastcall")) {
+    } else if (!util::str_cmp(b.data(), "fastcall")) {
         conv = ast::C_FUNC_FASTCALL;
-    } else if (!util::str_cmp(ls_buf.data(), "stdcall")) {
+    } else if (!util::str_cmp(b.data(), "stdcall")) {
         conv = ast::C_FUNC_STDCALL;
-    } else if (!util::str_cmp(ls_buf.data(), "thiscall")) {
+    } else if (!util::str_cmp(b.data(), "thiscall")) {
         conv = ast::C_FUNC_THISCALL;
     } else {
-        ls_buf.set("invalid calling convention");
+        b.set("invalid calling convention");
         return ls.syntax_error();
     }
     if (!ls.get() || !check_match(ls, TOK_ATTRIBE, TOK_ATTRIBB, ln)) {
@@ -1379,10 +1469,11 @@ static bool parse_paramlist(lex_state &ls, util::vector<ast::c_param> &params) {
         }
         /* check if argument type can be passed by value */
         if (!pt.passable()) {
-            ls_buf.clear();
-            ls_buf.append('\'');
-            pt.serialize(ls_buf);
-            ls_buf.append("' cannot be passed by value");
+            auto &b = ls.get_buf();
+            b.clear();
+            b.append('\'');
+            pt.serialize(b);
+            b.append("' cannot be passed by value");
             return ls.syntax_error();
         }
         if (pname[0] == '?') {
@@ -1398,70 +1489,9 @@ done_params:
     return check_match(ls, ')', '(', linenum);
 }
 
-/* represents a level of parens pair when parsing a type; so e.g. in
- *
- * void (*(*(*(*&))))
- *
- * we have 4 levels.
- */
-struct plevel {
-    plevel():
-        arrd{0}, cv{0}, flags{0}, is_term{false}, is_func{false},
-        is_ref{false}
-    {}
-    ~plevel() {
-        if (is_func) {
-            using DT = util::vector<ast::c_param>;
-            argl.~DT();
-        }
-    }
-    plevel(plevel &&v):
-        cv{v.cv}, flags{v.flags}, cconv{v.cconv}, is_term{v.is_term},
-        is_func{v.is_func}, is_ref{v.is_ref}
-    {
-        if (is_func) {
-            new (&argl) util::vector<ast::c_param>(util::move(v.argl));
-        } else {
-            arrd = v.arrd;
-        }
-    }
-
-    union {
-        util::vector<ast::c_param> argl;
-        size_t arrd;
-    };
-    uint32_t cv: 2;
-    uint32_t flags: 6;
-    uint32_t cconv: 6;
-    uint32_t is_term: 1;
-    uint32_t is_func: 1;
-    uint32_t is_ref: 1;
-};
-
-/* first we define a list containing 'levels'... each level denotes one
- * matched pair of parens, except the implicit default level which is always
- * added; new level is delimited by a sentinel value, and the elements past
- * the sentinel can specify pointers and references
- *
- * this is a thread local value; it could be defined within the parse_type_ptr
- * call but we don't want to constantly allocate and deallocate, so just create
- * it once per thread, its resources will be reused by subsequent and recursive
- * calls
-*/
-static thread_local util::vector<plevel> pcvq{};
-
-/* this stack stores whatever parse_array below parses, the number of elements
- * per single parse_type_ptr call is stored above in the level struct; each
- * level with non-zero arrd will pop off arrd items
- */
-struct arrdim {
-    size_t size;
-    uint32_t quals;
-};
-static thread_local util::vector<arrdim> dimstack{};
-
 /* FIXME: when in var declarations, all components must be complete */
 static bool parse_array(lex_state &ls, size_t &ret, int &flags) {
+    auto &dimstack = ls.array_dim_stack();
     flags = 0;
     size_t ndims = 0;
     if (ls.t.token != '[') {
@@ -1545,6 +1575,15 @@ static bool parse_type_ptr(
      */
 
     /*
+     * first we define a list containing 'levels'... each level denotes one
+     * matched pair of parens, except the implicit default level which is
+     * always added; new level is delimited by a sentinel value, and the
+     * elements past the sentinel can specify pointers and references
+     *
+     * this list is stored in the per-lua-state parser state struct, to avoid
+     * the hassle with static thread-local constructors/destructors, while
+     * still conserving resources (reused across parser runs)
+     *
      * now the real fun begins, because we're going to be statekeeping
      *
      * the C function pointer syntax is quite awful, as is the array syntax
@@ -1619,6 +1658,7 @@ static bool parse_type_ptr(
      * here - this is because this function can be recursive, and we can't have
      * inner calls overwriting stuff that belongs to the outer calls
      */
+    auto &pcvq = ls.type_level_queue();
     auto pidx = intptr_t(pcvq.size());
     bool nolev = true;
     /* normally we'd consume the '(', but remember, first level is implicit */
@@ -1721,7 +1761,7 @@ newlevel:
             if (!check(ls, TOK_NAME)) {
                 return false;
             }
-            *fpname = ls_buf;
+            *fpname = ls.get_buf();
             if (!ls.get()) {
                 return false;
             }
@@ -1779,7 +1819,7 @@ newlevel:
             pcvq[ridx].flags = flags;
         }
         if (!pcvq[ridx].is_func && (prevconv != ast::C_FUNC_DEFAULT)) {
-            ls_buf.set("calling convention on non-function declaration");
+            ls.get_buf().set("calling convention on non-function declaration");
             return ls.syntax_error();
         }
         prevconv = pcvq[ridx].cconv;
@@ -1826,7 +1866,8 @@ newlevel:
      * and finally bind level 3's '*' to it, which gets us the final type,
      * which is a pointer to a function returning a pointer to a function.
      */
-    plevel *olev = &pcvq[pidx];
+    parser_type_level *olev = &pcvq[pidx];
+    auto &dimstack = ls.array_dim_stack();
     for (intptr_t cidx = pidx + 1;; ++cidx) {
         /* for the implicit level, its pointers/ref are bound to current 'tp',
          * as there is definitely no outer arglist or anything, and we need
@@ -1846,7 +1887,7 @@ newlevel:
              * to them nor we can make references to references
              */
             if (tp.is_ref()) {
-                ls_buf.set("references must be trailing");
+                ls.get_buf().set("references must be trailing");
                 return ls.syntax_error();
             }
             if (pcvq[cidx].is_ref) {
@@ -1875,10 +1916,11 @@ newlevel:
                 (tp.type() == ast::C_BUILTIN_ARRAY) ||
                 ((tp.type() != ast::C_BUILTIN_VOID) && !tp.passable())
             ) {
-                ls_buf.clear();
-                ls_buf.append('\'');
-                tp.serialize(ls_buf);
-                ls_buf.append("' cannot be passed by value");
+                auto &b = ls.get_buf();
+                b.clear();
+                b.append('\'');
+                tp.serialize(b);
+                b.append("' cannot be passed by value");
                 return ls.syntax_error();
                 break;
             }
@@ -1887,7 +1929,9 @@ newlevel:
             ), 0, false};
         } else if (olev->arrd) {
             if (tp.vla() || tp.unbounded()) {
-                ls_buf.set("only first bound of an array may have unknown size");
+                ls.get_buf().set(
+                    "only first bound of an array may have unknown size"
+                );
                 return ls.syntax_error();
             }
             while (olev->arrd) {
@@ -1913,7 +1957,7 @@ newlevel:
     if (
         (ls.mode() == PARSE_MODE_DEFAULT) && (tp.type() == ast::C_BUILTIN_VOID)
     ) {
-        ls_buf.set("void type in forbidden context");
+        ls.get_buf().set("void type in forbidden context");
         return ls.syntax_error();
     }
     /* shrink it back to what it was, these resources can be reused later */
@@ -2007,10 +2051,10 @@ static bool parse_typebase_core(
 qualified:
     if (ls.t.token == TOK_NAME) {
         /* typedef, struct, enum, var, etc. */
-        auto *decl = ls.lookup(ls_buf.data());
+        auto *decl = ls.lookup(ls.get_buf().data());
         if (!decl) {
-            ls_buf.prepend("undeclared symbol '");
-            ls_buf.append('\'');
+            ls.get_buf().prepend("undeclared symbol '");
+            ls.get_buf().append('\'');
             return ls.syntax_error();
         }
         switch (decl->obj_type()) {
@@ -2040,8 +2084,8 @@ qualified:
                 return true;
             }
             default: {
-                ls_buf.prepend("symbol '");
-                ls_buf.append("' is not a type");
+                ls.get_buf().prepend("symbol '");
+                ls.get_buf().append("' is not a type");
                 return ls.syntax_error();
             }
         }
@@ -2174,7 +2218,7 @@ qualified:
             }
             break;
         default:
-            ls_buf.set("type name expected");
+            ls.get_buf().set("type name expected");
             return ls.syntax_error();
     }
 
@@ -2217,7 +2261,7 @@ static ast::c_record const *parse_record(lex_state &ls, bool *newst) {
         return nullptr;
     }
     if (ls.t.token == TOK_NAME) {
-        sname.append(ls_buf);
+        sname.append(ls.get_buf());
         if (!ls.get()) {
             return nullptr;
         }
@@ -2233,7 +2277,7 @@ static ast::c_record const *parse_record(lex_state &ls, bool *newst) {
 
     auto mode_error = [&ls, named]() -> bool {
         if (named && (ls.mode() == PARSE_MODE_NOTCDEF)) {
-            ls_buf.set("struct declaration not allowed in this context");
+            ls.get_buf().set("struct declaration not allowed in this context");
             return ls.syntax_error();
         }
         return true;
@@ -2351,7 +2395,7 @@ static ast::c_enum const *parse_enum(lex_state &ls) {
         return nullptr;
     }
     if (ls.t.token == TOK_NAME) {
-        ename.append(ls_buf);
+        ename.append(ls.get_buf());
         if (!ls.get()) {
             return nullptr;
         }
@@ -2367,7 +2411,7 @@ static ast::c_enum const *parse_enum(lex_state &ls) {
 
     auto mode_error = [&ls, named]() -> bool {
         if (named && (ls.mode() == PARSE_MODE_NOTCDEF)) {
-            ls_buf.set("enum declaration not allowed in this context");
+            ls.get_buf().set("enum declaration not allowed in this context");
             return ls.syntax_error();
         }
         return true;
@@ -2399,7 +2443,7 @@ static ast::c_enum const *parse_enum(lex_state &ls) {
         if (!ls.param_maybe_name() || !check(ls, TOK_NAME)) {
             return nullptr;
         }
-        util::strbuf fname{ls_buf};
+        util::strbuf fname{ls.get_buf()};
         if (!ls.get()) {
             return nullptr;
         }
@@ -2414,7 +2458,7 @@ static ast::c_enum const *parse_enum(lex_state &ls) {
             if (!exp.eval(ls.lua_state(), val, et, true)) {
                 size_t strl;
                 char const *errm = lua_tolstring(ls.lua_state(), -1, &strl);
-                ls_buf.set(errm, strl);
+                ls.get_buf().set(errm, strl);
                 lua_pop(ls.lua_state(), 1);
                 if (!ls.syntax_error()) {
                     return nullptr;
@@ -2429,7 +2473,7 @@ static ast::c_enum const *parse_enum(lex_state &ls) {
                 case ast::c_expr_type::LLONG: val.i = int(val.ll); break;
                 case ast::c_expr_type::ULLONG: val.i = int(val.ull); break;
                 default:
-                    ls_buf.set("unsupported type");
+                    ls.get_buf().set("unsupported type");
                     if (!ls.syntax_error()) {
                         return nullptr;
                     }
@@ -2505,7 +2549,9 @@ static bool parse_decl(lex_state &ls) {
         first = false;
         if (cconv != ast::C_FUNC_DEFAULT) {
             if (tp.type() != ast::C_BUILTIN_FUNC) {
-                ls_buf.set("calling convention on non-function declaration");
+                ls.get_buf().set(
+                    "calling convention on non-function declaration"
+                );
                 return ls.syntax_error();
             }
             auto *func = const_cast<ast::c_function *>(&*tp.function());
@@ -2538,11 +2584,11 @@ static bool parse_decl(lex_state &ls) {
             if (!check_next(ls, '(') || !check(ls, TOK_STRING)) {
                 return false;
             }
-            if (ls_buf.empty()) {
-                ls_buf.set("empty symbol name");
+            if (ls.get_buf().empty()) {
+                ls.get_buf().set("empty symbol name");
                 return ls.syntax_error();
             }
-            sym = ls_buf;
+            sym = ls.get_buf();
             if (!ls.get() || !check_match(ls, ')', '(', lnum)) {
                 return false;
             }
@@ -2592,15 +2638,15 @@ void parse(lua_State *L, char const *input, char const *iend, int paridx) {
     {
         lex_state ls{L, input, iend, PARSE_MODE_DEFAULT, paridx};
         if (!ls.get() || !parse_decls(ls)) {
-            if (ls_err.token > 0) {
+            if (ls.err_token() > 0) {
                 char buf[16];
                 lua_pushfstring(
-                    L, "input:%d: %s near '%s'", ls_err.line_number,
-                    ls_buf.data(), token_to_str(ls_err.token, buf)
+                    L, "input:%d: %s near '%s'", ls.err_line(),
+                    ls.get_buf().data(), token_to_str(ls.err_token(), buf)
                 );
             } else {
                 lua_pushfstring(
-                    L, "input:%d: %s", ls_err.line_number, ls_buf.data()
+                    L, "input:%d: %s", ls.err_line(), ls.get_buf().data()
                 );
             }
             goto lerr;
@@ -2622,14 +2668,14 @@ ast::c_type parse_type(
         lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF, paridx};
         ast::c_type tp{};
         if (!ls.get() || !parse_type(ls, tp)) {
-            if (ls_err.token > 0) {
+            if (ls.err_token() > 0) {
                 char buf[16];
                 lua_pushfstring(
-                    L, "%s near '%s'", ls_buf.data(),
-                    token_to_str(ls_err.token, buf)
+                    L, "%s near '%s'", ls.get_buf().data(),
+                    token_to_str(ls.err_token(), buf)
                 );
             } else {
-                lua_pushfstring(L, "%s", ls_buf.data());
+                lua_pushfstring(L, "%s", ls.get_buf().data());
             }
             goto lerr;
         }
@@ -2651,14 +2697,14 @@ ast::c_expr_type parse_number(
     {
         lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF};
         if (!ls.get() || !check(ls, TOK_INTEGER)) {
-            if (ls_err.token > 0) {
+            if (ls.err_token() > 0) {
                 char buf[16];
                 lua_pushfstring(
-                    L, "%s near '%s'", ls_buf.data(),
-                    token_to_str(ls_err.token, buf)
+                    L, "%s near '%s'", ls.get_buf().data(),
+                    token_to_str(ls.err_token(), buf)
                 );
             } else {
-                lua_pushfstring(L, "%s", ls_buf.data());
+                lua_pushfstring(L, "%s", ls.get_buf().data());
             }
             goto lerr;
         }
@@ -2670,6 +2716,24 @@ lerr:
     parse_err(L);
     /* unreachable */
     return ast::c_expr_type{};
+}
+
+void init(lua_State *L) {
+    /* init parser state for each lua state */
+    auto *p = new (L) parser_state{};
+    /* make sure its destructor is invoked later */
+    lua_newtable(L); /* parser_state metatable */
+    lua_pushcfunction(L, [](lua_State *LL) -> int {
+        auto *pp = lua::touserdata<parser_state>(LL, 1);
+        pp->~parser_state();
+        return 0;
+    });
+    lua_setfield(L, -2, "__gc");
+    lua_setmetatable(L, -2);
+    /* store */
+    lua_setfield(L, LUA_REGISTRYINDEX, lua::CFFI_PARSER_STATE);
+    /* initialize keywords */
+    init_kwmap(p->keyword_map);
 }
 
 } /* namespace parser */
