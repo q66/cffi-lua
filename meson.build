@@ -37,7 +37,7 @@ endif
 no_libc = get_option('no_libc').enabled()
 
 if get_option('no_libc').auto()
-    if cxx.get_id() == 'gcc' or cxx.get_id() == 'clang' or
+    if cxx.get_id() == 'gcc' or cxx.get_id() == 'clang' or \
        cxx.get_id() == 'msvc' or cxx.get_id() == 'clang-cl'
         no_libc = true
     endif
