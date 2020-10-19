@@ -806,7 +806,7 @@ static char const *token_to_str(int tok, char *buf) {
             buf[1] = '\0';
         } else {
             char *bufp = buf;
-            memcpy(bufp, "char(", 5);
+            util::mem_copy(bufp, "char(", 5);
             bufp += 5;
             bufp += util::write_i(bufp, 11, tok);
             *bufp++ = ')';
@@ -832,10 +832,10 @@ static bool error_expected(lex_state &ls, int tok) {
     char const *tk = token_to_str(tok, bufp);
     auto tlen = strlen(tk);
     if (tk != bufp) {
-        memcpy(bufp, tk, tlen);
+        util::mem_copy(bufp, tk, tlen);
     }
     bufp += tlen;
-    memcpy(bufp, "' expected", sizeof("' expected"));
+    util::mem_copy(bufp, "' expected", sizeof("' expected"));
     ls_buf.set(buf);
     return ls.syntax_error();
 }
@@ -983,7 +983,7 @@ static bool parse_cexpr_simple(lex_state &ls, ast::c_expr &ret) {
     switch (ls.t.token) {
         case TOK_INTEGER: {
             ret.type(ls.t.numtag);
-            memcpy(&ret.val, &ls.t.value, sizeof(ls.t.value));
+            util::mem_copy(&ret.val, &ls.t.value, sizeof(ls.t.value));
             return ls.get();
         }
         case TOK_NAME: {

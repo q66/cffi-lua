@@ -140,7 +140,7 @@ static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
         void *rp = from_lua(
             cd.L, fun->result(), &stor, -1, rsz, RULE_RET
         );
-        memcpy(ret, rp, rsz);
+        util::mem_copy(ret, rp, rsz);
         lua_pop(cd.L, 1);
     } else {
         lua_call(cd.L, int(fargs), 0);
@@ -360,7 +360,7 @@ int call_cif(cdata<fdata> &fud, lua_State *L, size_t largs) {
         if (tp.type() == ast::C_BUILTIN_RECORD) {
             /* special case for vararg passing of records: by ptr */
             auto &cd = tocdata<void *>(L, i + 2);
-            memcpy(&pvals[i], &cd.val, sizeof(void *));
+            util::mem_copy(&pvals[i], &cd.val, sizeof(void *));
             continue;
         }
         vals[i] = from_lua(L, util::move(tp), &pvals[i], i + 2, rsz, RULE_PASS);
@@ -408,7 +408,7 @@ static inline int push_int(
     }
     /* doesn't fit into the range, so make scalar cdata */
     auto &cd = newcdata(L, tp, sizeof(T));
-    memcpy(&cd.val, value, sizeof(T));
+    util::mem_copy(&cd.val, value, sizeof(T));
     return 1;
 }
 
@@ -423,7 +423,7 @@ static inline int push_flt(
         return 1;
     }
     auto &cd = newcdata(L, tp, sizeof(T));
-    memcpy(&cd.val, value, sizeof(T));
+    util::mem_copy(&cd.val, value, sizeof(T));
     return 1;
 }
 
@@ -535,7 +535,7 @@ int to_lua(
             }
             auto sz = tp.alloc_size();
             auto &cd = newcdata(L, tp, sz);
-            memcpy(&cd.val, value, sz);
+            util::mem_copy(&cd.val, value, sz);
             return 1;
         }
 
@@ -1144,7 +1144,7 @@ static void from_lua_table_record(
             size_t esz;
             arg_stor_t sv{};
             void *ep = from_lua(L, fld, &sv, -1, esz, RULE_CONV);
-            memcpy(&val[off], ep, esz);
+            util::mem_copy(&val[off], ep, esz);
         }
         filled = true;
         lua_pop(L, 1);
@@ -1194,7 +1194,7 @@ static void from_lua_table(
             arg_stor_t sv{};
             void *ep = from_lua(L, pb, &sv, -1, esz, RULE_CONV);
             while (nelems) {
-                memcpy(val, ep, esz);
+                util::mem_copy(val, ep, esz);
                 val += bsize;
                 --nelems;
             }
@@ -1214,7 +1214,7 @@ static void from_lua_table(
             arg_stor_t sv{};
             push_init(L, tidx, sidx++);
             void *ep = from_lua(L, pb, &sv, -1, esz, RULE_CONV);
-            memcpy(val, ep, esz);
+            util::mem_copy(val, ep, esz);
         }
         val += bsize;
         lua_pop(L, 1);
@@ -1393,12 +1393,12 @@ newdata:
             *reinterpret_cast<void **>(bval) = val;
             /* write initializers into the array part */
             for (size_t i = 0; i < narr; ++i) {
-                memcpy(&val[i * esz], cdp, esz);
+                util::mem_copy(&val[i * esz], cdp, esz);
             }
             msz = rsz - sizeof(arg_stor_t);
         } else {
             dptr = &cd.val;
-            memcpy(dptr, cdp, rsz);
+            util::mem_copy(dptr, cdp, rsz);
         }
         if (ninits && (
             (decl.type() == ast::C_BUILTIN_RECORD) ||

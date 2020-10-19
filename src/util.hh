@@ -18,6 +18,11 @@
 #include <climits>
 #include <cfloat>
 
+#ifdef _MSC_VER
+/* memcpy */
+#include <memory.h>
+#endif
+
 /* allocation */
 
 #ifndef _MSC_VER
@@ -331,6 +336,42 @@ inline constexpr T limit_max() {
     return detail::limits<T>::max;
 }
 
+/* core standard library stuff */
+
+#if defined(_MSC_VER)
+
+/* visual studio and compatible */
+
+#pragma intrinsic(memcpy)
+inline void *mem_copy(void *dest, void const *src, size_t n) {
+    return memcpy(dest, src, n);
+}
+
+#elif defined(__GNUC__)
+
+/* gcc and compatible */
+
+inline void *mem_copy(
+    void * __restrict__ dest, void const * __restrict__ src, size_t n
+) {
+    return __builtin_memcpy(dest, src, n);
+}
+
+#else
+
+/* fallbacks */
+
+inline void *mem_copy(void *dest, void const *src, size_t n) {
+    auto *dp = static_cast<unsigned char *>(dest);
+    auto *sp = static_cast<unsigned char const *>(src);
+    for (size_t i = 0; i < n; ++i) {
+        dp[i] = sp[i];
+    }
+    return dest;
+}
+
+#endif
+
 /* simple writers for base 10 to avoid printf family */
 
 size_t write_i(char *buf, size_t bufsize, long long v);
@@ -567,7 +608,7 @@ struct vector {
     }
 
     void setbuf(T const *data, size_t len) {
-        memcpy(p_buf, data, len);
+        mem_copy(p_buf, data, len);
         p_size = len;
     }
 
@@ -631,7 +672,7 @@ struct strbuf {
     void append(char const *str, size_t n) {
         auto sz = p_buf.size();
         p_buf.reserve(sz + n);
-        memcpy(&p_buf[sz - 1], str, n);
+        mem_copy(&p_buf[sz - 1], str, n);
         p_buf[n + sz - 1] = '\0';
         p_buf.setlen(sz + n);
     }
@@ -652,7 +693,7 @@ struct strbuf {
         auto sz = p_buf.size();
         p_buf.reserve(sz + n);
         memmove(&p_buf[n], &p_buf[0], sz);
-        memcpy(&p_buf[0], str, n);
+        mem_copy(&p_buf[0], str, n);
         p_buf.setlen(sz + n);
     }
 
@@ -676,7 +717,7 @@ struct strbuf {
         auto sz = p_buf.size();
         p_buf.reserve(sz + n);
         memmove(&p_buf[idx + n], &p_buf[idx], sz - idx);
-        memcpy(&p_buf[idx], str, n);
+        mem_copy(&p_buf[idx], str, n);
         p_buf.setlen(sz + n);
     }
 
@@ -690,7 +731,7 @@ struct strbuf {
 
     void set(char const *str, size_t n) {
         p_buf.reserve(n + 1);
-        memcpy(&p_buf[0], str, n);
+        mem_copy(&p_buf[0], str, n);
         p_buf[n] = '\0';
         p_buf.setlen(n + 1);
     }

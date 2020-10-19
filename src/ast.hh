@@ -398,7 +398,7 @@ struct c_expr {
         e.p_etype = int(c_expr_type::INVALID);
         e.p_flags = 0;
         /* copy largest union */
-        memcpy(&tern, &e.tern, sizeof(e.tern));
+        util::mem_copy(&tern, &e.tern, sizeof(e.tern));
     }
 
     c_expr &operator=(c_expr const &) = delete;
@@ -408,7 +408,7 @@ struct c_expr {
         p_flags = e.p_flags;
         e.p_etype = int(c_expr_type::INVALID);
         e.p_flags = 0;
-        memcpy(&tern, &e.tern, sizeof(e.tern));
+        util::mem_copy(&tern, &e.tern, sizeof(e.tern));
         return *this;
     }
 

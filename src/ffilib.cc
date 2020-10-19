@@ -153,13 +153,13 @@ struct cdata_meta {
                 written = util::write_u(
                     buf, sizeof(buf), val->as<unsigned long long>()
                 );
-                memcpy(&buf[written], "ULL", 4);
+                util::mem_copy(&buf[written], "ULL", 4);
                 written += 4;
             } else {
                 written = util::write_i(
                     buf, sizeof(buf), val->as<long long>()
                 );
-                memcpy(&buf[written], "LL", 3);
+                util::mem_copy(&buf[written], "LL", 3);
                 written += 3;
             }
             lua_pushlstring(L, buf, written);
@@ -1383,7 +1383,7 @@ struct ffi_module {
             src = check_voidptr(L, 2);
             len = ffi::check_arith<size_t>(L, 3);
         }
-        memcpy(dst, src, len);
+        util::mem_copy(dst, src, len);
         return 0;
     }
 
