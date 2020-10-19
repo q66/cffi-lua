@@ -40,3 +40,7 @@ ffi.cdef([[
 
 assert(ffi.C.FOO == 1337)
 assert(ffi.C.BAR == 1338)
+
+-- https://github.com/q66/cffi-lua/issues/6
+
+assert(tostring(ffi.typeof("$ *", ffi.typeof("int"))) == "ctype<int *>")
