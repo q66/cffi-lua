@@ -131,7 +131,7 @@ before_install:
           choco install --no-progress -y python3 || exit 1
           choco install --no-progress -y ninja || exit 1
 
-          export PATH="/c/Python38:/c/Python38/Scripts:$PATH"
+          export PATH="/c/Python39:/c/Python39/Scripts:$PATH"
           export PATH="/c/ProgramData/chocolatey/lib/ninja/tools:$PATH"
           export PATH="/c/ProgramData/chocolatey/lib/7zip.portable/tools:$PATH"
 
