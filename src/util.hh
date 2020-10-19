@@ -419,6 +419,36 @@ inline int str_cmp(char const *l, char const *r) {
     );
 }
 
+/* str_len */
+
+inline size_t str_len(char const *p) {
+    /* low bits of each char in a word (0000000100000001...) */
+    constexpr size_t Lbits = limit_max<size_t>() / limit_max<unsigned char>();
+    /* high bits of each char in a word */
+    constexpr size_t Hbits = Lbits << (limit_digits<unsigned char>() - 1);
+    /* save the base */
+    char const *bp = p;
+    /* align p to word */
+    for (; uintptr_t(p) % sizeof(size_t); ++p) {
+        if (!*p) {
+            return (p - bp);
+        }
+    }
+    /* count by words, pointer is aligned */
+    auto *wp = reinterpret_cast<size_t const *>(p);
+    /* check if any byte in each word is zero
+     *
+     * XXX1 - 0001 => XXX0; XXX0 & YYY0 => 0000; 0000 & 1000 => 0000
+     * XX10 - 0001 => XX01; XX01 & YY01 => 0001; 0001 & 1000 => 0000
+     * 0000 - 0001 => 1111; 1111 & 1111 => 1111; 1111 & 1000 => 1000
+     */
+    for (; !(((*wp - Lbits) & ~*wp) & Hbits); ++wp) {}
+    p = reinterpret_cast<char const *>(wp);
+    /* find terminating zero */
+    for (; *p; ++p) {}
+    return (p - bp);
+}
+
 /* simple writers for base 10 to avoid printf family */
 
 size_t write_i(char *buf, size_t bufsize, long long v);
@@ -687,12 +717,12 @@ struct strbuf {
         set(str, n);
     }
 
-    strbuf(char const *str): strbuf(str, strlen(str)) {}
+    strbuf(char const *str): strbuf(str, str_len(str)) {}
 
     ~strbuf() {}
 
     strbuf &operator=(char const *str) {
-        set(str, strlen(str));
+        set(str, str_len(str));
         return *this;
     }
 
@@ -725,7 +755,7 @@ struct strbuf {
     }
 
     void append(char const *str) {
-        append(str, strlen(str));
+        append(str, str_len(str));
     }
 
     void append(char c) {
@@ -745,7 +775,7 @@ struct strbuf {
     }
 
     void prepend(char const *str) {
-        prepend(str, strlen(str));
+        prepend(str, str_len(str));
     }
 
     void prepend(char c) {
@@ -769,7 +799,7 @@ struct strbuf {
     }
 
     void insert(char const *str, size_t idx) {
-        insert(str, strlen(str), idx);
+        insert(str, str_len(str), idx);
     }
 
     void insert(strbuf const &b, size_t idx) {
@@ -784,7 +814,7 @@ struct strbuf {
     }
 
     void set(char const *str) {
-        set(str, strlen(str));
+        set(str, str_len(str));
     }
 
     void set(strbuf const &b) {
@@ -975,7 +1005,7 @@ private:
 template<typename T, T offset_basis, T prime>
 struct fnv1a {
     T operator()(char const *data) const {
-        size_t slen = strlen(data);
+        size_t slen = str_len(data);
         T hash = offset_basis;
         for (size_t i = 0; i < slen; ++i) {
             hash ^= T(data[i]);

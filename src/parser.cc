@@ -858,7 +858,7 @@ static bool error_expected(lex_state &ls, int tok) {
     char *bufp = buf;
     *bufp++ = '\'';
     char const *tk = token_to_str(tok, bufp);
-    auto tlen = strlen(tk);
+    auto tlen = util::str_len(tk);
     if (tk != bufp) {
         util::mem_copy(bufp, tk, tlen);
     }
@@ -2587,7 +2587,7 @@ static void parse_err(lua_State *L) {
 
 void parse(lua_State *L, char const *input, char const *iend, int paridx) {
     if (!iend) {
-        iend = input + strlen(input);
+        iend = input + util::str_len(input);
     }
     {
         lex_state ls{L, input, iend, PARSE_MODE_DEFAULT, paridx};
@@ -2616,7 +2616,7 @@ ast::c_type parse_type(
     lua_State *L, char const *input, char const *iend, int paridx
 ) {
     if (!iend) {
-        iend = input + strlen(input);
+        iend = input + util::str_len(input);
     }
     {
         lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF, paridx};
@@ -2646,7 +2646,7 @@ ast::c_expr_type parse_number(
     lua_State *L, ast::c_value &v, char const *input, char const *iend
 ) {
     if (!iend) {
-        iend = input + strlen(input);
+        iend = input + util::str_len(input);
     }
     {
         lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF};
