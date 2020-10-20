@@ -700,6 +700,15 @@ static void from_lua_cdata_ptr(
         /* converting to pointer */
         case ast::C_BUILTIN_PTR:
             break;
+        /* converting to array is okay when passing,
+         * e.g. void foo(int[2]) being given int *
+         */
+        case ast::C_BUILTIN_ARRAY:
+            if (rule == RULE_PASS) {
+                break;
+            }
+            fail_convert_cd(L, cd, tp);
+            break;
         /* converting to anything else */
         default:
             if ((rule == RULE_CAST) && tp.integer()) {

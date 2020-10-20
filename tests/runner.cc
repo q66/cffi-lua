@@ -46,6 +46,11 @@ int test_snprintf(char *buf, size_t n, char const *fmt, ...) {
 }
 
 extern "C" DLL_EXPORT
+int test_add_ptr(int p[2]) {
+    return p[0] + p[1];
+}
+
+extern "C" DLL_EXPORT
 int TEST_STDCALL test_stdcall(int a, int b) {
     return a + b;
 }
