@@ -31,7 +31,6 @@ notably:
   - You can reassign the values of fields of a `metatype`
     - Which fields are used is decided at `cffi.metatype` call time, though
   - `cffi.gc` can be used with any `cdata`
-  - `cffi.copy` and `cffi.fill` are guaranteed to use `memcpy` and `memset`
   - Callbacks are currently unrestricted (no limit, no handle reuse)
     - This may change in the future, so do not rely on it
 

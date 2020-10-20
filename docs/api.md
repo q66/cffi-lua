@@ -272,8 +272,6 @@ is converted to `void const *`.
 
 The `src` input can also be a Lua string.
 
-**Difference from LuaJIT:** Guaranteed to use `memcpy` internally.
-
 ### cffi.copy(dst, str)
 
 Given a Lua string, this copies its contents into `dst`. Equivalent to calling
@@ -283,8 +281,6 @@ Given a Lua string, this copies its contents into `dst`. Equivalent to calling
 
 Fills the data pointed to by `dst` with `len` constant bytes, given by `c`. If
 `c` is not provided, the data is filled with zeroes.
-
-**Difference from LuaJIT:** Guaranteed to use `memset` internally.
 
 ### val = cffi.toretval(cdata)
 
