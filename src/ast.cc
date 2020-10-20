@@ -621,6 +621,8 @@ bool c_expr::eval(
     return c_expr_eval(L, v, *this, et, promote);
 }
 
+c_object::~c_object() {}
+
 /* params ignore continuation func */
 void c_param::do_serialize(util::strbuf &o, c_object_cont_f, void *) const {
     p_type.do_serialize(o, [](util::strbuf &out, void *data) {

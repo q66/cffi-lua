@@ -487,13 +487,11 @@ using c_object_cont_f = void (*)(util::strbuf &, void *);
 
 struct c_object {
     c_object() {}
-    virtual ~c_object() {}
+    virtual ~c_object();
 
-    virtual char const *name() const = 0;
-    virtual c_object_type obj_type() const = 0;
-    virtual void do_serialize(
-        util::strbuf &o, c_object_cont_f cont, void *data
-    ) const = 0;
+    virtual char const *name() const { return nullptr; }
+    virtual c_object_type obj_type() const { return c_object_type::INVALID; }
+    virtual void do_serialize(util::strbuf &, c_object_cont_f, void *) const {}
 
     void serialize(util::strbuf &sb) const {
         do_serialize(sb, nullptr, nullptr);
