@@ -971,7 +971,10 @@ void *from_lua(
         case LUA_TSTRING:
             if ((rule == RULE_CAST) || (
                 (tp.type() == ast::C_BUILTIN_PTR) &&
-                (tp.ptr_base().type() == ast::C_BUILTIN_CHAR) &&
+                (
+                    (tp.ptr_base().type() == ast::C_BUILTIN_CHAR) ||
+                    (tp.ptr_base().type() == ast::C_BUILTIN_VOID)
+                ) &&
                 (tp.ptr_base().cv() & ast::C_CV_CONST)
             )) {
                 dsz = sizeof(char const *);
