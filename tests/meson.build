@@ -17,8 +17,8 @@ runner = executable('runner', 'runner.cc',
 
 test_cases = [
     # test_name                      test_file            expected_fail  minver
+    ['simple example',               'simple',                   false,   501],
     ['abi example',                  'abi',                      false,   501],
-    ['simple example',               'simple_puts',              false,   501],
     ['variadic calls',               'variadic',                 false,   501],
     ['structs, arrays, unions',      'struct_array',             false,   501],
     ['memory-related utilities',     'copy_fill',                false,   501],

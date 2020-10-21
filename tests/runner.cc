@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
 #include <lua.hh>
 
@@ -32,8 +33,8 @@ extern "C" int luaopen_cffi(lua_State *L);
  */
 
 extern "C" DLL_EXPORT
-int test_puts(char const *str) {
-    return puts(str);
+size_t test_strlen(char const *str) {
+    return strlen(str);
 }
 
 extern "C" DLL_EXPORT
