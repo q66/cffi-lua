@@ -1166,7 +1166,7 @@ struct decl_store {
     c_object const *lookup(char const *name) const;
     c_object *lookup(char const *name);
 
-    size_t request_name(char *buf, size_t bufsize) const;
+    size_t request_name(char *buf, size_t bufsize);
 
     static decl_store &get_main(lua_State *L) {
         lua_getfield(L, LUA_REGISTRYINDEX, lua::CFFI_DECL_STOR);
@@ -1186,6 +1186,7 @@ private:
     decl_store *p_base = nullptr;
     util::vector<obj_ptr> p_dlist{};
     util::str_map<c_object *> p_dmap{};
+    size_t name_counter = 0;
 };
 
 c_type from_lua_type(lua_State *L, int index);

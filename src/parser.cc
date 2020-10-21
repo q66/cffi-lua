@@ -295,7 +295,7 @@ struct lex_state {
         return p_dstore.lookup(name);
     }
 
-    size_t request_name(char *buf, size_t bufsize) const {
+    size_t request_name(char *buf, size_t bufsize) {
         return p_dstore.request_name(buf, bufsize);
     }
 

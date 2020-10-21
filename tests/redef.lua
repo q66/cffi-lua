@@ -34,3 +34,22 @@ ffi.cdef [[
 ]]
 
 assert(tostring(ffi.typeof("foo")) == "ctype<struct foo>")
+
+-- https://github.com/q66/cffi-lua/issues/11
+-- make sure non-conflicting names are picked for structs even
+-- when nested (as outer struct is still being parsed and thus
+-- is not present in the declaration store yet)
+
+ffi.cdef [[
+    typedef struct {
+        struct {
+            uint32_t a;
+        } inner1;
+    } foo_t;
+
+    typedef struct {
+        struct {
+            uint32_t b;
+        } inner2;
+    } bar_t;
+]]

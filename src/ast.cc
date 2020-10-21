@@ -1238,12 +1238,14 @@ void decl_store::commit() {
     p_dmap.for_each([this](char const *key, c_object *value) {
         p_base->p_dmap.insert(key, value);
     });
+    p_base->name_counter += name_counter;
     drop();
 }
 
 void decl_store::drop() {
     p_dmap.clear();
     p_dlist.clear();
+    name_counter = 0;
 }
 
 c_object const *decl_store::lookup(char const *name) const {
@@ -1268,12 +1270,12 @@ c_object *decl_store::lookup(char const *name) {
     return nullptr;
 }
 
-size_t decl_store::request_name(char *buf, size_t bufsize) const {
+size_t decl_store::request_name(char *buf, size_t bufsize) {
     /* could do something better, this will do to avoid clashes for now... */
-    size_t n = 0;
+    size_t n = name_counter++;
     decl_store const *pb = this;
     do {
-        n += pb->p_dlist.size();
+        n += pb->name_counter;
         pb = pb->p_base;
     } while (pb);
     return util::write_u(buf, bufsize, n);
