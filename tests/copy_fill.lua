@@ -15,3 +15,8 @@ assert(ffi.string(buf) == "AAAAAAAA")
 ffi.fill(buf, 32)
 ffi.copy(buf, "hello world", 5)
 assert(ffi.string(buf) == "hello")
+
+-- https://github.com/q66/cffi-lua/issues/10
+-- make sure passing through lua strings works
+assert(ffi.string("hello world") == "hello world")
+assert(ffi.string("hello world", 4) == "hell")

@@ -21,7 +21,7 @@ test_cases = [
     ['simple example',               'simple_puts',              false,   501],
     ['variadic calls',               'variadic',                 false,   501],
     ['structs, arrays, unions',      'struct_array',             false,   501],
-    ['ffi.copy and fill',            'copy_fill',                false,   501],
+    ['memory-related utilities',     'copy_fill',                false,   501],
     ['callbacks',                    'callbacks',                false,   501],
     ['table initializers',           'table_init',               false,   501],
     ['parameterized types',          'parameterized',            false,   501],

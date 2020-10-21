@@ -1309,6 +1309,20 @@ struct ffi_module {
 
     static int string_f(lua_State *L) {
         if (!ffi::iscval(L, 1)) {
+            if (lua_type(L, 1) == LUA_TSTRING) {
+                /* allow passing through the string, but do not use
+                 * lua_isstring as that allows numbers as well
+                 */
+                if (lua_gettop(L) <= 1) {
+                    lua_pushvalue(L, 1);
+                } else {
+                    lua_pushlstring(
+                        L, lua_tostring(L, 1),
+                        ffi::check_arith<size_t>(L, 2)
+                    );
+                }
+                return 1;
+            }
             lua_pushfstring(
                 L, "cannot convert '%s' to 'char const *'",
                 luaL_typename(L, 1)
