@@ -1273,11 +1273,9 @@ c_object *decl_store::lookup(char const *name) {
 size_t decl_store::request_name(char *buf, size_t bufsize) {
     /* could do something better, this will do to avoid clashes for now... */
     size_t n = name_counter++;
-    decl_store const *pb = this;
-    do {
+    for (auto *pb = p_base; pb; pb = pb->p_base) {
         n += pb->name_counter;
-        pb = pb->p_base;
-    } while (pb);
+    }
     return util::write_u(buf, bufsize, n);
 }
 

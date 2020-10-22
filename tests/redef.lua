@@ -53,3 +53,15 @@ ffi.cdef [[
         } inner2;
     } bar_t;
 ]]
+
+-- https://github.com/q66/cffi-lua/issues/12
+-- make sure requested names are not repeated across commits
+
+ffi.cdef [[
+    enum {FOO = 1};
+    enum {BAR = 2};
+]]
+
+ffi.cdef [[
+    enum {QUX = 3};
+]]
