@@ -1054,10 +1054,16 @@ void *from_lua(
             break;
         case LUA_TTABLE:
             /* we can't handle table initializers here because the memory
-             * for the new cdata doesn't exist yet by this point...
+             * for the new cdata doesn't exist yet by this point, and it's
+             * this function that tells the caller how much memory we'll
+             * actually need, and return a pointer to copy from...
              *
-             * but that is only supported for ffi.new, and everything else
-             * should error anyway, so do so here
+             * there are only two special cases where initialization from
+             * table is supported, and that is ffi.new, and assignment to
+             * struct/array members of structs/arrays, and both of those
+             * cases are handled much earlier and this is not even called
+             *
+             * so here, we just error, as it definitely means a bad case
              */
             fail_convert_tp(L, "table", tp);
             break;
@@ -1083,23 +1089,6 @@ static inline void push_init(lua_State *L, int tidx, int iidx) {
     } else {
         lua_rawgeti(L, tidx, iidx);
     }
-}
-
-static inline int get_init_sidx(lua_State *L, int tidx, int &ninit) {
-    auto rl = lua_rawlen(L, tidx);
-    lua_rawgeti(L, tidx, 0);
-    int sidx = 1;
-    if (!lua_isnil(L, -1)) {
-        ++rl;
-        sidx = 0;
-    }
-    lua_pop(L, 1);
-    if (rl > 0) {
-        ninit = int(rl);
-        return sidx;
-    }
-    ninit = -1;
-    return -1;
 }
 
 static void from_lua_table(
@@ -1142,10 +1131,7 @@ static void from_lua_table_record(
             /* initialize the last part as in array */
             size_t asz = rsz - ssz;
             if (lua_istable(L, -1)) {
-                int ntidx = lua_gettop(L);
-                int nninit;
-                int nsidx = get_init_sidx(L, ntidx, nninit);
-                from_lua_table(L, fld, &val[ssz], asz, ntidx, nsidx, nninit);
+                from_lua_table(L, fld, &val[ssz], asz, lua_gettop(L));
                 lua_pop(L, 1);
             } else if (!ninit) {
                 from_lua_table(L, fld, &val[ssz], asz, 0, lua_gettop(L), 1);
@@ -1161,12 +1147,7 @@ static void from_lua_table_record(
         bool elem_struct = (fld.type() == ast::C_BUILTIN_RECORD);
         bool elem_arr = (fld.type() == ast::C_BUILTIN_ARRAY);
         if ((elem_arr || elem_struct) && lua_istable(L, -1)) {
-            int ntidx = lua_gettop(L);
-            int nninit;
-            int nsidx = get_init_sidx(L, ntidx, nninit);
-            from_lua_table(
-                L, fld, &val[off], fld.alloc_size(), ntidx, nsidx, nninit
-            );
+            from_lua_table(L, fld, &val[off], fld.alloc_size(), lua_gettop(L));
         } else {
             size_t esz;
             arg_stor_t sv{};
@@ -1232,10 +1213,7 @@ static void from_lua_table(
 
     for (int rinit = ninit; rinit; --rinit) {
         if ((base_array || base_struct) && lua_istable(L, -1)) {
-            int ntidx = lua_gettop(L);
-            int nninit;
-            int nsidx = get_init_sidx(L, ntidx, nninit);
-            from_lua_table(L, pb, val, bsize, ntidx, nsidx, nninit);
+            from_lua_table(L, pb, val, bsize, lua_gettop(L));
         } else {
             size_t esz;
             arg_stor_t sv{};
@@ -1250,6 +1228,27 @@ static void from_lua_table(
         /* fill possible remaining space with zeroes */
         util::mem_set(val, 0, bsize * (nelems - ninit));
     }
+}
+
+void from_lua_table(
+    lua_State *L, ast::c_type const &decl, void *stor, size_t rsz, int tidx
+) {
+    int ninit;
+    auto rl = lua_rawlen(L, tidx);
+    lua_rawgeti(L, tidx, 0);
+    int sidx = 1;
+    if (!lua_isnil(L, -1)) {
+        ++rl;
+        sidx = 0;
+    }
+    lua_pop(L, 1);
+    if (rl > 0) {
+        ninit = int(rl);
+    } else {
+        ninit = -1;
+        sidx = -1;
+    }
+    from_lua_table(L, decl, stor, rsz, tidx, sidx, ninit);
 }
 
 void get_global(lua_State *L, lib::c_lib const *dl, const char *sname) {
@@ -1443,9 +1442,7 @@ newdata:
             if ((ninits > 1) || !lua_istable(L, iidx)) {
                 from_lua_table(L, decl, dptr, msz, 0, iidx, ninits);
             } else {
-                int nninit;
-                int nsidx = get_init_sidx(L, iidx, nninit);
-                from_lua_table(L, decl, dptr, msz, iidx, nsidx, nninit);
+                from_lua_table(L, decl, dptr, msz, iidx);
             }
         }
         /* set a gc finalizer if provided in metatype */

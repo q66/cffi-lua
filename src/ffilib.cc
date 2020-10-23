@@ -364,13 +364,21 @@ struct cdata_meta {
 
     static int newindex(lua_State *L) {
         if (index_common<true>(L, [L](auto &decl, void *val) {
-            size_t rsz;
-            ffi::arg_stor_t sv{};
             if (decl.cv() & ast::C_CV_CONST) {
                 luaL_error(L, "attempt to write to constant location");
             }
-            auto *vp = ffi::from_lua(L, decl, &sv, 3, rsz, ffi::RULE_CONV);
-            util::mem_copy(val, vp, rsz);
+            if ((
+                (decl.type() == ast::C_BUILTIN_RECORD) ||
+                (decl.type() == ast::C_BUILTIN_ARRAY)
+            ) && lua_istable(L, 3)) {
+                /* special case: struct/array member table initialization */
+                ffi::from_lua_table(L, decl, val, decl.alloc_size(), 3);
+            } else {
+                ffi::arg_stor_t sv{};
+                size_t rsz;
+                auto *vp = ffi::from_lua(L, decl, &sv, 3, rsz, ffi::RULE_CONV);
+                util::mem_copy(val, vp, rsz);
+            }
         })) {
             return 0;
         };

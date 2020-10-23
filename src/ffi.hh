@@ -386,6 +386,14 @@ void *from_lua(
     size_t &dsz, int rule
 );
 
+/* this one is used for table initialization when assigning array/struct
+ * members, normally this would be internal only but there is the special
+ * case which extends its usage outside ffi.new
+ */
+void from_lua_table(
+    lua_State *L, ast::c_type const &decl, void *stor, size_t rsz, int tidx
+);
+
 void get_global(lua_State *L, lib::c_lib const *dl, const char *sname);
 void set_global(lua_State *L, lib::c_lib const *dl, char const *sname, int idx);
 

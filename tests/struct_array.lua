@@ -125,10 +125,13 @@ x[0] = st(10, 15)
 local y = ffi.cast("struct baz const *", x)
 x[2] = y[0]
 
+-- table initialization of member
+x[1] = { 35, 45 }
+
 assert(x[0].x == 10)
 assert(x[0].y == 15)
-assert(x[1].x == 0)
-assert(x[1].y == 0)
+assert(x[1].x == 35)
+assert(x[1].y == 45)
 assert(x[2].x == 10)
 assert(x[2].y == 15)
 assert(x[3].x == 0)
@@ -146,10 +149,11 @@ assert(err:match(".+: attempt to write to constant location"))
 local x = ffi.new("struct sbaz")
 x.x = st(20, 25)
 x.z = x.x
+x.y = { 35, 45 }
 
 assert(x.x.x == 20)
 assert(x.x.y == 25)
-assert(x.y.x == 0)
-assert(x.y.y == 0)
+assert(x.y.x == 35)
+assert(x.y.y == 45)
 assert(x.z.x == 20)
 assert(x.z.y == 25)
