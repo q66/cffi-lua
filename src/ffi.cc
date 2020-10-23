@@ -4,6 +4,11 @@
 
 namespace ffi {
 
+static void *from_lua(
+    lua_State *L, ast::c_type const &tp, void *stor, int index,
+    size_t &dsz, int rule
+);
+
 static inline void fail_convert_cd(
     lua_State *L, ast::c_type const &from, ast::c_type const &to
 ) {
@@ -226,7 +231,6 @@ static void make_cdata_func(
      *     } val;
      * }
      */
-    /* FIXME: just pass the original ref */
     ast::c_type funct{func, 0, funp == nullptr};
     auto &fud = newcdata<fdata>(
         L, fptr ? ast::c_type{
@@ -946,7 +950,16 @@ static void *from_lua_cdata(
     return nullptr;
 }
 
-void *from_lua(
+/* this returns a pointer to a C value counterpart of the Lua value
+ * on the stack (as given by `index`) while checking types (`rule`)
+ *
+ * necessary conversions are done according to `tp`; `stor` is used to
+ * write scalar values (therefore its alignment and size must be enough
+ * to fit the converted value - the arg_stor_t type can store any scalar
+ * so you can use that) while non-scalar values may have their address
+ * returned directly
+ */
+static void *from_lua(
     lua_State *L, ast::c_type const &tp, void *stor, int index,
     size_t &dsz, int rule
 ) {
@@ -1283,7 +1296,7 @@ static void from_lua_table(
  * if false is returned, we're not initializing a complex aggregate,
  * so appropriate steps can be taken according to where this is used
  */
-bool from_lua_aggreg(
+static bool from_lua_aggreg(
     lua_State *L, ast::c_type const &decl, void *stor, size_t msz,
     size_t ninit, int idx
 ) {
@@ -1366,6 +1379,20 @@ bool from_lua_aggreg(
     return true;
 }
 
+void from_lua(lua_State *L, ast::c_type const &decl, void *stor, int idx) {
+    if (decl.cv() & ast::C_CV_CONST) {
+        luaL_error(L, "attempt to write to constant location");
+    }
+    /* attempt aggregate initialization */
+    if (!from_lua_aggreg(L, decl, stor, decl.alloc_size(), 1, idx)) {
+        /* fall back to regular initialization */
+        arg_stor_t sv{};
+        size_t rsz;
+        auto *vp = from_lua(L, decl, &sv, 3, rsz, RULE_CONV);
+        util::mem_copy(stor, vp, rsz);
+    }
+}
+
 void get_global(lua_State *L, lib::c_lib const *dl, const char *sname) {
     auto &ds = ast::decl_store::get_main(L);
     auto const *decl = ds.lookup(sname);
@@ -1416,7 +1443,7 @@ void set_global(lua_State *L, lib::c_lib const *dl, char const *sname, int idx) 
     if (cv.type().type() == ast::C_BUILTIN_FUNC) {
         luaL_error(L, "symbol '%s' is not mutable", decl->name());
     }
-    from_lua_set(L, cv.type(), lib::get_sym(dl, L, cv.sym()), idx);
+    from_lua(L, cv.type(), lib::get_sym(dl, L, cv.sym()), idx);
 }
 
 void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {

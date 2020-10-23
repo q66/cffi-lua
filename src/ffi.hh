@@ -372,41 +372,12 @@ int to_lua(
     bool lossy = false
 );
 
-/* this returns a pointer to a C value counterpart of the Lua value
- * on the stack (as given by `index`) while checking types (`rule`)
- *
- * necessary conversions are done according to `tp`; `stor` is used to
- * write scalar values (therefore its alignment and size must be enough
- * to fit the converted value - the arg_stor_t type can store any scalar
- * so you can use that) while non-scalar values may have their address
- * returned directly
+/* a unified version of from_lua that combines together the complex aggregate
+ * initialization logic and simple conversions from scalar types, resulting
+ * in an all in one function that can take care of storing the C value of
+ * a Lua value inside a piece of memory
  */
-void *from_lua(
-    lua_State *L, ast::c_type const &tp, void *stor, int index,
-    size_t &dsz, int rule
-);
-
-/* used for initialization of aggregates, see description in ffi.cc */
-bool from_lua_aggreg(
-    lua_State *L, ast::c_type const &decl, void *stor, size_t msz,
-    size_t ninit, int idx
-);
-
-inline void from_lua_set(
-    lua_State *L, ast::c_type const &decl, void *stor, int idx
-) {
-    if (decl.cv() & ast::C_CV_CONST) {
-        luaL_error(L, "attempt to write to constant location");
-    }
-    /* attempt aggregate initialization */
-    if (!from_lua_aggreg(L, decl, stor, decl.alloc_size(), 1, idx)) {
-        /* fall back to regular initialization */
-        arg_stor_t sv{};
-        size_t rsz;
-        auto *vp = from_lua(L, decl, &sv, 3, rsz, RULE_CONV);
-        util::mem_copy(stor, vp, rsz);
-    }
-}
+void from_lua(lua_State *L, ast::c_type const &decl, void *stor, int idx);
 
 void get_global(lua_State *L, lib::c_lib const *dl, const char *sname);
 void set_global(lua_State *L, lib::c_lib const *dl, char const *sname, int idx);
