@@ -237,15 +237,6 @@
 #pragma warning(disable: 4996)
 #endif
 
-/* Make sure stdio symbols are exported correctly under MSVC */
-
-#ifdef _MSC_VER
-#  ifdef _CRT_STDIO_INLINE
-#  undef _CRT_STDIO_INLINE
-#  endif
-#  define _CRT_STDIO_INLINE __declspec(dllexport) __inline
-#endif
-
 /* MSVC and clang */
 
 #define _CRT_SECURE_NO_WARNINGS 1
