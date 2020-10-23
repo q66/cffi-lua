@@ -32,46 +32,6 @@
 #  define FFI_LITTLE_ENDIAN 1
 #endif
 
-/* 64-bit platform */
-
-#if defined(SIZEOF_POINTER)
-#  if SIZEOF_POINTER == 8
-#    define FFI_WORDSIZE 64
-#  elif SIZEOF_POINTER == 4
-#    define FFI_WORDSIZE 32
-#  elif SIZEOF_POINTER == 2
-#    define FFI_WORDSIZE 16
-#  elif SIZEOF_POINTER == 1
-#    define FFI_WORDSIZE 8
-#  endif
-#elif defined(__SIZEOF_POINTER__)
-#  if __SIZEOF_POINTER__ == 8
-#    define FFI_WORDSIZE 64
-#  elif __SIZEOF_POINTER__ == 4
-#    define FFI_WORDSIZE 32
-#  elif __SIZEOF_POINTER__ == 2
-#    define FFI_WORDSIZE 16
-#  elif __SIZEOF_POINTER__ == 1
-#    define FFI_WORDSIZE 8
-#  endif
-#elif defined(_LP64) || defined(__LP64__)
-#  define FFI_WORDSIZE 64
-#else
-#include <cstdint>
-static_assert(
-    sizeof(void *) == sizeof(uintptr_t), "could not determine pointer size"
-);
-#  if UINTPTR_MAX > 0xFFFFFFFF
-#    define FFI_WORDSIZE 64
-#  elif UINTPTR_MAX > 0xFFFF
-#    define FFI_WORDSIZE 32
-#  elif UINTPTR_MAX > 0xFF
-#    define FFI_WORDSIZE 16
-#  else
-#    define FFI_WORDSIZE 8
-#  endif
-#endif
-
 /* OS; defined to be luajit compatible
  *
  * If undetected, it will still work, but the OS will be "Other"

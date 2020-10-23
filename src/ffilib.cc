@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <cstdint>
 #include <cerrno>
 
 #include "platform.hh"
@@ -1483,14 +1484,12 @@ struct ffi_module {
     static void setup_abi(lua_State *L) {
         lua_newtable(L);
         lua_pushboolean(L, true);
-#if FFI_WORDSIZE == 64
+#if UINTPTR_MAX > 0xFFFFFFFF
         lua_setfield(L, -2, "64bit");
-#elif FFI_WORDSIZE == 32
+#elif UINTPTR_MAX > 0xFFFF
         lua_setfield(L, -2, "32bit");
-#elif FFI_WORDSIZE == 16
-        lua_setfield(L, -2, "16bit");
 #else
-        lua_setfield(L, -2, "8bit");
+        lua_pop(L, 1);
 #endif
         lua_pushboolean(L, true);
 #ifdef FFI_BIG_ENDIAN

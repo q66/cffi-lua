@@ -992,11 +992,11 @@ struct fnv1a {
     }
 };
 
-#if FFI_WORDSIZE == 64
+#if UINTPTR_MAX > 0xFFFFFFFF
 struct str_hash: fnv1a<size_t,
     size_t(14695981039346656037ULL), size_t(1099511628211ULL)
 > {};
-#elif FFI_WORDSIZE == 32
+#elif UINTPTR_MAX > 0xFFFF
 struct str_hash: fnv1a<size_t, size_t(2166136261U), size_t(16777619U)> {};
 #else
 #  error Not implemented
