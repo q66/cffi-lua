@@ -979,27 +979,64 @@ private:
     chunk *p_chunks = nullptr;
 };
 
-template<typename T, T offset_basis, T prime>
+#if SIZE_MAX > 0xFFFF
+/* fnv1a for 32/64bit values */
+template<size_t offset_basis, size_t prime>
 struct fnv1a {
-    T operator()(char const *data) const {
+    size_t operator()(char const *data) const {
         size_t slen = str_len(data);
-        T hash = offset_basis;
+        size_t hash = offset_basis;
         for (size_t i = 0; i < slen; ++i) {
-            hash ^= T(data[i]);
+            hash ^= size_t(data[i]);
             hash *= prime;
         }
         return hash;
     }
 };
-
-#if UINTPTR_MAX > 0xFFFFFFFF
-struct str_hash: fnv1a<size_t,
-    size_t(14695981039346656037ULL), size_t(1099511628211ULL)
-> {};
-#elif UINTPTR_MAX > 0xFFFF
-struct str_hash: fnv1a<size_t, size_t(2166136261U), size_t(16777619U)> {};
 #else
-#  error Not implemented
+/* pearson hash for smaller values */
+static unsigned char const ph_lt[256] = {
+    167,  49, 207, 184,  90, 134,  74, 211, 215,  76, 109, 126, 222,  97, 231,
+      1, 132, 204, 149, 249, 166,  33, 237, 100, 141, 186, 191, 112, 151, 203,
+     69,  87,  65,  80, 157,  95,  58,  59,  82, 115, 171, 192,  24, 244, 225,
+    223, 102, 189, 164, 119, 216, 174,  68, 133,   7,  10, 159,  31, 255, 150,
+     41, 169, 161,  43, 245, 235,  16,  94,  81, 162, 103,  53, 110, 135, 228,
+     86, 114, 144, 156, 241,   2, 253, 195, 128,  22, 105, 199, 250,  64,  13,
+    178,  63,  99,  39, 190, 130, 163,  30, 122,  18, 168,  83, 220,  71, 129,
+     84,   3, 208, 155,   9, 242, 170,  51, 143,  56, 158, 176, 172, 148,  55,
+    227, 254, 247, 224,  50,  93,  54, 210, 206, 234, 218, 229,  61,  26, 107,
+     32, 196, 217, 248, 138, 154, 212,  96,  40, 209,  38, 101,  73,  88, 125,
+    175, 187,  34,  62, 118,  66, 113,  46, 238,  42, 202,   0, 179,  67,  47,
+     20, 152, 165,  17,  89,  48, 123, 219,  70,  91, 120, 177, 188, 145, 104,
+     92,  98,  44, 108,   4,  37, 139,  11, 214,  52, 221,  29,  75,  19,  35,
+    124, 185,  28, 201, 230, 198, 131, 116, 153,  77,  72,  45, 226, 146,  12,
+    137,  21, 147,  25,  27, 180, 240, 200, 243, 194,  15, 183, 181, 233, 213,
+    232, 136,  14, 252, 121,  85, 111, 106, 127, 197, 251, 205,   8,  60, 246,
+    140, 160, 239,  36,   6,   5, 142,  79,  57, 173, 182, 193, 117, 236,  23,
+     78
+};
+struct pearson {
+    size_t operator()(char const *data) const {
+        size_t slen = str_len(data);
+        size_t hash = 0;
+        for (size_t j = 0; j < sizeof(size_t); ++j) {
+            auto h = ph_lt[(data[0] + j) % 256];
+            for (size_t i = 1; i < slen; ++i) {
+                h = ph_lt[h ^ data[i]];
+            }
+            hash = ((hash << 8) | h);
+        }
+        return hash;
+    }
+};
+#endif
+
+#if SIZE_MAX > 0xFFFFFFFF
+struct str_hash: fnv1a<14695981039346656037ULL, 1099511628211ULL> {};
+#elif SIZE_MAX > 0xFFFF
+struct str_hash: fnv1a<2166136261U, 16777619U> {};
+#else
+struct str_hash: pearson {};
 #endif
 
 struct str_equal {
