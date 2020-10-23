@@ -120,7 +120,10 @@ assert(ffi.sizeof(x) == ffi.sizeof("int") * 8)
 
 local st = ffi.typeof("struct baz")
 x[0] = st(10, 15)
-x[2] = x[0]
+
+-- test with constant source
+local y = ffi.cast("struct baz const *", x)
+x[2] = y[0]
 
 assert(x[0].x == 10)
 assert(x[0].y == 15)
@@ -130,6 +133,13 @@ assert(x[2].x == 10)
 assert(x[2].y == 15)
 assert(x[3].x == 0)
 assert(x[3].y == 0)
+
+-- test assignment to constant source
+local b, err = pcall(function()
+    y[0] = st(100, 200)
+end)
+assert(not b)
+assert(err:match(".+: attempt to write to constant location"))
 
 -- struct of structs assignment
 

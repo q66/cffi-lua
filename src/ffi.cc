@@ -889,13 +889,20 @@ static void *from_lua_cdata(
                 break;
             }
             if (rule != RULE_CAST) {
-                if (!cv_convertible(cd.cv(), tp.ptr_ref_base().cv())) {
-                    fail_convert_cd(L, cd, tp);
+                if (do_copy) {
+                    if (!cd.is_same(tp, true)) {
+                        break;
+                    }
+                } else {
+                    if (!cv_convertible(cd.cv(), tp.ptr_ref_base().cv())) {
+                        break;
+                    }
                 }
             }
             if (do_copy) {
                 dsz = cd.alloc_size();
                 return sval;
+            } else {
             }
             dsz = sizeof(void *);
             return &(*static_cast<void **>(stor) = sval);

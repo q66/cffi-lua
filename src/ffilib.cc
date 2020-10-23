@@ -366,6 +366,9 @@ struct cdata_meta {
         if (index_common<true>(L, [L](auto &decl, void *val) {
             size_t rsz;
             ffi::arg_stor_t sv{};
+            if (decl.cv() & ast::C_CV_CONST) {
+                luaL_error(L, "attempt to write to constant location");
+            }
             auto *vp = ffi::from_lua(L, decl, &sv, 3, rsz, ffi::RULE_CONV);
             util::mem_copy(val, vp, rsz);
         })) {
