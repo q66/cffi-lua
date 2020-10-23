@@ -386,14 +386,7 @@ void *from_lua(
     size_t &dsz, int rule
 );
 
-/* this one is used for table initialization when assigning array/struct
- * members, normally this would be internal only but there is the special
- * case which extends its usage outside ffi.new
- */
-void from_lua_table(
-    lua_State *L, ast::c_type const &decl, void *stor, size_t rsz, int tidx
-);
-
+/* used for initialization of aggregates, see description in ffi.cc */
 bool from_lua_aggreg(
     lua_State *L, ast::c_type const &decl, void *stor, size_t msz,
     size_t ninit, int idx

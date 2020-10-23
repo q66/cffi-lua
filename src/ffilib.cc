@@ -367,40 +367,14 @@ struct cdata_meta {
             if (decl.cv() & ast::C_CV_CONST) {
                 luaL_error(L, "attempt to write to constant location");
             }
-            if (decl.type() == ast::C_BUILTIN_ARRAY) {
-                switch (lua_type(L, 3)) {
-                    case LUA_TTABLE:
-                        /* special case: array member table initialization */
-                        ffi::from_lua_table(L, decl, val, decl.alloc_size(), 3);
-                        return;
-                    case LUA_TSTRING: {
-                        /* array initialization using a string */
-                        if (!decl.ptr_base().char_like()) {
-                            /* from-string init must be on an array of a char
-                             * type of native signedness, to match luajit */
-                            break;
-                        }
-                        auto asz = decl.alloc_size();
-                        size_t ssz;
-                        auto str = lua_tolstring(L, 3, &ssz);
-                        util::mem_copy(val, str, util::min(asz, ssz + 1));
-                        return;
-                    }
-                    default:
-                        /* take default path and fail */
-                        break;
-                }
+            /* attempt aggregate initialization */
+            if (!ffi::from_lua_aggreg(L, decl, val, decl.alloc_size(), 1, 3)) {
+                /* fall back to regular initialization */
+                ffi::arg_stor_t sv{};
+                size_t rsz;
+                auto *vp = ffi::from_lua(L, decl, &sv, 3, rsz, ffi::RULE_CONV);
+                util::mem_copy(val, vp, rsz);
             }
-            if ((decl.type() == ast::C_BUILTIN_RECORD) && lua_istable(L, 3)) {
-                /* special case: struct member table initialization */
-                ffi::from_lua_table(L, decl, val, decl.alloc_size(), 3);
-                return;
-            }
-            /* regular initializer */
-            ffi::arg_stor_t sv{};
-            size_t rsz;
-            auto *vp = ffi::from_lua(L, decl, &sv, 3, rsz, ffi::RULE_CONV);
-            util::mem_copy(val, vp, rsz);
         })) {
             return 0;
         };

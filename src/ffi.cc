@@ -1096,6 +1096,10 @@ static void from_lua_table(
     int tidx, int sidx, int ninit
 );
 
+static void from_lua_table(
+    lua_State *L, ast::c_type const &decl, void *stor, size_t rsz, int tidx
+);
+
 static void from_lua_str(
     lua_State *L, ast::c_type const &decl,
     void *stor, size_t dsz, int idx, size_t nelems = 1, size_t bsize = 0
@@ -1118,7 +1122,8 @@ static void from_lua_str(
     }
     /* char-like array, string value */
     vp = lua_tolstring(L, idx, &vsz);
-    vsz = util::min(vsz, dsz);
+    /* add 1 because of null terminator, but use at most the given space */
+    vsz = util::min(vsz + 1, dsz);
     goto cloop;
 fallback:
     vp = from_lua(L, decl, &sv, idx, vsz, RULE_CONV);
@@ -1251,7 +1256,7 @@ static void from_lua_table(
     }
 }
 
-void from_lua_table(
+static void from_lua_table(
     lua_State *L, ast::c_type const &decl, void *stor, size_t rsz, int tidx
 ) {
     int ninit;
@@ -1287,22 +1292,28 @@ bool from_lua_aggreg(
     }
     switch (decl.type()) {
         case ast::C_BUILTIN_RECORD:
-            /* record types are simple
-             *
-             * either we have more than 1 initializer, in which case they
-             * are used to initialize the members, or we have a single
-             * table, in which case that is unpacked to init the members
-             *
-             * or alternatively we have 1 non-table initializer, in which
-             * case that initializer is used to initialize the members
-             * accordingly
-             *
-             * or we have 1 table initializer, which is unpacked and used
-             * like case 1
-             */
-            if ((ninit > 1) || !lua_istable(L, idx)) {
+            /* record types are simpler */
+            if (ninit > 1) {
+                /* multiple initializers are clear, init members */
+                from_lua_table(L, decl, stor, msz, 0, idx, ninit);
+            } else if (!lua_istable(L, idx)) {
+                /* single non-table initializer case */
+                if (iscdata(L, idx)) {
+                    /* got cdata as initializer */
+                    auto &cd = *lua::touserdata<cdata<void *>>(L, idx);
+                    if (cd.decl.is_same(decl, true, true)) {
+                        /* it's a compatible type: do a copy */
+                        size_t vsz;
+                        arg_stor_t sv{};
+                        auto *vp = from_lua(L, decl, &sv, idx, vsz, RULE_CONV);
+                        util::mem_copy(stor, vp, msz);
+                        return true;
+                    }
+                }
+                /* otherwise, just init members using the single value */
                 from_lua_table(L, decl, stor, msz, 0, idx, ninit);
             } else {
+                /* table initializer: init members */
                 from_lua_table(L, decl, stor, msz, idx);
             }
             return true;
