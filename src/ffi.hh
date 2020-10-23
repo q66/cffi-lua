@@ -392,6 +392,22 @@ bool from_lua_aggreg(
     size_t ninit, int idx
 );
 
+inline void from_lua_set(
+    lua_State *L, ast::c_type const &decl, void *stor, int idx
+) {
+    if (decl.cv() & ast::C_CV_CONST) {
+        luaL_error(L, "attempt to write to constant location");
+    }
+    /* attempt aggregate initialization */
+    if (!from_lua_aggreg(L, decl, stor, decl.alloc_size(), 1, idx)) {
+        /* fall back to regular initialization */
+        arg_stor_t sv{};
+        size_t rsz;
+        auto *vp = from_lua(L, decl, &sv, 3, rsz, RULE_CONV);
+        util::mem_copy(stor, vp, rsz);
+    }
+}
+
 void get_global(lua_State *L, lib::c_lib const *dl, const char *sname);
 void set_global(lua_State *L, lib::c_lib const *dl, char const *sname, int idx);
 

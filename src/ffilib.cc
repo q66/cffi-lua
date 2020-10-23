@@ -364,17 +364,7 @@ struct cdata_meta {
 
     static int newindex(lua_State *L) {
         if (index_common<true>(L, [L](auto &decl, void *val) {
-            if (decl.cv() & ast::C_CV_CONST) {
-                luaL_error(L, "attempt to write to constant location");
-            }
-            /* attempt aggregate initialization */
-            if (!ffi::from_lua_aggreg(L, decl, val, decl.alloc_size(), 1, 3)) {
-                /* fall back to regular initialization */
-                ffi::arg_stor_t sv{};
-                size_t rsz;
-                auto *vp = ffi::from_lua(L, decl, &sv, 3, rsz, ffi::RULE_CONV);
-                util::mem_copy(val, vp, rsz);
-            }
+            ffi::from_lua_set(L, decl, val, 3);
         })) {
             return 0;
         };

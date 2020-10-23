@@ -1058,10 +1058,11 @@ void *from_lua(
              * this function that tells the caller how much memory we'll
              * actually need, and return a pointer to copy from...
              *
-             * there are only two special cases where initialization from
-             * table is supported, and that is ffi.new, and assignment to
-             * struct/array members of structs/arrays, and both of those
-             * cases are handled much earlier and this is not even called
+             * there are only three special cases where initialization from
+             * table is supported, and that is ffi.new, assignment to struct
+             * or array members of structs or arrays, and global variable
+             * assignment, and those are all handled much earlier so this
+             * is never reached
              *
              * so here, we just error, as it definitely means a bad case
              */
@@ -1415,10 +1416,7 @@ void set_global(lua_State *L, lib::c_lib const *dl, char const *sname, int idx) 
     if (cv.type().type() == ast::C_BUILTIN_FUNC) {
         luaL_error(L, "symbol '%s' is not mutable", decl->name());
     }
-
-    void *symp = lib::get_sym(dl, L, cv.sym());
-    size_t rsz;
-    from_lua(L, cv.type(), symp, idx, rsz, RULE_CONV);
+    from_lua_set(L, cv.type(), lib::get_sym(dl, L, cv.sym()), idx);
 }
 
 void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
