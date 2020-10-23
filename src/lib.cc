@@ -1,5 +1,3 @@
-/* TODO: implement for windows */
-
 #include "platform.hh"
 
 #ifdef FFI_USE_DLFCN
@@ -356,7 +354,7 @@ bool is_c(c_lib const *cl) {
 #else
 
 void load(c_lib *, char const *, lua_State *L, bool) {
-    luaL_error(L, "no support for dynamic library loading on this OS");
+    luaL_error(L, "no support for dynamic library loading on this target");
     return nullptr;
 }
 
