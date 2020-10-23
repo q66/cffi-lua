@@ -1019,10 +1019,11 @@ struct pearson {
     size_t operator()(char const *data) const {
         size_t slen = str_len(data);
         size_t hash = 0;
+        auto *udata = reinterpret_cast<unsigned char const *>(data);
         for (size_t j = 0; j < sizeof(size_t); ++j) {
-            auto h = ph_lt[(data[0] + j) % 256];
+            auto h = ph_lt[(udata[0] + j) % 256];
             for (size_t i = 1; i < slen; ++i) {
-                h = ph_lt[h ^ data[i]];
+                h = ph_lt[h ^ udata[i]];
             }
             hash = ((hash << 8) | h);
         }
