@@ -394,6 +394,11 @@ void from_lua_table(
     lua_State *L, ast::c_type const &decl, void *stor, size_t rsz, int tidx
 );
 
+bool from_lua_aggreg(
+    lua_State *L, ast::c_type const &decl, void *stor, size_t msz,
+    size_t ninit, int idx
+);
+
 void get_global(lua_State *L, lib::c_lib const *dl, const char *sname);
 void set_global(lua_State *L, lib::c_lib const *dl, char const *sname, int idx);
 

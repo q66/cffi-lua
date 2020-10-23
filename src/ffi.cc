@@ -1096,6 +1096,40 @@ static void from_lua_table(
     int tidx, int sidx, int ninit
 );
 
+static void from_lua_str(
+    lua_State *L, ast::c_type const &decl,
+    void *stor, size_t dsz, int idx, size_t nelems = 1, size_t bsize = 0
+) {
+    size_t vsz;
+    arg_stor_t sv{};
+    void const *vp;
+    auto *val = reinterpret_cast<unsigned char *>(stor);
+    /* not a string: let whatever default behavior happen */
+    if (lua_type(L, idx) != LUA_TSTRING) {
+        goto fallback;
+    }
+    /* not an array: we can just initialize normally too */
+    if (decl.type() != ast::C_BUILTIN_ARRAY) {
+        goto fallback;
+    }
+    /* string value, not char-like array: let it fail */
+    if (!decl.ptr_base().char_like()) {
+        goto fallback;
+    }
+    /* char-like array, string value */
+    vp = lua_tolstring(L, idx, &vsz);
+    vsz = util::min(vsz, dsz);
+    goto cloop;
+fallback:
+    vp = from_lua(L, decl, &sv, idx, vsz, RULE_CONV);
+cloop:
+    while (nelems) {
+        util::mem_copy(val, vp, vsz);
+        val += bsize;
+        --nelems;
+    }
+}
+
 static void from_lua_table_record(
     lua_State *L, ast::c_type const &decl, void *stor, size_t rsz,
     int tidx, int sidx, int ninit
@@ -1149,10 +1183,7 @@ static void from_lua_table_record(
         if ((elem_arr || elem_struct) && lua_istable(L, -1)) {
             from_lua_table(L, fld, &val[off], fld.alloc_size(), lua_gettop(L));
         } else {
-            size_t esz;
-            arg_stor_t sv{};
-            void *ep = from_lua(L, fld, &sv, -1, esz, RULE_CONV);
-            util::mem_copy(&val[off], ep, esz);
+            from_lua_str(L, fld, &val[off], fld.alloc_size(), -1);
         }
         filled = true;
         lua_pop(L, 1);
@@ -1198,14 +1229,7 @@ static void from_lua_table(
         } else if (ninit == 1) {
             /* special case: initialize aggregate with a single value */
             push_init(L, tidx, sidx);
-            size_t esz;
-            arg_stor_t sv{};
-            void *ep = from_lua(L, pb, &sv, -1, esz, RULE_CONV);
-            while (nelems) {
-                util::mem_copy(val, ep, esz);
-                val += bsize;
-                --nelems;
-            }
+            from_lua_str(L, pb, val, bsize, -1, nelems, bsize);
             lua_pop(L, 1);
             return;
         }
@@ -1215,11 +1239,8 @@ static void from_lua_table(
         if ((base_array || base_struct) && lua_istable(L, -1)) {
             from_lua_table(L, pb, val, bsize, lua_gettop(L));
         } else {
-            size_t esz;
-            arg_stor_t sv{};
             push_init(L, tidx, sidx++);
-            void *ep = from_lua(L, pb, &sv, -1, esz, RULE_CONV);
-            util::mem_copy(val, ep, esz);
+            from_lua_str(L, pb, val, bsize, -1);
         }
         val += bsize;
         lua_pop(L, 1);
@@ -1249,6 +1270,88 @@ void from_lua_table(
         sidx = -1;
     }
     from_lua_table(L, decl, stor, rsz, tidx, sidx, ninit);
+}
+
+/* a unified entrypoint for initializing complex aggregates
+ *
+ * if false is returned, we're not initializing a complex aggregate,
+ * so appropriate steps can be taken according to where this is used
+ */
+bool from_lua_aggreg(
+    lua_State *L, ast::c_type const &decl, void *stor, size_t msz,
+    size_t ninit, int idx
+) {
+    /* bail out early */
+    if (decl.is_ref() || !ninit) {
+        return false;
+    }
+    switch (decl.type()) {
+        case ast::C_BUILTIN_RECORD:
+            /* record types are simple
+             *
+             * either we have more than 1 initializer, in which case they
+             * are used to initialize the members, or we have a single
+             * table, in which case that is unpacked to init the members
+             *
+             * or alternatively we have 1 non-table initializer, in which
+             * case that initializer is used to initialize the members
+             * accordingly
+             *
+             * or we have 1 table initializer, which is unpacked and used
+             * like case 1
+             */
+            if ((ninit > 1) || !lua_istable(L, idx)) {
+                from_lua_table(L, decl, stor, msz, 0, idx, ninit);
+            } else {
+                from_lua_table(L, decl, stor, msz, idx);
+            }
+            return true;
+        case ast::C_BUILTIN_ARRAY:
+            break;
+        default:
+            return false;
+    }
+    /* arrays are more complicated, let's start with the clear
+     * case which is multiple initializers, no choices there
+     */
+    if (ninit > 1) {
+        from_lua_table(L, decl, stor, msz, 0, idx, ninit);
+        return true;
+    }
+    /* single string initializer */
+    auto carr = decl.ptr_base().char_like();
+    if (carr && (lua_type(L, idx) == LUA_TSTRING)) {
+        from_lua_str(L, decl, stor, msz, idx);
+        return true;
+    }
+    /* single table initializer */
+    if (lua_istable(L, idx)) {
+        from_lua_table(L, decl, stor, msz, idx);
+        return true;
+    }
+    /* single initializer that is a compatible array
+     *
+     * VLAs are not allowed for this kind of initialization
+     * the other array must have the same size
+     */
+    if (!decl.vla() && iscdata(L, idx)) {
+        auto &cd = *lua::touserdata<cdata<void *>>(L, idx);
+        if (cd.decl.is_same(decl, true, true) || (
+            carr && cd.decl.ptr_base().char_like() &&
+            (cd.decl.array_size() == decl.array_size())
+        )) {
+            /* exact copy by value */
+            void **valp = &cd.val;
+            if (cd.decl.is_ref()) {
+                valp = reinterpret_cast<void **>(*valp);
+            }
+            util::mem_copy(stor, *valp, msz);
+            return true;
+        }
+    }
+    /* a single non-table initializer that is not a compatible array */
+    from_lua_table(L, decl, stor, msz, 0, idx, ninit);
+    return true;
 }
 
 void get_global(lua_State *L, lib::c_lib const *dl, const char *sname) {
@@ -1426,25 +1529,8 @@ newdata:
             dptr = &cd.val;
             util::mem_copy(dptr, cdp, rsz);
         }
-        if (ninits && (
-            (decl.type() == ast::C_BUILTIN_RECORD) ||
-            (decl.type() == ast::C_BUILTIN_ARRAY)
-        )) {
-            /* initializers for aggregates are done *after* memory alloc
-             *
-             * we have several cases: either multiple initializers, in which
-             * case we treat it as a flat initializer list, or not-a-table,
-             * in which case we treat it the same
-             *
-             * or we have a single table initializer, in which case its
-             * contents are used for initialization instead
-             */
-            if ((ninits > 1) || !lua_istable(L, iidx)) {
-                from_lua_table(L, decl, dptr, msz, 0, iidx, ninits);
-            } else {
-                from_lua_table(L, decl, dptr, msz, iidx);
-            }
-        }
+        /* perform aggregate initialization */
+        from_lua_aggreg(L, decl, dptr, msz, ninits, iidx);
         /* set a gc finalizer if provided in metatype */
         if (decl.type() == ast::C_BUILTIN_RECORD) {
             int mf;
