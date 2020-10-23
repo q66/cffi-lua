@@ -367,18 +367,40 @@ struct cdata_meta {
             if (decl.cv() & ast::C_CV_CONST) {
                 luaL_error(L, "attempt to write to constant location");
             }
-            if ((
-                (decl.type() == ast::C_BUILTIN_RECORD) ||
-                (decl.type() == ast::C_BUILTIN_ARRAY)
-            ) && lua_istable(L, 3)) {
-                /* special case: struct/array member table initialization */
-                ffi::from_lua_table(L, decl, val, decl.alloc_size(), 3);
-            } else {
-                ffi::arg_stor_t sv{};
-                size_t rsz;
-                auto *vp = ffi::from_lua(L, decl, &sv, 3, rsz, ffi::RULE_CONV);
-                util::mem_copy(val, vp, rsz);
+            if (decl.type() == ast::C_BUILTIN_ARRAY) {
+                switch (lua_type(L, 3)) {
+                    case LUA_TTABLE:
+                        /* special case: array member table initialization */
+                        ffi::from_lua_table(L, decl, val, decl.alloc_size(), 3);
+                        return;
+                    case LUA_TSTRING: {
+                        /* array initialization using a string */
+                        if (!decl.ptr_base().char_like()) {
+                            /* from-string init must be on an array of a char
+                             * type of native signedness, to match luajit */
+                            break;
+                        }
+                        auto asz = decl.alloc_size();
+                        size_t ssz;
+                        auto str = lua_tolstring(L, 3, &ssz);
+                        util::mem_copy(val, str, util::min(asz, ssz + 1));
+                        return;
+                    }
+                    default:
+                        /* take default path and fail */
+                        break;
+                }
             }
+            if ((decl.type() == ast::C_BUILTIN_RECORD) && lua_istable(L, 3)) {
+                /* special case: struct member table initialization */
+                ffi::from_lua_table(L, decl, val, decl.alloc_size(), 3);
+                return;
+            }
+            /* regular initializer */
+            ffi::arg_stor_t sv{};
+            size_t rsz;
+            auto *vp = ffi::from_lua(L, decl, &sv, 3, rsz, ffi::RULE_CONV);
+            util::mem_copy(val, vp, rsz);
         })) {
             return 0;
         };
@@ -1341,21 +1363,67 @@ struct ffi_module {
             );
             luaL_argcheck(L, false, 1, lua_tostring(L, -1));
         }
-        /* FIXME: check argument type conversions */
         auto &ud = ffi::tocdata<void *>(L, 1);
+        /* make sure we deal with cdata */
         if (ffi::isctype(ud)) {
             luaL_argcheck(
                 L, false, 1, "cannot convert 'ctype' to 'char const *'"
             );
         }
-        if (lua_gettop(L) <= 1) {
-            lua_pushstring(L, static_cast<char const *>(ud.val));
-        } else {
-            lua_pushlstring(
-                L, static_cast<char const *>(ud.val),
-                ffi::check_arith<size_t>(L, 2)
-            );
+        /* handle potential ref case */
+        void **valp = &ud.val;
+        if (ud.decl.is_ref()) {
+            valp = reinterpret_cast<void **>(*valp);
         }
+        char const *strp = static_cast<char const *>(*valp);
+        size_t slen = 0;
+        auto str_check = [](ast::c_type const &ct) -> bool {
+            auto &pb = ct.ptr_base();
+            return pb.char_like() || (pb.type() == ast::C_BUILTIN_VOID);
+        };
+        /* make sure only arrays and pointers pass
+         * after that, type check so that it's safe to fetch the length
+         * and then, fetch the length so that we can construct a lua string
+         */
+        switch (ud.decl.type()) {
+            case ast::C_BUILTIN_ARRAY:
+                if (!str_check(ud.decl)) {
+                    goto converr;
+                }
+                if (lua_gettop(L) > 1) {
+                    slen = ffi::check_arith<size_t>(L, 2);
+                } else {
+                    slen = ud.decl.alloc_size();
+                    /* if an embedded zero is found, terminate at that */
+                    auto *p = reinterpret_cast<char const *>(
+                        memchr(strp, '\0', slen)
+                    );
+                    if (p) {
+                        slen = size_t(p - strp);
+                    }
+                }
+                break;
+            case ast::C_BUILTIN_PTR:
+                if (!str_check(ud.decl)) {
+                    goto converr;
+                }
+                if (lua_gettop(L) > 1) {
+                    slen = ffi::check_arith<size_t>(L, 2);
+                } else {
+                    slen = util::str_len(strp);
+                }
+                break;
+            default:
+                goto converr;
+        }
+        lua_pushlstring(L, strp, slen);
+        return 1;
+converr:
+        ud.decl.serialize(L);
+        lua_pushfstring(
+            L, "cannot convert '%s' to 'string'", lua_tostring(L, -1)
+        );
+        luaL_argcheck(L, false, 1, lua_tostring(L, -1));
         return 1;
     }
 

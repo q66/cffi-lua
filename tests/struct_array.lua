@@ -33,6 +33,10 @@ ffi.cdef [[
     struct sbaz {
         struct baz x, y, z;
     };
+
+    struct schara {
+        char foo[4];
+    };
 ]]
 
 -- struct
@@ -157,3 +161,12 @@ assert(x.y.x == 35)
 assert(x.y.y == 45)
 assert(x.z.x == 20)
 assert(x.z.y == 25)
+
+-- array in string
+
+local x = ffi.new("struct schara")
+x.foo = "abc"
+assert(ffi.string(x.foo) == "abc")
+
+x.foo = "abcd1234"
+assert(ffi.string(x.foo) == "abcd")

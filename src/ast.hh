@@ -634,6 +634,17 @@ struct c_type: c_object {
         return type() >= C_BUILTIN_ENUM;
     }
 
+    bool char_like() const {
+        auto tp = type();
+        if (tp == C_BUILTIN_CHAR) {
+            return true;
+        }
+        if (util::is_signed<char>::value) {
+            return (tp == C_BUILTIN_SCHAR);
+        }
+        return (tp == C_BUILTIN_UCHAR);
+    }
+
     bool callable() const {
         auto tp = type();
         if (tp == C_BUILTIN_FUNC) {
