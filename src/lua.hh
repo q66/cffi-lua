@@ -2,6 +2,7 @@
 #define LUA_HH
 
 #include <cassert>
+#include <cstddef>
 
 #include "platform.hh"
 

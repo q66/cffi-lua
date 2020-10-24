@@ -1,11 +1,12 @@
 #include "platform.hh"
 
+#include <cstdint>
+
 #ifdef FFI_USE_DLFCN
 #include <dlfcn.h>
 
 #include <cstdio>
 #include <cstring>
-#include <cstdint>
 
 #endif
 
