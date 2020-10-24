@@ -1126,63 +1126,42 @@ void c_record::set_fields(util::vector<field> fields) {
     p_ffi_type.elements = &p_elements[0];
     p_elements[nelements] = nullptr;
 
-    /* for unions, we have a different logic */
-    if (is_union()) {
-        size_t usize = 0;
-        unsigned short ualign = 0;
-        /* assign the elements as usual, this is for the purpose of
-         * iterating the fields (need quick access to each, and also
-         * in case libffi adds unions in the future so we can adapt
-         * to it more easily), but also check the size of the largest
-         * and the alignment of the most aligned
-         */
-        for (size_t i = 0, e = 0; i < ffields; ++i) {
-            if (p_fields[i].type.builtin_array()) {
-                auto *ft = p_fields[i].type.ptr_base().libffi_type();
+    /* for unions, assign the elements as usual, but also check the size of the
+     * largest and the alignment of the most aligned */
+    size_t usize = 0;
+    unsigned short ualign = 0;
+    auto usaturate = [&usize, &ualign](size_t size, size_t align) {
+        usize = (size > usize) ? size : usize;
+        ualign = (align > ualign) ? align : ualign;
+    };
 
-                if (ft->size * p_fields[i].type.array_size() > usize) {
-                    usize = ft->size * p_fields[i].type.array_size();
-                }
-                if (ft->alignment > ualign) {
-                    ualign = ft->alignment;
-                }
+    for (size_t i = 0, e = 0; i < ffields; ++i) {
+        if (p_fields[i].type.builtin_array()) {
+            auto *ft = p_fields[i].type.ptr_base().libffi_type();
 
-                for (size_t j = 0; j < p_fields[i].type.array_size(); ++j)
-                    p_elements[e + j] = p_fields[i].type.ptr_base().libffi_type();
+            usaturate(ft->size * p_fields[i].type.array_size(), ft->alignment);
 
-                e += p_fields[i].type.array_size();
-            } else {
-                auto *ft = p_fields[i].type.libffi_type();
+            for (size_t j = 0; j < p_fields[i].type.array_size(); ++j)
+                p_elements[e + j] = ft;
 
-                if (ft->size > usize) {
-                    usize = ft->size;
-                }
-                if (ft->alignment > ualign) {
-                    ualign = ft->alignment;
-                }
+            e += p_fields[i].type.array_size();
+        } else {
+            auto *ft = p_fields[i].type.libffi_type();
 
-                p_elements[e] = ft;
+            usaturate(ft->size, ft->alignment);
 
-                e += 1;
-            }
+            p_elements[e] = ft;
+
+            e += 1;
         }
+    }
+
+    if (is_union()) {
         p_ffi_type.size = usize;
         p_ffi_type.alignment = ualign;
         return;
     }
 
-    for (size_t i = 0, e = 0; i < ffields; ++i) {
-        if (p_fields[i].type.builtin_array()) {
-            for (size_t j = 0; j < p_fields[i].type.array_size(); ++j)
-                p_elements[e + j] = p_fields[i].type.ptr_base().libffi_type();
-
-            e += p_fields[i].type.array_size();
-        } else {
-            p_elements[e] = p_fields[i].type.libffi_type();
-
-            e += 1;
-        }
-    }
     if (flex) {
         /* for now null it, so ffi_prep_cif ignores it */
         p_elements[nelements] = nullptr;
