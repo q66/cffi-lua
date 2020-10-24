@@ -23,6 +23,7 @@ test_cases = [
     ['structs, arrays, unions',      'struct_array',              false,  501],
     ['structs, unions array fields', 'struct_union_array_fields', false,  501],
     ['memory-related utilities',     'copy_fill',                 false,  501],
+    ['memory serialization',         'dump_string',               false,  501],
     ['callbacks',                    'callbacks',                 false,  501],
     ['table initializers',           'table_init',                false,  501],
     ['parameterized types',          'parameterized',             false,  501],

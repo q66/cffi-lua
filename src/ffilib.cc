@@ -1339,48 +1339,49 @@ struct ffi_module {
         if (ud.decl.is_ref()) {
             valp = reinterpret_cast<void **>(*valp);
         }
-        char const *strp = static_cast<char const *>(*valp);
-        size_t slen = 0;
-        auto str_check = [](ast::c_type const &ct) -> bool {
-            auto &pb = ct.ptr_base();
-            return pb.char_like() || (pb.type() == ast::C_BUILTIN_VOID);
-        };
-        /* make sure only arrays and pointers pass
-         * after that, type check so that it's safe to fetch the length
-         * and then, fetch the length so that we can construct a lua string
+        if (lua_gettop(L) > 1) {
+            /* if the length is given, special logic is used; any value can
+             * be serialized here (addresses will be taken automatically)
+             */
+            size_t slen = ffi::check_arith<size_t>(L, 2);
+            if (!ud.decl.ptr_like()) {
+                lua_pushlstring(L, reinterpret_cast<char const *>(valp), slen);
+            } else {
+                lua_pushlstring(L, static_cast<char const *>(*valp), slen);
+            }
+            return 1;
+        }
+        /* if the length is not given, treat it like a string
+         * the rules are still more loose here; arrays and pointers
+         * are allowed, and their base type can be any kind of byte
+         * signedness is not checked
          */
-        switch (ud.decl.type()) {
-            case ast::C_BUILTIN_ARRAY:
-                if (!str_check(ud.decl)) {
-                    goto converr;
-                }
-                if (lua_gettop(L) > 1) {
-                    slen = ffi::check_arith<size_t>(L, 2);
-                } else {
-                    slen = ud.decl.alloc_size();
-                    /* if an embedded zero is found, terminate at that */
-                    auto *p = reinterpret_cast<char const *>(
-                        memchr(strp, '\0', slen)
-                    );
-                    if (p) {
-                        slen = size_t(p - strp);
-                    }
-                }
-                break;
-            case ast::C_BUILTIN_PTR:
-                if (!str_check(ud.decl)) {
-                    goto converr;
-                }
-                if (lua_gettop(L) > 1) {
-                    slen = ffi::check_arith<size_t>(L, 2);
-                } else {
-                    slen = util::str_len(strp);
-                }
+        if (!ud.decl.ptr_like()) {
+            goto converr;
+        }
+        switch (ud.decl.ptr_base().type()) {
+            case ast::C_BUILTIN_VOID:
+            case ast::C_BUILTIN_CHAR:
+            case ast::C_BUILTIN_SCHAR:
+            case ast::C_BUILTIN_UCHAR:
                 break;
             default:
                 goto converr;
         }
-        lua_pushlstring(L, strp, slen);
+        if (ud.decl.type() == ast::C_BUILTIN_ARRAY) {
+            char const *strp = static_cast<char const *>(*valp);
+            /* arrays are special as they don't need to be null terminated */
+            size_t slen = ud.decl.alloc_size();
+            /* but if an embedded zero is found, terminate at that */
+            auto *p = reinterpret_cast<char const *>(memchr(strp, '\0', slen));
+            if (p) {
+                slen = size_t(p - strp);
+            }
+            lua_pushlstring(L, strp, slen);
+        } else {
+            /* strings need to be null terminated */
+            lua_pushstring(L, static_cast<char const *>(*valp));
+        }
         return 1;
 converr:
         ud.decl.serialize(L);
