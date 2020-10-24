@@ -148,7 +148,7 @@ struct cdata_meta {
         /* XXX: special printing for lua builds with non-double numbers? */
         if (tp->integer() && (tp->alloc_size() == 8)) {
             char buf[32];
-            int written;
+            size_t written;
             if (tp->is_unsigned()) {
                 written = util::write_u(
                     buf, sizeof(buf), val->as<unsigned long long>()

@@ -1130,7 +1130,7 @@ void c_record::set_fields(util::vector<field> fields) {
      * largest and the alignment of the most aligned */
     size_t usize = 0;
     unsigned short ualign = 0;
-    auto usaturate = [&usize, &ualign](size_t size, size_t align) {
+    auto usaturate = [&usize, &ualign](size_t size, unsigned short align) {
         usize = (size > usize) ? size : usize;
         ualign = (align > ualign) ? align : ualign;
     };

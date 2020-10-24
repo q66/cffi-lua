@@ -1298,7 +1298,7 @@ static void from_lua_table(
  */
 static bool from_lua_aggreg(
     lua_State *L, ast::c_type const &decl, void *stor, size_t msz,
-    size_t ninit, int idx
+    int ninit, int idx
 ) {
     /* bail out early */
     if (decl.is_ref() || !ninit) {
