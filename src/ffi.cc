@@ -1136,8 +1136,8 @@ static void from_lua_str(
     if (decl.type() != ast::C_BUILTIN_ARRAY) {
         goto fallback;
     }
-    /* string value, not char-like array: let it fail */
-    if (!decl.ptr_base().char_like()) {
+    /* string value, not byte array: let it fail */
+    if (!decl.ptr_base().byte()) {
         goto fallback;
     }
     /* char-like array, string value */
@@ -1351,7 +1351,7 @@ static bool from_lua_aggreg(
         return true;
     }
     /* single string initializer */
-    auto carr = decl.ptr_base().char_like();
+    auto carr = decl.ptr_base().byte();
     if (carr && (lua_type(L, idx) == LUA_TSTRING)) {
         from_lua_str(L, decl, stor, msz, idx);
         return true;
@@ -1369,7 +1369,7 @@ static bool from_lua_aggreg(
     if (!decl.vla() && iscdata(L, idx)) {
         auto &cd = *lua::touserdata<cdata<void *>>(L, idx);
         if (cd.decl.is_same(decl, true, true) || (
-            carr && cd.decl.ptr_base().char_like() &&
+            carr && cd.decl.ptr_base().byte() &&
             (cd.decl.array_size() == decl.array_size())
         )) {
             /* exact copy by value */
