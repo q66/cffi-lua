@@ -1058,7 +1058,9 @@ size_t c_record::iter_fields(bool (*cb)(
          --nflds;
     }
     for (size_t i = 0; i < nflds; ++i) {
-        auto *tp = p_elements[i];
+        auto *tp = p_fields[i].type.builtin_array() ?
+                        p_fields[i].type.ptr_base().libffi_type() :
+                        p_fields[i].type.libffi_type();
         size_t align = tp->alignment;
         base = ((base + align - 1) / align) * align;
         if (p_fields[i].name.empty()) {
@@ -1077,7 +1079,9 @@ size_t c_record::iter_fields(bool (*cb)(
             }
         }
         if (!uni) {
-            base += tp->size;
+            base += p_fields[i].type.builtin_array() ?
+                        tp->size * p_fields[i].type.array_size() :
+                        tp->size;
         }
     }
     if (flex) {
@@ -1109,13 +1113,18 @@ void c_record::set_fields(util::vector<field> fields) {
     size_t nfields = p_fields.size();
     size_t ffields = flex ? (nfields - 1) : nfields;
 
-    p_elements = new ffi_type *[nfields + 1];
+    size_t nelements = 0;
+    for (size_t i = 0; i < ffields; ++i)
+        nelements += p_fields[i].type.builtin_array() ?
+                        p_fields[i].type.array_size() : 1;
+
+    p_elements = new ffi_type *[nelements + 1];
 
     p_ffi_type.size = p_ffi_type.alignment = 0;
     p_ffi_type.type = FFI_TYPE_STRUCT;
 
     p_ffi_type.elements = &p_elements[0];
-    p_elements[nfields] = nullptr;
+    p_elements[nelements] = nullptr;
 
     /* for unions, we have a different logic */
     if (is_union()) {
@@ -1127,27 +1136,56 @@ void c_record::set_fields(util::vector<field> fields) {
          * to it more easily), but also check the size of the largest
          * and the alignment of the most aligned
          */
-        for (size_t i = 0; i < ffields; ++i) {
-            auto *ft = p_fields[i].type.libffi_type();
-            if (ft->size > usize) {
-                usize = ft->size;
+        for (size_t i = 0, e = 0; i < ffields; ++i) {
+            if (p_fields[i].type.builtin_array()) {
+                auto *ft = p_fields[i].type.ptr_base().libffi_type();
+
+                if (ft->size * p_fields[i].type.array_size() > usize) {
+                    usize = ft->size * p_fields[i].type.array_size();
+                }
+                if (ft->alignment > ualign) {
+                    ualign = ft->alignment;
+                }
+
+                for (size_t j = 0; j < p_fields[i].type.array_size(); ++j)
+                    p_elements[e + j] = p_fields[i].type.ptr_base().libffi_type();
+
+                e += p_fields[i].type.array_size();
+            } else {
+                auto *ft = p_fields[i].type.libffi_type();
+
+                if (ft->size > usize) {
+                    usize = ft->size;
+                }
+                if (ft->alignment > ualign) {
+                    ualign = ft->alignment;
+                }
+
+                p_elements[e] = ft;
+
+                e += 1;
             }
-            if (ft->alignment > ualign) {
-                ualign = ft->alignment;
-            }
-            p_elements[i] = ft;
         }
         p_ffi_type.size = usize;
         p_ffi_type.alignment = ualign;
         return;
     }
 
-    for (size_t i = 0; i < ffields; ++i) {
-        p_elements[i] = p_fields[i].type.libffi_type();
+    for (size_t i = 0, e = 0; i < ffields; ++i) {
+        if (p_fields[i].type.builtin_array()) {
+            for (size_t j = 0; j < p_fields[i].type.array_size(); ++j)
+                p_elements[e + j] = p_fields[i].type.ptr_base().libffi_type();
+
+            e += p_fields[i].type.array_size();
+        } else {
+            p_elements[e] = p_fields[i].type.libffi_type();
+
+            e += 1;
+        }
     }
     if (flex) {
         /* for now null it, so ffi_prep_cif ignores it */
-        p_elements[ffields] = nullptr;
+        p_elements[nelements] = nullptr;
     }
 
     /* fill in the size and alignment with an ugly hack
@@ -1194,7 +1232,7 @@ void c_record::set_fields(util::vector<field> fields) {
     p_ffi_flex.elements = &p_felems[0];
 
     /* and add it as a member + bump the size */
-    p_elements[ffields] = &p_ffi_flex;
+    p_elements[nelements] = &p_ffi_flex;
     p_ffi_type.size += padn;
 }
 

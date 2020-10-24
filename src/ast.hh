@@ -662,6 +662,10 @@ struct c_type: c_object {
         return arith() && (type() < C_BUILTIN_FLOAT);
     }
 
+    bool builtin_array() const {
+        return type() == C_BUILTIN_ARRAY;
+    }
+
     bool ptr_like() const {
         auto tp = type();
         return ((tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_ARRAY));
