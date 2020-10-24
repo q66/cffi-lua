@@ -3,7 +3,7 @@
 
 #include "util.hh"
 
-void *operator new(size_t n) {
+void *operator new(std::size_t n) {
     void *p = malloc(n);
     if (!p) {
         abort(); /* FIXME: do not abort */
@@ -11,7 +11,7 @@ void *operator new(size_t n) {
     return p;
 }
 
-void *operator new[](size_t n) {
+void *operator new[](std::size_t n) {
     void *p = malloc(n);
     if (!p) {
         abort();
@@ -27,17 +27,17 @@ void operator delete[](void *p) {
     free(p);
 }
 
-void operator delete(void *p, size_t) {
+void operator delete(void *p, std::size_t) {
     free(p);
 }
 
-void operator delete[](void *p, size_t) {
+void operator delete[](void *p, std::size_t) {
     free(p);
 }
 
 namespace util {
 
-size_t write_i(char *buf, size_t bufsize, long long v) {
+std::size_t write_i(char *buf, std::size_t bufsize, long long v) {
     if (v < 0) {
         if (!bufsize) {
             return write_u(
@@ -52,9 +52,9 @@ size_t write_i(char *buf, size_t bufsize, long long v) {
     return write_u(buf, bufsize, static_cast<unsigned long long>(v));
 }
 
-size_t write_u(char *bufp, size_t bufsize, unsigned long long v) {
+std::size_t write_u(char *bufp, std::size_t bufsize, unsigned long long v) {
     char buf[sizeof(unsigned long long) * CHAR_BIT];
-    size_t ndig = 0;
+    std::size_t ndig = 0;
     if (!v) {
         buf[0] = '0';
         ndig = 1;
@@ -66,7 +66,7 @@ size_t write_u(char *bufp, size_t bufsize, unsigned long long v) {
     if (bufsize < (ndig + 1)) {
         return ndig;
     }
-    for (size_t i = 0; i < ndig; ++i) {
+    for (std::size_t i = 0; i < ndig; ++i) {
         *bufp++ = buf[ndig - i - 1];
     }
     *bufp++ = '\0';

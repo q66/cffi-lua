@@ -66,7 +66,7 @@ static inline void *luaL_testudata52(lua_State *L, int ud, char const *tname) {
 #endif
 #define luaL_testudata luaL_testudata52
 
-static inline size_t lua_rawlen52(lua_State *L, int index) {
+static inline std::size_t lua_rawlen52(lua_State *L, int index) {
     return lua_objlen(L, index);
 }
 
@@ -125,7 +125,7 @@ static inline void mark_lib(lua_State *L) {
     luaL_setmetatable(L, CFFI_LIB_MT);
 }
 
-struct custom_size { size_t sz; };
+struct custom_size { std::size_t sz; };
 struct no_gc {};
 
 inline lua_Alloc get_allocator(lua_State *L, void *&ud) {
@@ -134,13 +134,13 @@ inline lua_Alloc get_allocator(lua_State *L, void *&ud) {
     return af;
 }
 
-inline void *alloc_mem(lua_State *L, size_t n) {
+inline void *alloc_mem(lua_State *L, std::size_t n) {
     void *ud;
     auto af = get_allocator(L, ud);
     auto *p = static_cast<void **>(
         af(ud, nullptr, 0, n + sizeof(void *))
     );
-    *reinterpret_cast<size_t *>(p) = n + sizeof(void *);
+    *reinterpret_cast<std::size_t *>(p) = n + sizeof(void *);
     return p + 1;
 }
 
@@ -148,28 +148,28 @@ inline void free_mem(lua_State *L, void *p) {
     void *ud;
     auto af = get_allocator(L, ud);
     auto *op = static_cast<void **>(p) - 1;
-    af(ud, op, *reinterpret_cast<size_t *>(op), 0);
+    af(ud, op, *reinterpret_cast<std::size_t *>(op), 0);
 }
 
 } /* namespace lua */
 
-inline void *operator new(size_t n, lua_State *L) {
+inline void *operator new(std::size_t n, lua_State *L) {
     return lua_newuserdata(L, n);
 }
 
-inline void *operator new(size_t n, lua_State *L, size_t extra) {
+inline void *operator new(std::size_t n, lua_State *L, std::size_t extra) {
     return lua_newuserdata(L, n + extra);
 }
 
-inline void *operator new(size_t, lua_State *L, lua::custom_size n) {
+inline void *operator new(std::size_t, lua_State *L, lua::custom_size n) {
     return lua_newuserdata(L, n.sz);
 }
 
-inline void *operator new(size_t n, lua_State *L, lua::no_gc) {
+inline void *operator new(std::size_t n, lua_State *L, lua::no_gc) {
     return lua::alloc_mem(L, n);
 }
 
-inline void *operator new[](size_t n, lua_State *L, lua::no_gc) {
+inline void *operator new[](std::size_t n, lua_State *L, lua::no_gc) {
     return lua::alloc_mem(L, n);
 }
 

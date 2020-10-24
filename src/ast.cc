@@ -900,7 +900,7 @@ ffi_type *c_type::libffi_type() const {
     return nullptr;
 }
 
-size_t c_type::alloc_size() const {
+std::size_t c_type::alloc_size() const {
     switch (c_builtin(type())) {
         case C_BUILTIN_FUNC:
             return p_func->alloc_size();
@@ -1019,7 +1019,7 @@ bool c_function::is_same(c_function const &other) const {
     if (p_params.size() != other.p_params.size()) {
         return false;
     }
-    for (size_t i = 0; i < p_params.size(); ++i) {
+    for (std::size_t i = 0; i < p_params.size(); ++i) {
         if (!p_params[i].type().is_same(other.p_params[i].type())) {
             return false;
         }
@@ -1031,13 +1031,15 @@ bool c_record::is_same(c_record const &other) const {
     return &other == this;
 }
 
-ptrdiff_t c_record::field_offset(char const *fname, c_type const *&fld) const {
-    ptrdiff_t ret = -1;
+std::ptrdiff_t c_record::field_offset(
+    char const *fname, c_type const *&fld
+) const {
+    std::ptrdiff_t ret = -1;
     iter_fields([fname, &ret, &fld](
-        char const *ffname, ast::c_type const &ffld, size_t off
+        char const *ffname, ast::c_type const &ffld, std::size_t off
     ) {
         if (!std::strcmp(fname, ffname)) {
-            ret = ptrdiff_t(off);
+            ret = std::ptrdiff_t(off);
             fld = &ffld;
             return true;
         }
@@ -1046,22 +1048,22 @@ ptrdiff_t c_record::field_offset(char const *fname, c_type const *&fld) const {
     return ret;
 }
 
-size_t c_record::iter_fields(bool (*cb)(
-    char const *fname, ast::c_type const &type, size_t off, void *data
-), void *data, size_t obase, bool &end) const {
-    size_t base = 0;
-    size_t nflds = p_fields.size();
+std::size_t c_record::iter_fields(bool (*cb)(
+    char const *fname, ast::c_type const &type, std::size_t off, void *data
+), void *data, std::size_t obase, bool &end) const {
+    std::size_t base = 0;
+    std::size_t nflds = p_fields.size();
     bool flex = false;
     bool uni = is_union();
     if (!uni && nflds && p_fields.back().type.unbounded()) {
          flex = true;
          --nflds;
     }
-    for (size_t i = 0; i < nflds; ++i) {
+    for (std::size_t i = 0; i < nflds; ++i) {
         auto *tp = p_fields[i].type.builtin_array() ?
                         p_fields[i].type.ptr_base().libffi_type() :
                         p_fields[i].type.libffi_type();
-        size_t align = tp->alignment;
+        std::size_t align = tp->alignment;
         base = ((base + align - 1) / align) * align;
         if (p_fields[i].name.empty()) {
             /* transparent record is like a real member */
@@ -1110,11 +1112,11 @@ void c_record::set_fields(util::vector<field> fields) {
     bool flex = !is_union() && !p_fields.empty() && (
         p_fields.back().type.unbounded() || p_fields.back().type.vla()
     );
-    size_t nfields = p_fields.size();
-    size_t ffields = flex ? (nfields - 1) : nfields;
+    std::size_t nfields = p_fields.size();
+    std::size_t ffields = flex ? (nfields - 1) : nfields;
 
-    size_t nelements = 0;
-    for (size_t i = 0; i < ffields; ++i)
+    std::size_t nelements = 0;
+    for (std::size_t i = 0; i < ffields; ++i)
         nelements += p_fields[i].type.builtin_array() ?
                         p_fields[i].type.array_size() : 1;
 
@@ -1128,20 +1130,22 @@ void c_record::set_fields(util::vector<field> fields) {
 
     /* for unions, assign the elements as usual, but also check the size of the
      * largest and the alignment of the most aligned */
-    size_t usize = 0;
+    std::size_t usize = 0;
     unsigned short ualign = 0;
-    auto usaturate = [&usize, &ualign](size_t size, unsigned short align) {
+    auto usaturate = [&usize, &ualign](
+        std::size_t size, unsigned short align
+    ) {
         usize = (size > usize) ? size : usize;
         ualign = (align > ualign) ? align : ualign;
     };
 
-    for (size_t i = 0, e = 0; i < ffields; ++i) {
+    for (std::size_t i = 0, e = 0; i < ffields; ++i) {
         if (p_fields[i].type.builtin_array()) {
             auto *ft = p_fields[i].type.ptr_base().libffi_type();
 
             usaturate(ft->size * p_fields[i].type.array_size(), ft->alignment);
 
-            for (size_t j = 0; j < p_fields[i].type.array_size(); ++j)
+            for (std::size_t j = 0; j < p_fields[i].type.array_size(); ++j)
                 p_elements[e + j] = ft;
 
             e += p_fields[i].type.array_size();
@@ -1190,8 +1194,8 @@ void c_record::set_fields(util::vector<field> fields) {
     }
 
     /* alignment of the base type of the final array */
-    size_t falign = p_fields.back().type.ptr_base().libffi_type()->alignment;
-    size_t padn = p_ffi_type.size % falign;
+    auto falign = p_fields.back().type.ptr_base().libffi_type()->alignment;
+    auto padn = p_ffi_type.size % falign;
 
     /* the current size is an actual multiple, so no padding needed */
     if (!padn) {
@@ -1204,7 +1208,7 @@ void c_record::set_fields(util::vector<field> fields) {
     /* we know the size and alignment, since it's just padding bytes */
     p_ffi_flex.size = padn;
     p_ffi_flex.alignment = 1;
-    for (size_t i = 0; i < padn; ++i) {
+    for (std::size_t i = 0; i < padn; ++i) {
         p_felems[i] = &ffi_type_uchar;
     }
     p_felems[padn] = nullptr;
@@ -1248,7 +1252,7 @@ void decl_store::commit() {
     /* reserve all space at once */
     p_base->p_dlist.reserve(p_base->p_dlist.size() + p_dlist.size());
     /* move all */
-    for (size_t i = 0; i < p_dlist.size(); ++i) {
+    for (std::size_t i = 0; i < p_dlist.size(); ++i) {
         p_base->p_dlist.push_back(util::move(p_dlist[i]));
     }
     /* set up mappings in base */
@@ -1287,9 +1291,9 @@ c_object *decl_store::lookup(char const *name) {
     return nullptr;
 }
 
-size_t decl_store::request_name(char *buf, size_t bufsize) {
+std::size_t decl_store::request_name(char *buf, std::size_t bufsize) {
     /* could do something better, this will do to avoid clashes for now... */
-    size_t n = name_counter++;
+    std::size_t n = name_counter++;
     for (auto *pb = p_base; pb; pb = pb->p_base) {
         n += pb->name_counter;
     }

@@ -6,7 +6,7 @@ namespace ffi {
 
 static void *from_lua(
     lua_State *L, ast::c_type const &tp, void *stor, int index,
-    size_t &dsz, int rule
+    std::size_t &dsz, int rule
 );
 
 static inline void fail_convert_cd(
@@ -78,16 +78,16 @@ static inline void fdata_free_aux(fdata &fd) {
     aux = nullptr;
 }
 
-static inline void fdata_new_aux(fdata &fd, size_t sz) {
+static inline void fdata_new_aux(fdata &fd, std::size_t sz) {
     fdata_get_aux(fd) = reinterpret_cast<arg_stor_t *>(new unsigned char[sz]);
 }
 
-static inline ffi_type **fargs_types(void *args, size_t nargs) {
+static inline ffi_type **fargs_types(void *args, std::size_t nargs) {
     auto *bp = static_cast<arg_stor_t *>(args);
     return reinterpret_cast<ffi_type **>(&bp[nargs]);
 }
 
-static inline void **fargs_values(void *args, size_t nargs) {
+static inline void **fargs_values(void *args, std::size_t nargs) {
     return reinterpret_cast<void **>(&fargs_types(args, nargs)[nargs]);
 }
 
@@ -130,18 +130,18 @@ static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
     auto &fud = *static_cast<cdata<fdata> *>(data);
     auto &fun = fud.decl.function();
     auto &pars = fun->params();
-    size_t fargs = pars.size();
+    auto fargs = pars.size();
 
     closure_data &cd = *fud.val.cd;
     lua_rawgeti(cd.L, LUA_REGISTRYINDEX, cd.fref);
-    for (size_t i = 0; i < fargs; ++i) {
+    for (std::size_t i = 0; i < fargs; ++i) {
         to_lua(cd.L, pars[i].type(), args[i], RULE_PASS);
     }
 
     if (fun->result().type() != ast::C_BUILTIN_VOID) {
         lua_call(cd.L, int(fargs), 1);
         arg_stor_t stor;
-        size_t rsz;
+        std::size_t rsz;
         void *rp = from_lua(
             cd.L, fun->result(), &stor, -1, rsz, RULE_RET
         );
@@ -183,9 +183,9 @@ static inline ffi_abi to_libffi_abi(int) {
  */
 static bool prepare_cif(
     util::rc_obj<ast::c_function> const &func, ffi_cif &cif,
-    ffi_type **targs, size_t nargs
+    ffi_type **targs, std::size_t nargs
 ) {
-    for (size_t i = 0; i < nargs; ++i) {
+    for (std::size_t i = 0; i < nargs; ++i) {
         targs[i] = func->params()[i].libffi_type();
     }
     using U = unsigned int;
@@ -199,7 +199,7 @@ static void make_cdata_func(
     lua_State *L, void (*funp)(), util::rc_obj<ast::c_function> func, bool fptr,
     closure_data *cd
 ) {
-    size_t nargs = func->params().size();
+    auto nargs = func->params().size();
 
     /* MEMORY LAYOUT:
      *
@@ -301,12 +301,12 @@ static void make_cdata_func(
 }
 
 static bool prepare_cif_var(
-    lua_State *L, cdata<fdata> &fud, size_t nargs, size_t fargs
+    lua_State *L, cdata<fdata> &fud, std::size_t nargs, std::size_t fargs
 ) {
     auto &func = fud.decl.function();
 
     auto &auxptr = fdata_get_aux(fud.val);
-    if (auxptr && (nargs > size_t(fud.aux))) {
+    if (auxptr && (nargs > std::size_t(fud.aux))) {
         fdata_free_aux(fud.val);
     }
     if (!auxptr) {
@@ -317,10 +317,10 @@ static bool prepare_cif_var(
     }
 
     ffi_type **targs = fargs_types(auxptr, nargs);
-    for (size_t i = 0; i < fargs; ++i) {
+    for (std::size_t i = 0; i < fargs; ++i) {
         targs[i] = func->params()[i].libffi_type();
     }
-    for (size_t i = fargs; i < nargs; ++i) {
+    for (std::size_t i = fargs; i < nargs; ++i) {
         targs[i] = lua_to_vararg(L, int(i + 2));
     }
 
@@ -331,12 +331,12 @@ static bool prepare_cif_var(
     ) == FFI_OK);
 }
 
-int call_cif(cdata<fdata> &fud, lua_State *L, size_t largs) {
+int call_cif(cdata<fdata> &fud, lua_State *L, std::size_t largs) {
     auto &func = fud.decl.function();
     auto &pdecls = func->params();
 
-    size_t nargs = pdecls.size();
-    size_t targs = nargs;
+    auto nargs = pdecls.size();
+    auto targs = nargs;
 
     arg_stor_t *pvals = fud.val.args();
     void *rval = fdata_retval(fud.val);
@@ -352,14 +352,14 @@ int call_cif(cdata<fdata> &fud, lua_State *L, size_t largs) {
     void **vals = fargs_values(pvals, targs);
     /* fixed args */
     for (int i = 0; i < int(nargs); ++i) {
-        size_t rsz;
+        std::size_t rsz;
         vals[i] = from_lua(
             L, pdecls[i].type(), &pvals[i], i + 2, rsz, RULE_PASS
         );
     }
     /* variable args */
     for (int i = int(nargs); i < int(targs); ++i) {
-        size_t rsz;
+        std::size_t rsz;
         auto tp = ast::from_lua_type(L, i + 2);
         if (tp.type() == ast::C_BUILTIN_RECORD) {
             /* special case for vararg passing of records: by ptr */
@@ -552,7 +552,9 @@ int to_lua(
 }
 
 template<typename T>
-static inline void *write_int(lua_State *L, int index, void *stor, size_t &s) {
+static inline void *write_int(
+    lua_State *L, int index, void *stor, std::size_t &s
+) {
     lua_Integer v = lua_isboolean(L, index) ?
         lua_toboolean(L, index) : lua_tointeger(L, index);
     *static_cast<T *>(stor) = T(v);
@@ -561,7 +563,9 @@ static inline void *write_int(lua_State *L, int index, void *stor, size_t &s) {
 }
 
 template<typename T>
-static inline void *write_flt(lua_State *L, int index, void *stor, size_t &s) {
+static inline void *write_flt(
+    lua_State *L, int index, void *stor, std::size_t &s
+) {
     lua_Number v = lua_isboolean(L, index) ?
         lua_toboolean(L, index) : lua_tonumber(L, index);
     *static_cast<T *>(stor) = T(v);
@@ -571,12 +575,12 @@ static inline void *write_flt(lua_State *L, int index, void *stor, size_t &s) {
 
 static void *from_lua_num(
     lua_State *L, ast::c_type const &tp, void *stor, int index,
-    size_t &dsz, int rule
+    std::size_t &dsz, int rule
 ) {
     if (tp.is_ref() && (rule == RULE_CAST)) {
         dsz = sizeof(void *);
         return &(*static_cast<void **>(stor) = reinterpret_cast<void *>(
-            size_t(lua_tointeger(L, index))
+            std::size_t(lua_tointeger(L, index))
         ));
     }
 
@@ -622,7 +626,7 @@ static void *from_lua_num(
             if (rule == RULE_CAST) {
                 dsz = sizeof(void *);
                 return &(*static_cast<void **>(stor) = reinterpret_cast<void *>(
-                    size_t(lua_tointeger(L, index))
+                    std::size_t(lua_tointeger(L, index))
                 ));
             }
             goto converr;
@@ -765,7 +769,7 @@ isptr:
 template<typename T>
 static void *from_lua_cnumber(
     lua_State *L, ast::c_type const &cd, ast::c_type const &tp,
-    void *sval, void *stor, size_t &dsz, int rule
+    void *sval, void *stor, std::size_t &dsz, int rule
 ) {
 #define CONV_CASE(name, U) \
     case ast::C_BUILTIN_##name: { \
@@ -817,13 +821,13 @@ ptr_ref:
     }
     dsz = sizeof(void *);
     return &(*static_cast<void **>(stor) = reinterpret_cast<void *>(
-        size_t(*static_cast<T *>(sval))
+        std::size_t(*static_cast<T *>(sval))
     ));
 }
 
 static void *from_lua_cdata(
     lua_State *L, ast::c_type const &cd, ast::c_type const &tp, void *sval,
-    void *stor, size_t &dsz, int rule
+    void *stor, std::size_t &dsz, int rule
 ) {
     /* arrays always decay to pointers first */
     if (cd.type() == ast::C_BUILTIN_ARRAY) {
@@ -961,7 +965,7 @@ static void *from_lua_cdata(
  */
 static void *from_lua(
     lua_State *L, ast::c_type const &tp, void *stor, int index,
-    size_t &dsz, int rule
+    std::size_t &dsz, int rule
 ) {
     /* sanitize the output type early on */
     switch (tp.type()) {
@@ -1106,19 +1110,21 @@ static inline void push_init(lua_State *L, int tidx, int iidx) {
 }
 
 static void from_lua_table(
-    lua_State *L, ast::c_type const &decl, void *stor, size_t rsz,
+    lua_State *L, ast::c_type const &decl, void *stor, std::size_t rsz,
     int tidx, int sidx, int ninit
 );
 
 static void from_lua_table(
-    lua_State *L, ast::c_type const &decl, void *stor, size_t rsz, int tidx
+    lua_State *L, ast::c_type const &decl, void *stor, std::size_t rsz,
+    int tidx
 );
 
 static void from_lua_str(
     lua_State *L, ast::c_type const &decl,
-    void *stor, size_t dsz, int idx, size_t nelems = 1, size_t bsize = 0
+    void *stor, std::size_t dsz, int idx, std::size_t nelems = 1,
+    std::size_t bsize = 0
 ) {
-    size_t vsz;
+    std::size_t vsz;
     arg_stor_t sv{};
     void const *vp;
     auto *val = reinterpret_cast<unsigned char *>(stor);
@@ -1150,7 +1156,7 @@ cloop:
 }
 
 static void from_lua_table_record(
-    lua_State *L, ast::c_type const &decl, void *stor, size_t rsz,
+    lua_State *L, ast::c_type const &decl, void *stor, std::size_t rsz,
     int tidx, int sidx, int ninit
 ) {
     auto &sb = decl.record();
@@ -1161,7 +1167,7 @@ static void from_lua_table_record(
     sb.iter_fields([
         L, rsz, val, &decl, &sidx, &filled, &empty, &ninit, tidx, uni
     ](
-        char const *fname, ast::c_type const &fld, size_t off
+        char const *fname, ast::c_type const &fld, std::size_t off
     ) {
         empty = false;
         if (tidx && (ninit < 0)) {
@@ -1180,9 +1186,9 @@ static void from_lua_table_record(
         /* flex array members */
         if (!uni && fld.unbounded()) {
             /* the size of the struct minus the flex member plus padding */
-            size_t ssz = decl.alloc_size();
+            std::size_t ssz = decl.alloc_size();
             /* initialize the last part as in array */
-            size_t asz = rsz - ssz;
+            std::size_t asz = rsz - ssz;
             if (lua_istable(L, -1)) {
                 from_lua_table(L, fld, &val[ssz], asz, lua_gettop(L));
                 lua_pop(L, 1);
@@ -1220,7 +1226,7 @@ static void from_lua_table_record(
  * memory is not allocated yet... so do it here, as a special case
  */
 static void from_lua_table(
-    lua_State *L, ast::c_type const &decl, void *stor, size_t rsz,
+    lua_State *L, ast::c_type const &decl, void *stor, std::size_t rsz,
     int tidx, int sidx, int ninit
 ) {
     if (decl.type() == ast::C_BUILTIN_RECORD) {
@@ -1235,8 +1241,8 @@ static void from_lua_table(
 
     auto *val = static_cast<unsigned char *>(stor);
     auto &pb = decl.ptr_base();
-    size_t bsize = pb.alloc_size();
-    size_t nelems = rsz / bsize;
+    auto bsize = pb.alloc_size();
+    auto nelems = rsz / bsize;
 
     bool base_array = (pb.type() == ast::C_BUILTIN_ARRAY);
     bool base_struct = (pb.type() == ast::C_BUILTIN_RECORD);
@@ -1271,7 +1277,8 @@ static void from_lua_table(
 }
 
 static void from_lua_table(
-    lua_State *L, ast::c_type const &decl, void *stor, size_t rsz, int tidx
+    lua_State *L, ast::c_type const &decl, void *stor, std::size_t rsz,
+    int tidx
 ) {
     int ninit;
     auto rl = lua_rawlen(L, tidx);
@@ -1297,7 +1304,7 @@ static void from_lua_table(
  * so appropriate steps can be taken according to where this is used
  */
 static bool from_lua_aggreg(
-    lua_State *L, ast::c_type const &decl, void *stor, size_t msz,
+    lua_State *L, ast::c_type const &decl, void *stor, std::size_t msz,
     int ninit, int idx
 ) {
     /* bail out early */
@@ -1317,7 +1324,7 @@ static bool from_lua_aggreg(
                     auto &cd = *lua::touserdata<cdata<void *>>(L, idx);
                     if (cd.decl.is_same(decl, true, true)) {
                         /* it's a compatible type: do a copy */
-                        size_t vsz;
+                        std::size_t vsz;
                         arg_stor_t sv{};
                         auto *vp = from_lua(L, decl, &sv, idx, vsz, RULE_CONV);
                         std::memcpy(stor, vp, msz);
@@ -1387,7 +1394,7 @@ void from_lua(lua_State *L, ast::c_type const &decl, void *stor, int idx) {
     if (!from_lua_aggreg(L, decl, stor, decl.alloc_size(), 1, idx)) {
         /* fall back to regular initialization */
         arg_stor_t sv{};
-        size_t rsz;
+        std::size_t rsz;
         auto *vp = from_lua(L, decl, &sv, 3, rsz, RULE_CONV);
         std::memcpy(stor, vp, rsz);
     }
@@ -1456,7 +1463,7 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
     }
     arg_stor_t stor{};
     void *cdp = nullptr;
-    size_t rsz = 0, narr = 0;
+    std::size_t rsz = 0, narr = 0;
     int iidx = idx, ninits;
     if (rule == RULE_CAST) {
         goto definit;
@@ -1471,7 +1478,7 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
             }
             ++iidx;
             ninits = lua_gettop(L) - iidx + 1;
-            narr = size_t(arrs);
+            narr = std::size_t(arrs);
             /* see below */
             rsz = decl.ptr_base().alloc_size() * narr + sizeof(arg_stor_t);
             goto newdata;
@@ -1497,7 +1504,7 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
             ++iidx;
             ninits = lua_gettop(L) - iidx + 1;
             rsz = decl.alloc_size() + (
-                size_t(arrs) * lf->ptr_base().alloc_size()
+                std::size_t(arrs) * lf->ptr_base().alloc_size()
             );
             goto newdata;
         }
@@ -1536,7 +1543,7 @@ newdata:
     } else {
         auto &cd = newcdata(L, decl, rsz);
         void *dptr = nullptr;
-        size_t msz = rsz;
+        std::size_t msz = rsz;
         if (!cdp) {
             std::memset(&cd.val, 0, rsz);
             if (decl.type() == ast::C_BUILTIN_ARRAY) {
@@ -1548,7 +1555,7 @@ newdata:
                 dptr = &cd.val;
             }
         } else if (decl.type() == ast::C_BUILTIN_ARRAY) {
-            size_t esz = (rsz - sizeof(arg_stor_t)) / narr;
+            std::size_t esz = (rsz - sizeof(arg_stor_t)) / narr;
             /* the base of the alloated block */
             auto *bval = reinterpret_cast<unsigned char *>(&cd.val);
             /* the array memory begins after the first arg_stor_t */
@@ -1557,7 +1564,7 @@ newdata:
             /* we can treat an array like a pointer, always */
             *reinterpret_cast<void **>(bval) = val;
             /* write initializers into the array part */
-            for (size_t i = 0; i < narr; ++i) {
+            for (std::size_t i = 0; i < narr; ++i) {
                 std::memcpy(&val[i * esz], cdp, esz);
             }
             msz = rsz - sizeof(arg_stor_t);

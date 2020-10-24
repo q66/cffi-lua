@@ -523,36 +523,37 @@ struct c_type: c_object {
         p_crec{nullptr}, p_ttype{C_BUILTIN_INVALID}, p_flags{0}, p_cv{0}
     {}
 
-    c_type(c_builtin cbt, uint32_t qual):
-        p_crec{nullptr}, p_ttype{uint32_t(cbt)}, p_flags{0}, p_cv{qual}
+    c_type(c_builtin cbt, std::uint32_t qual):
+        p_crec{nullptr}, p_ttype{std::uint32_t(cbt)}, p_flags{0}, p_cv{qual}
     {}
 
     c_type(
-        util::rc_obj<c_type> ctp, uint32_t qual, size_t arrlen, uint32_t flags
+        util::rc_obj<c_type> ctp, std::uint32_t qual,
+        std::size_t arrlen, std::uint32_t flags
     ):
         p_asize{arrlen}, p_ttype{C_BUILTIN_ARRAY}, p_flags{flags}, p_cv{qual}
     {
         new (&p_ptr) util::rc_obj<c_type>{util::move(ctp)};
     }
 
-    c_type(util::rc_obj<c_type> ctp, uint32_t qual, c_builtin cbt):
-        p_ttype{uint32_t(cbt)}, p_flags{0}, p_cv{qual}
+    c_type(util::rc_obj<c_type> ctp, std::uint32_t qual, c_builtin cbt):
+        p_ttype{std::uint32_t(cbt)}, p_flags{0}, p_cv{qual}
     {
         new (&p_ptr) util::rc_obj<c_type>{util::move(ctp)};
     }
 
-    c_type(util::rc_obj<c_function> ctp, uint32_t qual, bool cb):
+    c_type(util::rc_obj<c_function> ctp, std::uint32_t qual, bool cb):
         p_ttype{C_BUILTIN_FUNC},
-        p_flags{uint32_t(cb ? C_TYPE_CLOSURE : 0)}, p_cv{qual}
+        p_flags{std::uint32_t(cb ? C_TYPE_CLOSURE : 0)}, p_cv{qual}
     {
         new (&p_func) util::rc_obj<c_function>{util::move(ctp)};
     }
 
-    c_type(c_record const *ctp, uint32_t qual):
+    c_type(c_record const *ctp, std::uint32_t qual):
         p_crec{ctp}, p_ttype{C_BUILTIN_RECORD}, p_flags{0}, p_cv{qual}
     {}
 
-    c_type(c_enum const *ctp, uint32_t qual):
+    c_type(c_enum const *ctp, std::uint32_t qual):
         p_cenum{ctp}, p_ttype{C_BUILTIN_ENUM}, p_flags{0}, p_cv{qual}
     {}
 
@@ -702,7 +703,7 @@ struct c_type: c_object {
     }
 
     void cv(int qual) {
-        p_cv |= uint32_t(qual);
+        p_cv |= std::uint32_t(qual);
     }
 
     c_type const &ptr_base() const {
@@ -730,9 +731,9 @@ struct c_type: c_object {
 
     ffi_type *libffi_type() const;
 
-    size_t alloc_size() const;
+    std::size_t alloc_size() const;
 
-    size_t array_size() const {
+    std::size_t array_size() const {
         return p_asize;
     }
 
@@ -759,10 +760,10 @@ private:
         c_record const *p_crec;
         c_enum const *p_cenum;
     };
-    size_t p_asize = 0;
-    uint32_t p_ttype: 5;
-    uint32_t p_flags: 5;
-    uint32_t p_cv: 2;
+    std::size_t p_asize = 0;
+    std::uint32_t p_ttype: 5;
+    std::uint32_t p_flags: 5;
+    std::uint32_t p_cv: 2;
 };
 
 struct c_param: c_object {
@@ -788,7 +789,7 @@ struct c_param: c_object {
         return p_type.libffi_type();
     }
 
-    size_t alloc_size() const {
+    std::size_t alloc_size() const {
         return p_type.alloc_size();
     }
 
@@ -798,7 +799,9 @@ private:
 };
 
 struct c_function: c_object {
-    c_function(c_type result, util::vector<c_param> params, uint32_t flags):
+    c_function(
+        c_type result, util::vector<c_param> params, std::uint32_t flags
+    ):
         p_result{util::move(result)}, p_params{util::move(params)},
         p_flags{flags}
     {}
@@ -825,7 +828,7 @@ struct c_function: c_object {
         return &ffi_type_pointer;
     }
 
-    size_t alloc_size() const {
+    std::size_t alloc_size() const {
         return sizeof(void *);
     }
 
@@ -835,11 +838,11 @@ struct c_function: c_object {
         return !!(p_flags & C_FUNC_VARIADIC);
     }
 
-    uint32_t callconv() const {
+    std::uint32_t callconv() const {
         return p_flags & 0xF;
     }
 
-    void callconv(uint32_t conv) {
+    void callconv(std::uint32_t conv) {
         p_flags ^= callconv();
         p_flags |= conv & 0xFF;
     }
@@ -847,7 +850,7 @@ struct c_function: c_object {
 private:
     c_type p_result;
     util::vector<c_param> p_params;
-    uint32_t p_flags;
+    std::uint32_t p_flags;
     bool p_variadic;
 };
 
@@ -884,7 +887,7 @@ struct c_variable: c_object {
         return p_type.libffi_type();
     }
 
-    size_t alloc_size() const {
+    std::size_t alloc_size() const {
         return p_type.alloc_size();
     }
 
@@ -923,7 +926,7 @@ struct c_constant: c_object {
         return p_type.libffi_type();
     }
 
-    size_t alloc_size() const {
+    std::size_t alloc_size() const {
         return p_type.alloc_size();
     }
 
@@ -959,7 +962,7 @@ struct c_typedef: c_object {
         return p_type.libffi_type();
     }
 
-    size_t alloc_size() const {
+    std::size_t alloc_size() const {
         return p_type.alloc_size();
     }
 
@@ -1014,13 +1017,13 @@ struct c_record: c_object {
         return const_cast<ffi_type *>(&p_ffi_type);
     }
 
-    size_t alloc_size() const {
+    std::size_t alloc_size() const {
         return libffi_type()->size;
     }
 
     bool is_same(c_record const &other) const;
 
-    ptrdiff_t field_offset(char const *fname, c_type const *&fld) const;
+    std::ptrdiff_t field_offset(char const *fname, c_type const *&fld) const;
 
     bool opaque() const {
         return !p_elements;
@@ -1045,7 +1048,7 @@ struct c_record: c_object {
             return false;
         }
         bool ret = true;
-        iter_fields([&ret](auto *, auto &type, size_t) {
+        iter_fields([&ret](auto *, auto &type, std::size_t) {
             if (!type.passable()) {
                 ret = false;
                 return true;
@@ -1076,7 +1079,7 @@ struct c_record: c_object {
     void iter_fields(F &&cb) const {
         bool end = false;
         iter_fields([](
-            char const *fname, c_type const &type, size_t off, void *data
+            char const *fname, c_type const &type, std::size_t off, void *data
         ) {
             F &acb = *static_cast<F *>(data);
             return acb(fname, type, off);
@@ -1084,9 +1087,9 @@ struct c_record: c_object {
     }
 
 private:
-    size_t iter_fields(bool (*cb)(
-        char const *fname, c_type const &type, size_t off, void *data
-    ), void *data, size_t base, bool &end) const;
+    std::size_t iter_fields(bool (*cb)(
+        char const *fname, c_type const &type, std::size_t off, void *data
+    ), void *data, std::size_t base, bool &end) const;
 
     util::strbuf p_name;
     util::vector<field> p_fields{};
@@ -1141,7 +1144,7 @@ struct c_enum: c_object {
         return &ffi_type_sint;
     }
 
-    size_t alloc_size() const {
+    std::size_t alloc_size() const {
         return sizeof(int);
     }
 
@@ -1181,7 +1184,7 @@ struct decl_store {
     c_object const *lookup(char const *name) const;
     c_object *lookup(char const *name);
 
-    size_t request_name(char *buf, size_t bufsize);
+    std::size_t request_name(char *buf, std::size_t bufsize);
 
     static decl_store &get_main(lua_State *L) {
         lua_getfield(L, LUA_REGISTRYINDEX, lua::CFFI_DECL_STOR);
@@ -1201,7 +1204,7 @@ private:
     decl_store *p_base = nullptr;
     util::vector<obj_ptr> p_dlist{};
     util::str_map<c_object *> p_dmap{};
-    size_t name_counter = 0;
+    std::size_t name_counter = 0;
 };
 
 c_type from_lua_type(lua_State *L, int index);

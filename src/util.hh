@@ -22,8 +22,8 @@
 /* allocation */
 
 #ifndef _MSC_VER
-inline void *operator new(size_t, void *p) noexcept { return p; }
-inline void *operator new[](size_t, void *p) noexcept { return p; }
+inline void *operator new(std::size_t, void *p) noexcept { return p; }
+inline void *operator new[](std::size_t, void *p) noexcept { return p; }
 inline void operator delete(void *, void *) noexcept {}
 inline void operator delete[](void *, void *) noexcept {}
 #endif
@@ -334,8 +334,8 @@ inline constexpr T limit_max() {
 
 /* simple writers for base 10 to avoid printf family */
 
-size_t write_i(char *buf, size_t bufsize, long long v);
-size_t write_u(char *buf, size_t bufsize, unsigned long long v);
+std::size_t write_i(char *buf, std::size_t bufsize, long long v);
+std::size_t write_u(char *buf, std::size_t bufsize, unsigned long long v);
 
 /* a refernce counted object; manages its own memory,
  * so it can avoid separately allocating the refcount
@@ -349,7 +349,7 @@ struct rc_obj {
     rc_obj(construct, A &&...cargs) {
         auto *np = new unsigned char[sizeof(T) + get_rc_size()];
         /* initial acquire */
-        *reinterpret_cast<size_t *>(np) = 1;
+        *reinterpret_cast<std::size_t *>(np) = 1;
         /* store */
         p_ptr = reinterpret_cast<T *>(np + get_rc_size());
         /* construct */
@@ -385,7 +385,7 @@ struct rc_obj {
         return (count() > 0);
     }
 
-    size_t count() const {
+    std::size_t count() const {
         return *counter();
     }
 
@@ -402,13 +402,14 @@ struct rc_obj {
     }
 
 private:
-    static constexpr size_t get_rc_size() {
-        return (alignof(T) > sizeof(size_t)) ? alignof(T) : sizeof(size_t);
+    static constexpr std::size_t get_rc_size() {
+        return (alignof(T) > sizeof(std::size_t))
+            ? alignof(T) : sizeof(std::size_t);
     }
 
-    size_t *counter() const {
+    std::size_t *counter() const {
         auto *op = reinterpret_cast<unsigned char *>(p_ptr) - get_rc_size();
-        return reinterpret_cast<size_t *>(op);
+        return reinterpret_cast<std::size_t *>(op);
     }
 
     void incr() {
@@ -435,7 +436,7 @@ rc_obj<T> make_rc(A &&...args) {
 
 template<typename T>
 struct vector {
-    static constexpr size_t MIN_SIZE = 4;
+    static constexpr std::size_t MIN_SIZE = 4;
 
     vector() {}
     ~vector() {
@@ -450,7 +451,7 @@ struct vector {
         if (v.size() > capacity()) {
             reserve(v.size());
         }
-        for (size_t i = 0; i < v.size(); ++i) {
+        for (std::size_t i = 0; i < v.size(); ++i) {
             push_back(v[i]);
         }
         return *this;
@@ -483,7 +484,7 @@ struct vector {
         return p_buf[p_size++];
     }
 
-    void reserve(size_t n) {
+    void reserve(std::size_t n) {
         if (n <= p_cap) {
             return;
         }
@@ -492,7 +493,7 @@ struct vector {
         }
         T *np = reinterpret_cast<T *>(new unsigned char[n * sizeof(T)]);
         if (p_cap) {
-            for (size_t i = 0; i < p_size; ++i) {
+            for (std::size_t i = 0; i < p_size; ++i) {
                 new (&np[i]) T(util::move(p_buf[i]));
                 p_buf[i].~T();
             }
@@ -502,8 +503,8 @@ struct vector {
         p_cap = n;
     }
 
-    void shrink(size_t n) {
-        for (size_t i = n; i < p_size; ++i) {
+    void shrink(std::size_t n) {
+        for (std::size_t i = n; i < p_size; ++i) {
             p_buf[i].~T();
         }
         p_size = n;
@@ -513,11 +514,11 @@ struct vector {
         shrink(0);
     }
 
-    T &operator[](size_t i) {
+    T &operator[](std::size_t i) {
         return p_buf[i];
     }
 
-    T const &operator[](size_t i) const {
+    T const &operator[](std::size_t i) const {
         return p_buf[i];
     }
 
@@ -545,11 +546,11 @@ struct vector {
         return p_buf;
     }
 
-    size_t size() const {
+    std::size_t size() const {
         return p_size;
     }
 
-    size_t capacity() const {
+    std::size_t capacity() const {
         return p_cap;
     }
 
@@ -563,11 +564,11 @@ struct vector {
         util::swap(p_cap, v.p_cap);
     }
 
-    void setlen(size_t len) {
+    void setlen(std::size_t len) {
         p_size = len;
     }
 
-    void setbuf(T const *data, size_t len) {
+    void setbuf(T const *data, std::size_t len) {
         std::memcpy(p_buf, data, len);
         p_size = len;
     }
@@ -579,7 +580,7 @@ private:
     }
 
     T *p_buf = nullptr;
-    size_t p_size = 0, p_cap = 0;
+    std::size_t p_size = 0, p_cap = 0;
 };
 
 /* string buffer */
@@ -596,7 +597,7 @@ struct strbuf {
 
     strbuf(strbuf &&b): p_buf(util::move(b.p_buf)) {}
 
-    strbuf(char const *str, size_t n) {
+    strbuf(char const *str, std::size_t n) {
         set(str, n);
     }
 
@@ -629,7 +630,7 @@ struct strbuf {
         p_buf.back() = '\0';
     }
 
-    void append(char const *str, size_t n) {
+    void append(char const *str, std::size_t n) {
         auto sz = p_buf.size();
         p_buf.reserve(sz + n);
         std::memcpy(&p_buf[sz - 1], str, n);
@@ -649,7 +650,7 @@ struct strbuf {
         append(b.data(), b.size());
     }
 
-    void prepend(char const *str, size_t n) {
+    void prepend(char const *str, std::size_t n) {
         auto sz = p_buf.size();
         p_buf.reserve(sz + n);
         std::memmove(&p_buf[n], &p_buf[0], sz);
@@ -673,7 +674,7 @@ struct strbuf {
         prepend(b.data(), b.size());
     }
 
-    void insert(char const *str, size_t n, size_t idx) {
+    void insert(char const *str, std::size_t n, std::size_t idx) {
         auto sz = p_buf.size();
         p_buf.reserve(sz + n);
         std::memmove(&p_buf[idx + n], &p_buf[idx], sz - idx);
@@ -681,15 +682,15 @@ struct strbuf {
         p_buf.setlen(sz + n);
     }
 
-    void insert(char const *str, size_t idx) {
+    void insert(char const *str, std::size_t idx) {
         insert(str, std::strlen(str), idx);
     }
 
-    void insert(strbuf const &b, size_t idx) {
+    void insert(strbuf const &b, std::size_t idx) {
         insert(b.data(), b.size(), idx);
     }
 
-    void set(char const *str, size_t n) {
+    void set(char const *str, std::size_t n) {
         p_buf.reserve(n + 1);
         std::memcpy(&p_buf[0], str, n);
         p_buf[n] = '\0';
@@ -704,7 +705,7 @@ struct strbuf {
         set(b.data(), b.size());
     }
 
-    void reserve(size_t n) {
+    void reserve(std::size_t n) {
         p_buf.reserve(n + 1);
     }
 
@@ -714,8 +715,8 @@ struct strbuf {
         p_buf.setlen(1);
     }
 
-    char  operator[](size_t i) const { return p_buf[i]; }
-    char &operator[](size_t i) { return p_buf[i]; }
+    char  operator[](std::size_t i) const { return p_buf[i]; }
+    char &operator[](std::size_t i) { return p_buf[i]; }
 
     char  front() const { return p_buf.front(); }
     char &front() { return p_buf.front(); }
@@ -726,8 +727,8 @@ struct strbuf {
     char const *data() const { return p_buf.data(); }
     char *data() { return p_buf.data(); }
 
-    size_t size() const { return p_buf.size() - 1; }
-    size_t capacity() const { return p_buf.capacity() - 1; }
+    std::size_t size() const { return p_buf.size() - 1; }
+    std::size_t capacity() const { return p_buf.capacity() - 1; }
 
     bool empty() const { return (size() == 0); }
 
@@ -735,7 +736,7 @@ struct strbuf {
         p_buf.swap(b.p_buf);
     }
 
-    void setlen(size_t n) {
+    void setlen(std::size_t n) {
         p_buf.setlen(n + 1);
     }
 
@@ -751,8 +752,8 @@ private:
 template<typename K, typename V, typename HF, typename CF>
 struct map {
 private:
-    static constexpr size_t CHUNK_SIZE = 64;
-    static constexpr size_t DEFAULT_SIZE = 1024;
+    static constexpr std::size_t CHUNK_SIZE = 64;
+    static constexpr std::size_t DEFAULT_SIZE = 1024;
 
     struct entry {
         K key;
@@ -765,7 +766,7 @@ private:
     };
 
 public:
-    map(size_t sz = DEFAULT_SIZE): p_size{sz} {
+    map(std::size_t sz = DEFAULT_SIZE): p_size{sz} {
         p_buckets = new bucket *[sz];
         std::memset(p_buckets, 0, sz * sizeof(bucket *));
     }
@@ -780,7 +781,7 @@ public:
     }
 
     V &operator[](K const &key) {
-        size_t h;
+        std::size_t h;
         bucket *b = find_bucket(key, h);
         if (!b) {
             b = add(h);
@@ -790,7 +791,7 @@ public:
     }
 
     V *find(K const &key) const {
-        size_t h;
+        std::size_t h;
         bucket *b = find_bucket(key, h);
         if (!b) {
             return nullptr;
@@ -799,7 +800,7 @@ public:
     }
 
     V &insert(K const &key, V const &value) {
-        size_t h;
+        std::size_t h;
         bucket *b = find_bucket(key, h);
         if (!b) {
             b = add(h);
@@ -829,7 +830,7 @@ public:
 
     template<typename F>
     void for_each(F &&func) const {
-        for (size_t i = 0; i < p_size; ++i) {
+        for (std::size_t i = 0; i < p_size; ++i) {
             for (bucket *b = p_buckets[i]; b; b = b->next) {
                 func(b->value.key, b->value.data);
             }
@@ -837,12 +838,12 @@ public:
     }
 
 private:
-    bucket *add(size_t hash) {
+    bucket *add(std::size_t hash) {
         if (!p_unused) {
             chunk *nb = new chunk;
             nb->next = p_chunks;
             p_chunks = nb;
-            for (size_t i = 0; i < CHUNK_SIZE - 1; ++i) {
+            for (std::size_t i = 0; i < CHUNK_SIZE - 1; ++i) {
                 nb->buckets[i].next = &nb->buckets[i + 1];
             }
             nb->buckets[CHUNK_SIZE - 1].next = p_unused;
@@ -856,7 +857,7 @@ private:
         return b;
     }
 
-    bucket *find_bucket(K const &key, size_t &h) const {
+    bucket *find_bucket(K const &key, std::size_t &h) const {
         h = HF{}(key) % p_size;
         for (bucket *b = p_buckets[h]; b; b = b->next) {
             if (CF{}(key, b->value.key)) {
@@ -878,7 +879,7 @@ private:
         chunk *next;
     };
 
-    size_t p_size, p_nelems = 0;
+    std::size_t p_size, p_nelems = 0;
 
     bucket **p_buckets;
     bucket *p_unused = nullptr;
@@ -887,13 +888,13 @@ private:
 
 #if SIZE_MAX > 0xFFFF
 /* fnv1a for 32/64bit values */
-template<size_t offset_basis, size_t prime>
+template<std::size_t offset_basis, std::size_t prime>
 struct fnv1a {
-    size_t operator()(char const *data) const {
-        size_t slen = std::strlen(data);
-        size_t hash = offset_basis;
-        for (size_t i = 0; i < slen; ++i) {
-            hash ^= size_t(data[i]);
+    std::size_t operator()(char const *data) const {
+        std::size_t slen = std::strlen(data);
+        std::size_t hash = offset_basis;
+        for (std::size_t i = 0; i < slen; ++i) {
+            hash ^= std::size_t(data[i]);
             hash *= prime;
         }
         return hash;
@@ -922,13 +923,13 @@ static unsigned char const ph_lt[256] = {
      78
 };
 struct pearson {
-    size_t operator()(char const *data) const {
-        size_t slen = std::strlen(data);
-        size_t hash = 0;
+    std::size_t operator()(char const *data) const {
+        std::size_t slen = std::strlen(data);
+        std::size_t hash = 0;
         auto *udata = reinterpret_cast<unsigned char const *>(data);
-        for (size_t j = 0; j < sizeof(size_t); ++j) {
+        for (std::size_t j = 0; j < sizeof(std::size_t); ++j) {
             auto h = ph_lt[(udata[0] + j) % 256];
-            for (size_t i = 1; i < slen; ++i) {
+            for (std::size_t i = 1; i < slen; ++i) {
                 h = ph_lt[h ^ udata[i]];
             }
             hash = ((hash << 8) | h);

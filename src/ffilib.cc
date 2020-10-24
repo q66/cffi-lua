@@ -149,7 +149,7 @@ struct cdata_meta {
         /* XXX: special printing for lua builds with non-double numbers? */
         if (tp->integer() && (tp->alloc_size() == 8)) {
             char buf[32];
-            size_t written;
+            std::size_t written;
             if (tp->is_unsigned()) {
                 written = util::write_u(
                     buf, sizeof(buf), val->as<unsigned long long>()
@@ -229,7 +229,7 @@ struct cdata_meta {
             decl = &decl->ptr_base();
             valp = reinterpret_cast<void **>(*valp);
         }
-        size_t elsize = 0;
+        std::size_t elsize = 0;
         unsigned char *ptr = nullptr;
         switch (decl->type()) {
             case ast::C_BUILTIN_PTR:
@@ -260,7 +260,7 @@ struct cdata_meta {
                 break;
             }
         }
-        size_t sidx = ffi::check_arith<size_t>(L, 2);
+        auto sidx = ffi::check_arith<std::size_t>(L, 2);
         func(decl->ptr_base(), static_cast<void *>(&ptr[sidx * elsize]));
         return true;
     }
@@ -547,19 +547,19 @@ struct cdata_meta {
         auto *cd2 = ffi::testcdata<void *>(L, 2);
         /* pointer arithmetic */
         if (cd1 && cd1->decl.ptr_like()) {
-            size_t asize = cd1->decl.ptr_base().alloc_size();
+            auto asize = cd1->decl.ptr_base().alloc_size();
             if (!asize) {
                 if (binop_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
                     return 1;
                 }
                 luaL_error(L, "unknown C type size");
             }
-            ptrdiff_t d;
-            if (!ffi::test_arith<ptrdiff_t>(L, 2, d)) {
+            std::ptrdiff_t d;
+            if (!ffi::test_arith<std::ptrdiff_t>(L, 2, d)) {
                 if (binop_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
                     return 1;
                 }
-                ffi::check_arith<ptrdiff_t>(L, 2);
+                ffi::check_arith<std::ptrdiff_t>(L, 2);
             }
             auto *p = static_cast<unsigned char *>(cd1->val);
             auto &ret = ffi::newcdata<void *>(
@@ -568,19 +568,19 @@ struct cdata_meta {
             ret.val = p + d * asize;
             return 1;
         } else if (cd2 && cd2->decl.ptr_like()) {
-            size_t asize = cd2->decl.ptr_base().alloc_size();
+            auto asize = cd2->decl.ptr_base().alloc_size();
             if (!asize) {
                 if (binop_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
                     return 1;
                 }
                 luaL_error(L, "unknown C type size");
             }
-            ptrdiff_t d;
-            if (!ffi::test_arith<ptrdiff_t>(L, 1, d)) {
+            std::ptrdiff_t d;
+            if (!ffi::test_arith<std::ptrdiff_t>(L, 1, d)) {
                 if (binop_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
                     return 1;
                 }
-                ffi::check_arith<ptrdiff_t>(L, 1);
+                ffi::check_arith<std::ptrdiff_t>(L, 1);
             }
             auto *p = static_cast<unsigned char *>(cd2->val);
             auto &ret = ffi::newcdata<void *>(
@@ -601,7 +601,7 @@ struct cdata_meta {
         auto *cd2 = ffi::testcdata<void *>(L, 2);
         /* pointer difference */
         if (cd1 && cd1->decl.ptr_like()) {
-            size_t asize = cd1->decl.ptr_base().alloc_size();
+            auto asize = cd1->decl.ptr_base().alloc_size();
             if (!asize) {
                 if (binop_try_mt<ffi::METATYPE_FLAG_SUB>(L, cd1, cd2)) {
                     return 1;
@@ -625,12 +625,12 @@ struct cdata_meta {
                 lua_pushinteger(L, lua_Integer(ret / asize));
                 return 1;
             }
-            ptrdiff_t d;
-            if (!ffi::test_arith<ptrdiff_t>(L, 2, d)) {
+            std::ptrdiff_t d;
+            if (!ffi::test_arith<std::ptrdiff_t>(L, 2, d)) {
                 if (binop_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
                     return 1;
                 }
-                ffi::check_arith<ptrdiff_t>(L, 2);
+                ffi::check_arith<std::ptrdiff_t>(L, 2);
             }
             auto *p = static_cast<unsigned char *>(cd1->val);
             auto &ret = ffi::newcdata<void *>(L, cd1->decl);
@@ -1046,7 +1046,7 @@ struct cdata_meta {
 /* the ffi module itself */
 struct ffi_module {
     static int cdef_f(lua_State *L) {
-        size_t slen;
+        std::size_t slen;
         char const *inp = luaL_checklstring(L, 1, &slen);
         parser::parse(L, inp, inp + slen, (lua_gettop(L) > 1) ? 2 : -1);
         return 0;
@@ -1065,7 +1065,7 @@ struct ffi_module {
             lua_replace(L, idx);
             return ct.decl;
         }
-        size_t slen;
+        std::size_t slen;
         char const *inp = luaL_checklstring(L, idx, &slen);
         auto &ct = ffi::newctype(
             L, parser::parse_type(L, inp, inp + slen, paridx)
@@ -1212,35 +1212,35 @@ struct ffi_module {
         }
         auto &ct = check_ct(L, 1);
         if (ct.vla()) {
-            size_t sz = 0;
+            std::size_t sz = 0;
             if (lua_isinteger(L, 2)) {
                 auto isz = lua_tointeger(L, 2);
                 if (isz < 0) {
                     return 0;
                 }
-                sz = size_t(isz);
+                sz = std::size_t(isz);
             } else if (lua_isnumber(L, 2)) {
                 auto isz = lua_tonumber(L, 2);
                 if (isz < 0) {
                     return 0;
                 }
-                sz = size_t(isz);
+                sz = std::size_t(isz);
             } else {
                 auto &cd = ffi::tocdata<ffi::arg_stor_t>(L, 2);
                 if (!cd.decl.integer()) {
                     luaL_checkinteger(L, 2);
                 }
                 if (cd.decl.is_unsigned()) {
-                    sz = ffi::check_arith<size_t>(L, 2);
+                    sz = ffi::check_arith<std::size_t>(L, 2);
                 } else {
                     auto isz = ffi::check_arith<long long>(L, 2);
                     if (isz < 0) {
                         return 0;
                     }
-                    sz = size_t(isz);
+                    sz = std::size_t(isz);
                 }
             }
-            lua_pushinteger(L, ct.ptr_base().alloc_size() * size_t(sz));
+            lua_pushinteger(L, ct.ptr_base().alloc_size() * std::size_t(sz));
             return 1;
         } else if (ct.unbounded()) {
             return 0;
@@ -1317,7 +1317,7 @@ struct ffi_module {
                 } else {
                     lua_pushlstring(
                         L, lua_tostring(L, 1),
-                        ffi::check_arith<size_t>(L, 2)
+                        ffi::check_arith<std::size_t>(L, 2)
                     );
                 }
                 return 1;
@@ -1344,7 +1344,7 @@ struct ffi_module {
             /* if the length is given, special logic is used; any value can
              * be serialized here (addresses will be taken automatically)
              */
-            size_t slen = ffi::check_arith<size_t>(L, 2);
+            auto slen = ffi::check_arith<std::size_t>(L, 2);
             if (!ud.decl.ptr_like()) {
                 lua_pushlstring(L, reinterpret_cast<char const *>(valp), slen);
             } else {
@@ -1372,13 +1372,13 @@ struct ffi_module {
         if (ud.decl.type() == ast::C_BUILTIN_ARRAY) {
             char const *strp = static_cast<char const *>(*valp);
             /* arrays are special as they don't need to be null terminated */
-            size_t slen = ud.decl.alloc_size();
+            auto slen = ud.decl.alloc_size();
             /* but if an embedded zero is found, terminate at that */
             auto *p = reinterpret_cast<char const *>(
                 std::memchr(strp, '\0', slen)
             );
             if (p) {
-                slen = size_t(p - strp);
+                slen = std::size_t(p - strp);
             }
             lua_pushlstring(L, strp, slen);
         } else {
@@ -1434,17 +1434,17 @@ converr:
     static int copy_f(lua_State *L) {
         void *dst = check_voidptr(L, 1);
         void const *src;
-        size_t len;
+        std::size_t len;
         if (lua_isstring(L, 2)) {
             src = lua_tostring(L, 2);
             if (lua_gettop(L) <= 2) {
                 len = lua_rawlen(L, 2);
             } else {
-                len = ffi::check_arith<size_t>(L, 3);
+                len = ffi::check_arith<std::size_t>(L, 3);
             }
         } else {
             src = check_voidptr(L, 2);
-            len = ffi::check_arith<size_t>(L, 3);
+            len = ffi::check_arith<std::size_t>(L, 3);
         }
         std::memcpy(dst, src, len);
         return 0;
@@ -1452,7 +1452,7 @@ converr:
 
     static int fill_f(lua_State *L) {
         void *dst = check_voidptr(L, 1);
-        size_t len = ffi::check_arith<size_t>(L, 2);
+        auto len = ffi::check_arith<std::size_t>(L, 2);
         int byte = int(luaL_optinteger(L, 3, 0));
         std::memset(dst, byte, len);
         return 0;

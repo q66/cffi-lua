@@ -116,14 +116,14 @@ struct parser_type_level {
 
     union {
         util::vector<ast::c_param> argl;
-        size_t arrd;
+        std::size_t arrd;
     };
-    uint32_t cv: 2;
-    uint32_t flags: 6;
-    uint32_t cconv: 6;
-    uint32_t is_term: 1;
-    uint32_t is_func: 1;
-    uint32_t is_ref: 1;
+    std::uint32_t cv: 2;
+    std::uint32_t flags: 6;
+    std::uint32_t cconv: 6;
+    std::uint32_t is_term: 1;
+    std::uint32_t is_func: 1;
+    std::uint32_t is_ref: 1;
 };
 
 /* this stack stores whatever parse_array parses, the number of elements
@@ -131,8 +131,8 @@ struct parser_type_level {
  * level with non-zero arrd will pop off arrd items
  */
 struct parser_array_dim {
-    size_t size;
-    uint32_t quals;
+    std::size_t size;
+    std::uint32_t quals;
 };
 
 /* global parser state, one per lua_State * */
@@ -298,7 +298,7 @@ struct lex_state {
         return p_dstore.lookup(name);
     }
 
-    size_t request_name(char *buf, size_t bufsize) {
+    std::size_t request_name(char *buf, std::size_t bufsize) {
         return p_dstore.request_name(buf, bufsize);
     }
 
@@ -319,7 +319,7 @@ struct lex_state {
         if (!ensure_pidx()) {
             return false;
         }
-        size_t len;
+        std::size_t len;
         char const *str = lua_tolstring(p_L, p_pidx, &len);
         if (!str) {
             p_P->ls_buf.set("name expected");
@@ -538,7 +538,7 @@ private:
         return ast::c_expr_type::INVALID;
     }
 
-    template<size_t base, typename F, typename G>
+    template<std::size_t base, typename F, typename G>
     bool read_int_core(F &&digf, G &&convf, lex_token &tok) {
         auto &lb = p_P->ls_buf.raw();
         lb.clear();
@@ -1166,7 +1166,7 @@ static bool parse_cexpr_simple(lex_state &ls, ast::c_expr &ret) {
             if (!parse_type(ls, tp) || !check_match(ls, ')', '(', line)) {
                 return false;
             }
-            size_t align = tp.libffi_type()->size;
+            auto align = tp.libffi_type()->size;
             if (sizeof(unsigned long long) > sizeof(void *)) {
                 ret.type(ast::c_expr_type::ULONG);
                 ret.val.ul = static_cast<unsigned long>(align);
@@ -1189,7 +1189,7 @@ static bool parse_cexpr_simple(lex_state &ls, ast::c_expr &ret) {
             if (!parse_type(ls, tp) || !check_match(ls, ')', '(', line)) {
                 return false;
             }
-            size_t align = tp.libffi_type()->alignment;
+            auto align = tp.libffi_type()->alignment;
             if (sizeof(unsigned long long) > sizeof(void *)) {
                 ret.type(ast::c_expr_type::ULONG);
                 ret.val.ul = static_cast<unsigned long>(align);
@@ -1271,11 +1271,13 @@ static bool parse_cexpr(lex_state &ls, ast::c_expr &ret) {
     return parse_cexpr_bin(ls, 1, ret);
 }
 
-static bool get_arrsize(lex_state &ls, ast::c_expr const &exp, size_t &ret) {
+static bool get_arrsize(
+    lex_state &ls, ast::c_expr const &exp, std::size_t &ret
+) {
     ast::c_expr_type et;
     ast::c_value val;
     if (!exp.eval(ls.lua_state(), val, et, true)) {
-        size_t strl;
+        std::size_t strl;
         char const *errm = lua_tolstring(ls.lua_state(), -1, &strl);
         ls.get_buf().set(errm, strl);
         lua_pop(ls.lua_state(), 1);
@@ -1303,16 +1305,17 @@ static bool get_arrsize(lex_state &ls, ast::c_expr const &exp, size_t &ret) {
 
 done:
     using ULL = unsigned long long;
-    if (uval > ULL(~size_t(0))) {
+    if (uval > ULL(~std::size_t(0))) {
         ls.get_buf().set("array sie too big");
         return ls.syntax_error();
     }
-    ret = size_t(uval);
+    ret = std::size_t(uval);
     return true;
 }
 
 static bool parse_cv(
-    lex_state &ls, uint32_t &ret, bool *tdef = nullptr, bool *extr = nullptr
+    lex_state &ls, std::uint32_t &ret,
+    bool *tdef = nullptr, bool *extr = nullptr
 ) {
     ret = 0;
     for (;;) switch (ls.t.token) {
@@ -1371,7 +1374,7 @@ end:
     return true;
 }
 
-static bool parse_callconv_attrib(lex_state &ls, uint32_t &ret) {
+static bool parse_callconv_attrib(lex_state &ls, std::uint32_t &ret) {
     if (ls.t.token != TOK___attribute__) {
         ret = ast::C_FUNC_DEFAULT;
         return true;
@@ -1384,7 +1387,7 @@ static bool parse_callconv_attrib(lex_state &ls, uint32_t &ret) {
     if (!check_next(ls, TOK_ATTRIBB)) {
         return false;
     }
-    uint32_t conv;
+    std::uint32_t conv;
     if (!check(ls, TOK_NAME)) {
         return false;
     }
@@ -1409,7 +1412,7 @@ static bool parse_callconv_attrib(lex_state &ls, uint32_t &ret) {
     return true;
 }
 
-static bool parse_callconv_ms(lex_state &ls, uint32_t &ret) {
+static bool parse_callconv_ms(lex_state &ls, std::uint32_t &ret) {
     switch (ls.t.token) {
         case TOK___cdecl:
             ret = ast::C_FUNC_CDECL;
@@ -1493,15 +1496,15 @@ done_params:
 }
 
 /* FIXME: when in var declarations, all components must be complete */
-static bool parse_array(lex_state &ls, size_t &ret, int &flags) {
+static bool parse_array(lex_state &ls, std::size_t &ret, int &flags) {
     auto &dimstack = ls.array_dim_stack();
     flags = 0;
-    size_t ndims = 0;
+    std::size_t ndims = 0;
     if (ls.t.token != '[') {
         ret = ndims;
         return true;
     }
-    uint32_t cv = 0;
+    std::uint32_t cv = 0;
     if (!ls.get() || !parse_cv(ls, cv)) {
         return false;
     }
@@ -1525,7 +1528,7 @@ static bool parse_array(lex_state &ls, size_t &ret, int &flags) {
         if (!parse_cexpr(ls, exp)) {
             return false;
         }
-        size_t arrs;
+        std::size_t arrs;
         if (!get_arrsize(ls, util::move(exp), arrs)) {
             return false;
         }
@@ -1543,7 +1546,7 @@ static bool parse_array(lex_state &ls, size_t &ret, int &flags) {
         if (!parse_cexpr(ls, exp)) {
             return false;
         }
-        size_t arrs;
+        std::size_t arrs;
         if (!get_arrsize(ls, util::move(exp), arrs)) {
             return false;
         }
@@ -1662,7 +1665,7 @@ static bool parse_type_ptr(
      * inner calls overwriting stuff that belongs to the outer calls
      */
     auto &pcvq = ls.type_level_queue();
-    auto pidx = intptr_t(pcvq.size());
+    auto pidx = std::intptr_t(pcvq.size());
     bool nolev = true;
     /* normally we'd consume the '(', but remember, first level is implicit */
     goto newlevel;
@@ -1676,7 +1679,7 @@ newlevel:
         pcvq.emplace_back();
         pcvq.back().is_term = true;
         if (!nolev) {
-            uint32_t conv = 0;
+            std::uint32_t conv = 0;
             if (!parse_callconv_ms(ls, conv)) {
                 return false;
             }
@@ -1687,7 +1690,7 @@ newlevel:
         /* count all '*' and create element for each */
         while (ls.t.token == '*') {
             pcvq.emplace_back();
-            uint32_t cv = 0;
+            std::uint32_t cv = 0;
             if (!ls.get() || !parse_cv(ls, cv)) {
                 return false;
             }
@@ -1731,12 +1734,12 @@ newlevel:
         }
     } while (ls.t.token == '(');
     /* this function doesn't change the list past this, so save it */
-    auto tidx = intptr_t(pcvq.size());
+    auto tidx = std::intptr_t(pcvq.size());
     /* the most basic special case when there are no (),
      * calling convention can go before the name
      */
     if (nolev) {
-        uint32_t conv = 0;
+        std::uint32_t conv = 0;
         if (!parse_callconv_ms(ls, conv)) {
             return false;
         }
@@ -1785,8 +1788,8 @@ newlevel:
      * in short, in 'void (*foo(argl1))(argl2)', 'argl1' will be attached to
      * level 2, while 'argl2' will be stored in level 1 (the implicit one)
      */
-    uint32_t prevconv = ast::C_FUNC_DEFAULT;
-    for (intptr_t ridx = tidx - 1;;) {
+    std::uint32_t prevconv = ast::C_FUNC_DEFAULT;
+    for (std::intptr_t ridx = tidx - 1;;) {
         if (!pcvq[ridx].is_term) { /* skip non-sentinels */
             --ridx;
             continue;
@@ -1803,7 +1806,7 @@ newlevel:
             new (&clev.argl) util::vector<ast::c_param>(util::move(argl));
             clev.is_func = true;
             /* attribute style calling convention after paramlist */
-            uint32_t conv = 0;
+            std::uint32_t conv = 0;
             if (!parse_callconv_attrib(ls, conv)) {
                 return false;
             }
@@ -1814,7 +1817,7 @@ newlevel:
         } else if (ls.t.token == '[') {
             /* array dimensions may be multiple */
             int flags = 0;
-            size_t arrd = 0;
+            std::size_t arrd = 0;
             if (!parse_array(ls, arrd, flags)) {
                 return false;
             }
@@ -1871,7 +1874,7 @@ newlevel:
      */
     parser_type_level *olev = &pcvq[pidx];
     auto &dimstack = ls.array_dim_stack();
-    for (intptr_t cidx = pidx + 1;; ++cidx) {
+    for (std::intptr_t cidx = pidx + 1;; ++cidx) {
         /* for the implicit level, its pointers/ref are bound to current 'tp',
          * as there is definitely no outer arglist or anything, and we need
          * to make sure return types for functions are properly built, e.g.
@@ -1907,7 +1910,7 @@ newlevel:
         /* now attach the function or array or whatever */
         if (olev->is_func) {
             /* outer level has an arglist */
-            uint32_t fflags = olev->cconv;
+            std::uint32_t fflags = olev->cconv;
             if (!olev->argl.empty() && (
                 olev->argl.back().type().type() == ast::C_BUILTIN_VOID
             )) {
@@ -1938,13 +1941,13 @@ newlevel:
                 return ls.syntax_error();
             }
             while (olev->arrd) {
-                size_t dim = dimstack.back().size;
+                std::size_t dim = dimstack.back().size;
                 auto quals = dimstack.back().quals;
                 dimstack.pop_back();
                 --olev->arrd;
                 ast::c_type atp{
                     util::make_rc<ast::c_type>(util::move(tp)),
-                    quals, dim, (!olev->arrd ? olev->flags : uint32_t(0))
+                    quals, dim, (!olev->arrd ? olev->flags : std::uint32_t(0))
                 };
                 tp = util::move(atp);
             }
@@ -1974,13 +1977,13 @@ enum type_signedness {
 };
 
 using signed_size_t = util::conditional_t<
-    sizeof(size_t) == sizeof(char), signed char,
+    sizeof(std::size_t) == sizeof(char), signed char,
     util::conditional_t<
-        sizeof(size_t) == sizeof(short), short,
+        sizeof(std::size_t) == sizeof(short), short,
         util::conditional_t<
-            sizeof(size_t) == sizeof(int), int,
+            sizeof(std::size_t) == sizeof(int), int,
             util::conditional_t<
-                sizeof(size_t) == sizeof(long), long, long long
+                sizeof(std::size_t) == sizeof(long), long, long long
             >
         >
     >
@@ -1990,11 +1993,11 @@ static bool parse_typebase_core(
     lex_state &ls, ast::c_type &ret, bool *tdef, bool *extr
 ) {
     /* left-side cv */
-    uint32_t quals = 0;
+    std::uint32_t quals = 0;
     if (!parse_cv(ls, quals, tdef, extr)) {
         return false;
     }
-    uint32_t squals = 0;
+    std::uint32_t squals = 0;
 
     /* parameterized types */
     if (ls.t.token == '$') {
@@ -2098,50 +2101,50 @@ qualified:
             cbt = ast::C_BUILTIN_VOID;
             goto btype;
         case TOK_int8_t:
-            cbt = ast::builtin_v<int8_t>;
+            cbt = ast::builtin_v<std::int8_t>;
             goto btype;
         case TOK_int16_t:
-            cbt = ast::builtin_v<int16_t>;
+            cbt = ast::builtin_v<std::int16_t>;
             goto btype;
         case TOK_int32_t:
-            cbt = ast::builtin_v<int32_t>;
+            cbt = ast::builtin_v<std::int32_t>;
             goto btype;
         case TOK_int64_t:
-            cbt = ast::builtin_v<int64_t>;
+            cbt = ast::builtin_v<std::int64_t>;
             goto btype;
         case TOK_uint8_t:
-            cbt = ast::builtin_v<uint8_t>;
+            cbt = ast::builtin_v<std::uint8_t>;
             goto btype;
         case TOK_uint16_t:
-            cbt = ast::builtin_v<uint16_t>;
+            cbt = ast::builtin_v<std::uint16_t>;
             goto btype;
         case TOK_uint32_t:
-            cbt = ast::builtin_v<uint32_t>;
+            cbt = ast::builtin_v<std::uint32_t>;
             goto btype;
         case TOK_uint64_t:
-            cbt = ast::builtin_v<uint64_t>;
+            cbt = ast::builtin_v<std::uint64_t>;
             goto btype;
         case TOK_uintptr_t:
-            cbt = ast::builtin_v<uintptr_t>;
+            cbt = ast::builtin_v<std::uintptr_t>;
             goto btype;
         case TOK_intptr_t:
-            cbt = ast::builtin_v<intptr_t>;
+            cbt = ast::builtin_v<std::intptr_t>;
             goto btype;
         case TOK_ptrdiff_t:
-            cbt = ast::builtin_v<ptrdiff_t>;
+            cbt = ast::builtin_v<std::ptrdiff_t>;
             goto btype;
         case TOK_ssize_t:
             cbt = ast::builtin_v<signed_size_t>;
             goto btype;
         case TOK_size_t:
-            cbt = ast::builtin_v<size_t>;
+            cbt = ast::builtin_v<std::size_t>;
             goto btype;
         case TOK_va_list:
         case TOK___builtin_va_list:
         case TOK___gnuc_va_list:
             cbt = ast::C_BUILTIN_VA_LIST;
             goto btype;
-        case TOK_time_t:   cbt = ast::builtin_v<time_t>;   goto btype;
+        case TOK_time_t:   cbt = ast::builtin_v<std::time_t>; goto btype;
         case TOK_wchar_t:  cbt = ast::builtin_v<wchar_t>;  goto btype;
         case TOK_char16_t: cbt = ast::builtin_v<char16_t>; goto btype;
         case TOK_char32_t: cbt = ast::builtin_v<char32_t>; goto btype;
@@ -2238,7 +2241,7 @@ static bool parse_typebase(
         return false;
     }
     /* right-side cv that can always apply */
-    uint32_t cv = 0;
+    std::uint32_t cv = 0;
     if (!parse_cv(ls, cv, tdef, extr)) {
         return false;
     }
@@ -2321,7 +2324,7 @@ static ast::c_record const *parse_record(lex_state &ls, bool *newst) {
                 fields.emplace_back(util::strbuf{}, ast::c_type{st, 0});
                 continue;
             }
-            uint32_t cv = 0;
+            std::uint32_t cv = 0;
             if (!parse_cv(ls, cv)) {
                 return nullptr;
             }
@@ -2459,7 +2462,7 @@ static ast::c_enum const *parse_enum(lex_state &ls) {
             ast::c_expr_type et;
             ast::c_value val;
             if (!exp.eval(ls.lua_state(), val, et, true)) {
-                size_t strl;
+                std::size_t strl;
                 char const *errm = lua_tolstring(ls.lua_state(), -1, &strl);
                 ls.get_buf().set(errm, strl);
                 lua_pop(ls.lua_state(), 1);
@@ -2529,7 +2532,7 @@ static ast::c_enum const *parse_enum(lex_state &ls) {
 
 static bool parse_decl(lex_state &ls) {
     int dline = ls.line_number;
-    uint32_t cconv = 0;
+    std::uint32_t cconv = 0;
     if (!parse_callconv_attrib(ls, cconv)) {
         return false;
     }

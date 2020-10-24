@@ -191,7 +191,7 @@ struct cdata {
     }
 };
 
-static constexpr size_t cdata_value_base() {
+static constexpr std::size_t cdata_value_base() {
     /* can't use cdata directly for the offset, as it's not considered
      * a standard layout type because of ast::c_type, but we don't care
      * about that, we just want to know which offset val is at
@@ -250,7 +250,7 @@ struct fdata {
 
 template<typename T>
 static inline cdata<T> &newcdata(
-    lua_State *L, ast::c_type &&tp, size_t extra = 0
+    lua_State *L, ast::c_type &&tp, std::size_t extra = 0
 ) {
     auto *cd = new (L, extra) cdata<T>{util::move(tp)};
     cd->gc_ref = LUA_REFNIL;
@@ -261,13 +261,13 @@ static inline cdata<T> &newcdata(
 
 template<typename T>
 static inline cdata<T> &newcdata(
-    lua_State *L, ast::c_type const &tp, size_t extra = 0
+    lua_State *L, ast::c_type const &tp, std::size_t extra = 0
 ) {
     return newcdata<T>(L, tp.copy(), extra);
 }
 
 static inline cdata<ffi::noval> &newcdata(
-    lua_State *L, ast::c_type const &tp, size_t vals
+    lua_State *L, ast::c_type const &tp, std::size_t vals
 ) {
     auto ssz = vals + cdata_value_base();
     auto *cd = new (L, lua::custom_size{ssz}) cdata<ffi::noval>{tp.copy()};
@@ -339,7 +339,7 @@ static inline cdata<T> &tocdata(lua_State *L, int idx) {
 }
 
 /* careful with this; use only if you're sure you have cdata at the index */
-static inline size_t cdata_value_size(lua_State *L, int idx) {
+static inline std::size_t cdata_value_size(lua_State *L, int idx) {
     auto &cd = tocdata<void *>(L, idx);
     if (cd.decl.vla()) {
         /* VLAs only exist on lua side, they are always allocated by us, so
@@ -355,7 +355,7 @@ static inline size_t cdata_value_size(lua_State *L, int idx) {
 void destroy_cdata(lua_State *L, cdata<ffi::noval> &cd);
 void destroy_closure(closure_data *cd);
 
-int call_cif(cdata<fdata> &fud, lua_State *L, size_t largs);
+int call_cif(cdata<fdata> &fud, lua_State *L, std::size_t largs);
 
 enum conv_rule {
     RULE_CONV = 0,

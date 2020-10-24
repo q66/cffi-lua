@@ -41,7 +41,7 @@ static int make_cache(lua_State *L) {
 #if defined(RTLD_DEFAULT)
 #  define FFI_DL_DEFAULT RTLD_DEFAULT
 #elif FFI_OS == FFI_OS_BSD || FFI_OS == FFI_OS_OSX
-#  define FFI_DL_DEFAULT reinterpret_cast<void *>(intptr_t(-2))
+#  define FFI_DL_DEFAULT reinterpret_cast<void *>(std::intptr_t(-2))
 #else
 #  define FFI_DL_DEFAULT nullptr
 #endif
@@ -206,7 +206,7 @@ bool is_c(c_lib const *cl) {
 BOOL WINAPI GetModuleHandleExA(DWORD, LPCSTR, HMODULE*);
 #endif
 
-#define FFI_DL_DEFAULT reinterpret_cast<void *>(intptr_t(-1))
+#define FFI_DL_DEFAULT reinterpret_cast<void *>(std::intptr_t(-1))
 
 enum {
     FFI_DL_HANDLE_EXE = 0,
@@ -298,7 +298,7 @@ static void *get_sym(c_lib const *cl, char const *name) {
             GetProcAddress(static_cast<HMODULE>(cl->h), name)
         );
     }
-    for (size_t i = 0; i < FFI_DL_HANDLE_MAX; ++i) {
+    for (std::size_t i = 0; i < FFI_DL_HANDLE_MAX; ++i) {
         if (!ffi_dl_handle[i]) {
             HMODULE h = nullptr;
             switch (i) {
