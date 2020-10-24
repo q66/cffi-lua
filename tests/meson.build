@@ -16,24 +16,24 @@ runner = executable('runner', 'runner.cc',
 )
 
 test_cases = [
-    # test_name                      test_file            expected_fail  minver
-    ['simple example',               'simple',                   false,   501],
-    ['abi example',                  'abi',                      false,   501],
-    ['variadic calls',               'variadic',                 false,   501],
-    ['structs, arrays, unions',      'struct_array',             false,   501],
-    ['structs, unions array fields', 'struct_union_array_fields',false,   501],
-    ['memory-related utilities',     'copy_fill',                false,   501],
-    ['callbacks',                    'callbacks',                false,   501],
-    ['table initializers',           'table_init',               false,   501],
-    ['parameterized types',          'parameterized',            false,   501],
-    ['scalar types',                 'scalar',                   false,   501],
-    ['symbol redirection',           'redir',                    false,   501],
-    ['calling conventions',          'callconv',                 false,   501],
-    ['constant expressions',         'cexpr',                    false,   501],
-    ['redefinitions',                'redef',                    false,   501],
-    ['casting rules',                'cast',                     false,   501],
-    ['metatype',                     'metatype',                 false,   501],
-    ['metatype (5.4)',               'metatype54',               false,   504],
+    # test_name                      test_file             expected_fail minver
+    ['simple example',               'simple',                    false,  501],
+    ['abi example',                  'abi',                       false,  501],
+    ['variadic calls',               'variadic',                  false,  501],
+    ['structs, arrays, unions',      'struct_array',              false,  501],
+    ['structs, unions array fields', 'struct_union_array_fields', false,  501],
+    ['memory-related utilities',     'copy_fill',                 false,  501],
+    ['callbacks',                    'callbacks',                 false,  501],
+    ['table initializers',           'table_init',                false,  501],
+    ['parameterized types',          'parameterized',             false,  501],
+    ['scalar types',                 'scalar',                    false,  501],
+    ['symbol redirection',           'redir',                     false,  501],
+    ['calling conventions',          'callconv',                  false,  501],
+    ['constant expressions',         'cexpr',                     false,  501],
+    ['redefinitions',                'redef',                     false,  501],
+    ['casting rules',                'cast',                      false,  501],
+    ['metatype',                     'metatype',                  false,  501],
+    ['metatype (5.4)',               'metatype54',                false,  504],
 ]
 
 # We put the deps path in PATH because that's where our Lua dll file is
