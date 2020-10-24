@@ -885,11 +885,11 @@ static void *from_lua_cdata(
             dsz = sizeof(void *);
             return sval;
         case ast::C_BUILTIN_RECORD: {
-            /* we can initialize structs by value in conversion context,
+            /* we can pass structs by value in non-cast context,
              * as well as pointers and references by address
              */
             bool do_copy = ((tp.type() != ast::C_BUILTIN_PTR) && !tp.is_ref());
-            if (do_copy && (rule != RULE_CONV)) {
+            if (do_copy && (rule == RULE_CAST)) {
                 break;
             }
             if (rule != RULE_CAST) {

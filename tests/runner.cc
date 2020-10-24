@@ -27,11 +27,6 @@
 extern "C" int luaopen_cffi(lua_State *L);
 #endif
 
-/* Export some stdio APIs so they're always available; the actual availability
- * of these APIs may vary based on OS, e.g. on Windows stdio APIs are generally
- * inlined so we can't rely on them being exported dynamically...
- */
-
 extern "C" DLL_EXPORT
 size_t test_strlen(char const *str) {
     return strlen(str);
@@ -59,6 +54,15 @@ int TEST_STDCALL test_stdcall(int a, int b) {
 extern "C" DLL_EXPORT
 int TEST_FASTCALL test_fastcall(int a, int b) {
     return a + b;
+}
+
+struct test_struct {
+    int a, b;
+};
+
+extern "C" DLL_EXPORT
+test_struct test_struct_val(test_struct a, test_struct b) {
+    return test_struct{a.a + b.a, a.b + b.b};
 }
 
 int main(int argc, char **argv) {
