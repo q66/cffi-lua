@@ -353,7 +353,7 @@ static inline std::size_t cdata_value_size(lua_State *L, int idx) {
 }
 
 void destroy_cdata(lua_State *L, cdata<ffi::noval> &cd);
-void destroy_closure(closure_data *cd);
+void destroy_closure(lua_State *L, closure_data *cd);
 
 int call_cif(cdata<fdata> &fud, lua_State *L, std::size_t largs);
 

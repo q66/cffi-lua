@@ -72,14 +72,14 @@ static inline arg_stor_t *&fdata_get_aux(fdata &fd) {
     return *u.np;
 }
 
-static inline void fdata_free_aux(fdata &fd) {
+static inline void fdata_free_aux(lua_State *L, fdata &fd) {
     auto &aux = fdata_get_aux(fd);
-    delete[] reinterpret_cast<unsigned char *>(aux);
+    lua::free_mem(L, aux);
     aux = nullptr;
 }
 
-static inline void fdata_new_aux(fdata &fd, std::size_t sz) {
-    fdata_get_aux(fd) = reinterpret_cast<arg_stor_t *>(new unsigned char[sz]);
+static inline void fdata_new_aux(lua_State *L, fdata &fd, std::size_t sz) {
+    fdata_get_aux(fd) = reinterpret_cast<arg_stor_t *>(lua::alloc_mem(L, sz));
 }
 
 static inline ffi_type **fargs_types(void *args, std::size_t nargs) {
@@ -112,7 +112,7 @@ void destroy_cdata(lua_State *L, cdata<noval> &cd) {
             if (!fd.decl.function()->variadic()) {
                 break;
             }
-            fdata_free_aux(fd.val);
+            fdata_free_aux(L, fd.val);
         }
         default:
             break;
@@ -121,9 +121,9 @@ void destroy_cdata(lua_State *L, cdata<noval> &cd) {
     cd.decl.~T();
 }
 
-void destroy_closure(closure_data *cd) {
+void destroy_closure(lua_State *L, closure_data *cd) {
     cd->~closure_data();
-    delete[] reinterpret_cast<unsigned char *>(cd);
+    lua::free_mem(L, cd);
 }
 
 static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
@@ -264,16 +264,16 @@ static void make_cdata_func(
             fud.val.cd = cd;
             return;
         }
-        cd = reinterpret_cast<closure_data *>(new unsigned char[
+        cd = reinterpret_cast<closure_data *>(lua::alloc_mem(L,
             sizeof(closure_data) + nargs * sizeof(ffi_type *)
-        ]);
+        ));
         new (cd) closure_data{};
         /* allocate a closure in it */
         cd->closure = static_cast<ffi_closure *>(ffi_closure_alloc(
             sizeof(ffi_closure), reinterpret_cast<void **>(&fud.val.sym)
         ));
         if (!cd->closure) {
-            destroy_closure(cd);
+            destroy_closure(L, cd);
             func->serialize(L);
             luaL_error(
                 L, "failed allocating callback for '%s'",
@@ -281,14 +281,14 @@ static void make_cdata_func(
             );
         }
         if (!prepare_cif(fud.decl.function(), cd->cif, cd->targs(), nargs)) {
-            destroy_closure(cd);
+            destroy_closure(L, cd);
             luaL_error(L, "unexpected failure setting up '%s'", func->name());
         }
         if (ffi_prep_closure_loc(
             cd->closure, &fud.val.cif, cb_bind, &fud,
             reinterpret_cast<void *>(fud.val.sym)
         ) != FFI_OK) {
-            destroy_closure(cd);
+            destroy_closure(L, cd);
             func->serialize(L);
             luaL_error(
                 L, "failed initializing closure for '%s'",
@@ -307,11 +307,11 @@ static bool prepare_cif_var(
 
     auto &auxptr = fdata_get_aux(fud.val);
     if (auxptr && (nargs > std::size_t(fud.aux))) {
-        fdata_free_aux(fud.val);
+        fdata_free_aux(L, fud.val);
     }
     if (!auxptr) {
         fdata_new_aux(
-            fud.val, nargs * sizeof(arg_stor_t) + 2 * nargs * sizeof(void *)
+            L, fud.val, nargs * sizeof(arg_stor_t) + 2 * nargs * sizeof(void *)
         );
         fud.aux = int(nargs);
     }
