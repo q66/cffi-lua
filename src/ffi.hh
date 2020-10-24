@@ -1,6 +1,8 @@
 #ifndef FFI_HH
 #define FFI_HH
 
+#include <cstring>
+
 #include "libffi.hh"
 
 #include "lua.hh"
@@ -648,7 +650,7 @@ static inline cdata<arg_stor_t> &make_cdata_arith(
     auto tp = ast::c_type{bt, 0};
     auto as = tp.alloc_size();
     auto &cd = newcdata(L, util::move(tp), as);
-    util::mem_copy(&cd.val, &cv, as);
+    std::memcpy(&cd.val, &cv, as);
     return *reinterpret_cast<cdata<arg_stor_t> *>(&cd);
 }
 

@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <cstring>
 #include <cstdint>
 #include <cerrno>
 
@@ -153,13 +154,13 @@ struct cdata_meta {
                 written = util::write_u(
                     buf, sizeof(buf), val->as<unsigned long long>()
                 );
-                util::mem_copy(&buf[written], "ULL", 4);
+                std::memcpy(&buf[written], "ULL", 4);
                 written += 4;
             } else {
                 written = util::write_i(
                     buf, sizeof(buf), val->as<long long>()
                 );
-                util::mem_copy(&buf[written], "LL", 3);
+                std::memcpy(&buf[written], "LL", 3);
                 written += 3;
             }
             lua_pushlstring(L, buf, written);
@@ -295,10 +296,10 @@ struct cdata_meta {
             /* callbacks have some methods */
             char const *mname = lua_tostring(L, 2);
             /* if we had more methods, we'd do a table */
-            if (!util::str_cmp(mname, "free")) {
+            if (!std::strcmp(mname, "free")) {
                 lua_pushcfunction(L, cb_free);
                 return 1;
-            } else if (!util::str_cmp(mname, "set")) {
+            } else if (!std::strcmp(mname, "set")) {
                 lua_pushcfunction(L, cb_set);
                 return 1;
             } else if (!mname) {
@@ -1373,7 +1374,9 @@ struct ffi_module {
             /* arrays are special as they don't need to be null terminated */
             size_t slen = ud.decl.alloc_size();
             /* but if an embedded zero is found, terminate at that */
-            auto *p = reinterpret_cast<char const *>(memchr(strp, '\0', slen));
+            auto *p = reinterpret_cast<char const *>(
+                std::memchr(strp, '\0', slen)
+            );
             if (p) {
                 slen = size_t(p - strp);
             }
@@ -1443,7 +1446,7 @@ converr:
             src = check_voidptr(L, 2);
             len = ffi::check_arith<size_t>(L, 3);
         }
-        util::mem_copy(dst, src, len);
+        std::memcpy(dst, src, len);
         return 0;
     }
 
@@ -1451,7 +1454,7 @@ converr:
         void *dst = check_voidptr(L, 1);
         size_t len = ffi::check_arith<size_t>(L, 2);
         int byte = int(luaL_optinteger(L, 3, 0));
-        util::mem_set(dst, byte, len);
+        std::memset(dst, byte, len);
         return 0;
     }
 

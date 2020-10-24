@@ -68,16 +68,16 @@ static void *get_sym(c_lib const *cl, char const *name) {
 /* library resolution */
 
 static char const *resolve_name(lua_State *L, char const *name) {
-    if (strchr(name, '/')
+    if (std::strchr(name, '/')
 #ifdef FFI_OS_CYGWIN
-        || strchr(name, '\\')
+        || std::strchr(name, '\\')
 #endif
     ) {
         /* input is a path */
         lua_pushstring(L, name);
         return lua_tostring(L, -1);
     }
-    if (!strchr(name, '.')) {
+    if (!std::strchr(name, '.')) {
         /* name without ext */
         lua_pushfstring(L, FFI_DL_SONAME, name);
     } else {
@@ -87,7 +87,7 @@ static char const *resolve_name(lua_State *L, char const *name) {
         return lua_tostring(L, -1);
 #endif
     }
-    if (!strncmp(name, FFI_DL_SOPREFIX, sizeof(FFI_DL_SOPREFIX) - 1)) {
+    if (!std::strncmp(name, FFI_DL_SOPREFIX, sizeof(FFI_DL_SOPREFIX) - 1)) {
         /* lib/cyg prefix found */
         return lua_tostring(L, -1);
     }
@@ -103,8 +103,8 @@ static char const *resolve_name(lua_State *L, char const *name) {
 static bool check_ldscript(char const *buf, char const *&beg, char const *&end) {
     char const *p;
     if ((
-        !strncmp(buf, "GROUP", 5) || !strncmp(buf, "INPUT", 5)
-    ) && (p = strchr(buf, '('))) {
+        !std::strncmp(buf, "GROUP", 5) || !std::strncmp(buf, "INPUT", 5)
+    ) && (p = std::strchr(buf, '('))) {
         while (*++p == ' ') {}
         char const *e = p;
         while (*e && (*e != ' ') && (*e != ')')) {
@@ -121,19 +121,19 @@ static bool resolve_ldscript(
     lua_State *L, char const *nbeg, char const *nend
 ) {
     lua_pushlstring(L, nbeg, nend - nbeg);
-    FILE *f = fopen(lua_tostring(L, -1), "r");
+    FILE *f = std::fopen(lua_tostring(L, -1), "r");
     lua_pop(L, 1);
     if (!f) {
         return false;
     }
     char buf[256];
-    if (!fgets(buf, sizeof(buf), f)) {
+    if (!std::fgets(buf, sizeof(buf), f)) {
         fclose(f);
         return false;
     }
     char const *pb, *pe;
     bool got = false;
-    if (!strncmp(buf, "/* GNU ld script", 16)) {
+    if (!std::strncmp(buf, "/* GNU ld script", 16)) {
         while (fgets(buf, sizeof(buf), f)) {
             got = check_ldscript(buf, pb, pe);
             if (got) {
@@ -143,7 +143,7 @@ static bool resolve_ldscript(
     } else {
         got = check_ldscript(buf, pb, pe);
     }
-    fclose(f);
+    std::fclose(f);
     if (got) {
         lua_pushlstring(L, pb, pe - pb);
     }
@@ -168,7 +168,7 @@ void load(c_lib *cl, char const *path, lua_State *L, bool global) {
     }
     char const *err = dlerror(), *e;
     if (
-        err && (*err == '/') && (e = strchr(err, ':')) &&
+        err && (*err == '/') && (e = std::strchr(err, ':')) &&
         resolve_ldscript(L, err, e)
     ) {
         h = open(lua_tostring(L, -1), global);

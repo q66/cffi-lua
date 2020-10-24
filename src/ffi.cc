@@ -145,7 +145,7 @@ static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
         void *rp = from_lua(
             cd.L, fun->result(), &stor, -1, rsz, RULE_RET
         );
-        util::mem_copy(ret, rp, rsz);
+        std::memcpy(ret, rp, rsz);
         lua_pop(cd.L, 1);
     } else {
         lua_call(cd.L, int(fargs), 0);
@@ -364,7 +364,7 @@ int call_cif(cdata<fdata> &fud, lua_State *L, size_t largs) {
         if (tp.type() == ast::C_BUILTIN_RECORD) {
             /* special case for vararg passing of records: by ptr */
             auto &cd = tocdata<void *>(L, i + 2);
-            util::mem_copy(&pvals[i], &cd.val, sizeof(void *));
+            std::memcpy(&pvals[i], &cd.val, sizeof(void *));
             continue;
         }
         vals[i] = from_lua(L, util::move(tp), &pvals[i], i + 2, rsz, RULE_PASS);
@@ -412,7 +412,7 @@ static inline int push_int(
     }
     /* doesn't fit into the range, so make scalar cdata */
     auto &cd = newcdata(L, tp, sizeof(T));
-    util::mem_copy(&cd.val, value, sizeof(T));
+    std::memcpy(&cd.val, value, sizeof(T));
     return 1;
 }
 
@@ -427,7 +427,7 @@ static inline int push_flt(
         return 1;
     }
     auto &cd = newcdata(L, tp, sizeof(T));
-    util::mem_copy(&cd.val, value, sizeof(T));
+    std::memcpy(&cd.val, value, sizeof(T));
     return 1;
 }
 
@@ -539,7 +539,7 @@ int to_lua(
             }
             auto sz = tp.alloc_size();
             auto &cd = newcdata(L, tp, sz);
-            util::mem_copy(&cd.val, value, sz);
+            std::memcpy(&cd.val, value, sz);
             return 1;
         }
 
@@ -1143,7 +1143,7 @@ fallback:
     vp = from_lua(L, decl, &sv, idx, vsz, RULE_CONV);
 cloop:
     while (nelems) {
-        util::mem_copy(val, vp, vsz);
+        std::memcpy(val, vp, vsz);
         val += bsize;
         --nelems;
     }
@@ -1212,7 +1212,7 @@ static void from_lua_table_record(
         return;
     }
     if (uni && !filled) {
-        util::mem_set(stor, 0, rsz);
+        std::memset(stor, 0, rsz);
     }
 }
 
@@ -1229,7 +1229,7 @@ static void from_lua_table(
     }
 
     if (ninit <= 0) {
-        util::mem_set(stor, 0, rsz);
+        std::memset(stor, 0, rsz);
         return;
     }
 
@@ -1266,7 +1266,7 @@ static void from_lua_table(
     }
     if (ninit < int(nelems)) {
         /* fill possible remaining space with zeroes */
-        util::mem_set(val, 0, bsize * (nelems - ninit));
+        std::memset(val, 0, bsize * (nelems - ninit));
     }
 }
 
@@ -1320,7 +1320,7 @@ static bool from_lua_aggreg(
                         size_t vsz;
                         arg_stor_t sv{};
                         auto *vp = from_lua(L, decl, &sv, idx, vsz, RULE_CONV);
-                        util::mem_copy(stor, vp, msz);
+                        std::memcpy(stor, vp, msz);
                         return true;
                     }
                 }
@@ -1370,7 +1370,7 @@ static bool from_lua_aggreg(
             if (cd.decl.is_ref()) {
                 valp = reinterpret_cast<void **>(*valp);
             }
-            util::mem_copy(stor, *valp, msz);
+            std::memcpy(stor, *valp, msz);
             return true;
         }
     }
@@ -1389,7 +1389,7 @@ void from_lua(lua_State *L, ast::c_type const &decl, void *stor, int idx) {
         arg_stor_t sv{};
         size_t rsz;
         auto *vp = from_lua(L, decl, &sv, 3, rsz, RULE_CONV);
-        util::mem_copy(stor, vp, rsz);
+        std::memcpy(stor, vp, rsz);
     }
 }
 
@@ -1538,7 +1538,7 @@ newdata:
         void *dptr = nullptr;
         size_t msz = rsz;
         if (!cdp) {
-            util::mem_set(&cd.val, 0, rsz);
+            std::memset(&cd.val, 0, rsz);
             if (decl.type() == ast::C_BUILTIN_ARRAY) {
                 auto *bval = reinterpret_cast<unsigned char *>(&cd.val);
                 dptr = bval + sizeof(arg_stor_t);
@@ -1558,12 +1558,12 @@ newdata:
             *reinterpret_cast<void **>(bval) = val;
             /* write initializers into the array part */
             for (size_t i = 0; i < narr; ++i) {
-                util::mem_copy(&val[i * esz], cdp, esz);
+                std::memcpy(&val[i * esz], cdp, esz);
             }
             msz = rsz - sizeof(arg_stor_t);
         } else {
             dptr = &cd.val;
-            util::mem_copy(dptr, cdp, rsz);
+            std::memcpy(dptr, cdp, rsz);
         }
         /* perform aggregate initialization */
         from_lua_aggreg(L, decl, dptr, msz, ninits, iidx);

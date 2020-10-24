@@ -1036,7 +1036,7 @@ ptrdiff_t c_record::field_offset(char const *fname, c_type const *&fld) const {
     iter_fields([fname, &ret, &fld](
         char const *ffname, ast::c_type const &ffld, size_t off
     ) {
-        if (!util::str_cmp(fname, ffname)) {
+        if (!std::strcmp(fname, ffname)) {
             ret = ptrdiff_t(off);
             fld = &ffld;
             return true;

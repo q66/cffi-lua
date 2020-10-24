@@ -19,11 +19,6 @@
 #include <climits>
 #include <cfloat>
 
-#ifdef _MSC_VER
-/* memcpy */
-#include <memory.h>
-#endif
-
 /* allocation */
 
 #ifndef _MSC_VER
@@ -337,95 +332,6 @@ inline constexpr T limit_max() {
     return detail::limits<T>::max;
 }
 
-/* core standard library stuff */
-
-/* mem_copy */
-
-#ifdef _MSC_VER
-#  pragma intrinsic(memcpy)
-#endif
-inline void *mem_copy(
-    void * RESTRICT dest, void const * RESTRICT src, size_t n
-) {
-    return memcpy(dest, src, n);
-}
-
-/* mem_move */
-
-inline void *mem_move(void * dest, void const *src, size_t n) {
-    auto *dp = static_cast<unsigned char *>(dest);
-    auto *sp = static_cast<unsigned char const *>(src);
-
-    if (dp == sp) {
-        return dp;
-    }
-    if ((uintptr_t(sp) - uintptr_t(dp) - n) <= (-2 * n)) {
-        return mem_copy(dest, src, n);
-    }
-
-    if (dp < sp) {
-        for (; n; --n) {
-            *dp++ = *sp++;
-        }
-    } else {
-        while (n) {
-            --n;
-            dp[n] = sp[n];
-        }
-    }
-
-    return dest;
-}
-
-/* mem_set */
-
-#ifdef _MSC_VER
-#  pragma intrinsic(memset)
-#endif
-inline void *mem_set(void *p, int c, size_t n) {
-    return memset(p, c, n);
-}
-
-/* str_cmp */
-
-inline int str_cmp(char const *l, char const *r) {
-    for (; *l && (*l == *r); ++l) { ++r; }
-    return (
-        *reinterpret_cast<unsigned char const *>(l) -
-        *reinterpret_cast<unsigned char const *>(r)
-    );
-}
-
-/* str_len */
-
-inline size_t str_len(char const *p) {
-    /* low bits of each char in a word (0000000100000001...) */
-    constexpr size_t Lbits = limit_max<size_t>() / limit_max<unsigned char>();
-    /* high bits of each char in a word */
-    constexpr size_t Hbits = Lbits << (limit_digits<unsigned char>() - 1);
-    /* save the base */
-    char const *bp = p;
-    /* align p to word */
-    for (; uintptr_t(p) % sizeof(size_t); ++p) {
-        if (!*p) {
-            return (p - bp);
-        }
-    }
-    /* count by words, pointer is aligned */
-    auto *wp = reinterpret_cast<size_t const *>(p);
-    /* check if any byte in each word is zero
-     *
-     * XXX1 - 0001 => XXX0; XXX0 & YYY0 => 0000; 0000 & 1000 => 0000
-     * XX10 - 0001 => XX01; XX01 & YY01 => 0001; 0001 & 1000 => 0000
-     * 0000 - 0001 => 1111; 1111 & 1111 => 1111; 1111 & 1000 => 1000
-     */
-    for (; !(((*wp - Lbits) & ~*wp) & Hbits); ++wp) {}
-    p = reinterpret_cast<char const *>(wp);
-    /* find terminating zero */
-    for (; *p; ++p) {}
-    return (p - bp);
-}
-
 /* simple writers for base 10 to avoid printf family */
 
 size_t write_i(char *buf, size_t bufsize, long long v);
@@ -662,7 +568,7 @@ struct vector {
     }
 
     void setbuf(T const *data, size_t len) {
-        mem_copy(p_buf, data, len);
+        std::memcpy(p_buf, data, len);
         p_size = len;
     }
 
@@ -694,12 +600,12 @@ struct strbuf {
         set(str, n);
     }
 
-    strbuf(char const *str): strbuf(str, str_len(str)) {}
+    strbuf(char const *str): strbuf(str, std::strlen(str)) {}
 
     ~strbuf() {}
 
     strbuf &operator=(char const *str) {
-        set(str, str_len(str));
+        set(str, std::strlen(str));
         return *this;
     }
 
@@ -726,13 +632,13 @@ struct strbuf {
     void append(char const *str, size_t n) {
         auto sz = p_buf.size();
         p_buf.reserve(sz + n);
-        mem_copy(&p_buf[sz - 1], str, n);
+        std::memcpy(&p_buf[sz - 1], str, n);
         p_buf[n + sz - 1] = '\0';
         p_buf.setlen(sz + n);
     }
 
     void append(char const *str) {
-        append(str, str_len(str));
+        append(str, std::strlen(str));
     }
 
     void append(char c) {
@@ -746,19 +652,19 @@ struct strbuf {
     void prepend(char const *str, size_t n) {
         auto sz = p_buf.size();
         p_buf.reserve(sz + n);
-        mem_move(&p_buf[n], &p_buf[0], sz);
-        mem_copy(&p_buf[0], str, n);
+        std::memmove(&p_buf[n], &p_buf[0], sz);
+        std::memcpy(&p_buf[0], str, n);
         p_buf.setlen(sz + n);
     }
 
     void prepend(char const *str) {
-        prepend(str, str_len(str));
+        prepend(str, std::strlen(str));
     }
 
     void prepend(char c) {
         auto sz = p_buf.size();
         p_buf.reserve(sz + 1);
-        mem_move(&p_buf[1], &p_buf[0], sz);
+        std::memmove(&p_buf[1], &p_buf[0], sz);
         p_buf[0] = c;
         p_buf.setlen(sz + 1);
     }
@@ -770,13 +676,13 @@ struct strbuf {
     void insert(char const *str, size_t n, size_t idx) {
         auto sz = p_buf.size();
         p_buf.reserve(sz + n);
-        mem_move(&p_buf[idx + n], &p_buf[idx], sz - idx);
-        mem_copy(&p_buf[idx], str, n);
+        std::memmove(&p_buf[idx + n], &p_buf[idx], sz - idx);
+        std::memcpy(&p_buf[idx], str, n);
         p_buf.setlen(sz + n);
     }
 
     void insert(char const *str, size_t idx) {
-        insert(str, str_len(str), idx);
+        insert(str, std::strlen(str), idx);
     }
 
     void insert(strbuf const &b, size_t idx) {
@@ -785,13 +691,13 @@ struct strbuf {
 
     void set(char const *str, size_t n) {
         p_buf.reserve(n + 1);
-        mem_copy(&p_buf[0], str, n);
+        std::memcpy(&p_buf[0], str, n);
         p_buf[n] = '\0';
         p_buf.setlen(n + 1);
     }
 
     void set(char const *str) {
-        set(str, str_len(str));
+        set(str, std::strlen(str));
     }
 
     void set(strbuf const &b) {
@@ -861,7 +767,7 @@ private:
 public:
     map(size_t sz = DEFAULT_SIZE): p_size{sz} {
         p_buckets = new bucket *[sz];
-        mem_set(p_buckets, 0, sz * sizeof(bucket *));
+        std::memset(p_buckets, 0, sz * sizeof(bucket *));
     }
 
     ~map() {
@@ -909,7 +815,7 @@ public:
         }
         p_nelems = 0;
         p_unused = nullptr;
-        mem_set(p_buckets, 0, p_size * sizeof(bucket *));
+        std::memset(p_buckets, 0, p_size * sizeof(bucket *));
         drop_chunks();
     }
 
@@ -984,7 +890,7 @@ private:
 template<size_t offset_basis, size_t prime>
 struct fnv1a {
     size_t operator()(char const *data) const {
-        size_t slen = str_len(data);
+        size_t slen = std::strlen(data);
         size_t hash = offset_basis;
         for (size_t i = 0; i < slen; ++i) {
             hash ^= size_t(data[i]);
@@ -1017,7 +923,7 @@ static unsigned char const ph_lt[256] = {
 };
 struct pearson {
     size_t operator()(char const *data) const {
-        size_t slen = str_len(data);
+        size_t slen = std::strlen(data);
         size_t hash = 0;
         auto *udata = reinterpret_cast<unsigned char const *>(data);
         for (size_t j = 0; j < sizeof(size_t); ++j) {
@@ -1042,7 +948,7 @@ struct str_hash: pearson {};
 
 struct str_equal {
     bool operator()(char const *k1, char const *k2) const {
-        return !str_cmp(k1, k2);
+        return !std::strcmp(k1, k2);
     }
 };
 

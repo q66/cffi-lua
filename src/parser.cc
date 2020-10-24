@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <cstring>
 #include <cassert>
 #include <ctime>
 
@@ -167,6 +168,8 @@ enum parse_mode {
     PARSE_MODE_NOTCDEF,
     PARSE_MODE_ATTRIB,
 };
+
+/* locale independent ctype replacements */
 
 inline int is_digit(int c) {
     return (c >= '0') && (c <= '9');
@@ -922,7 +925,7 @@ static char const *token_to_str(int tok, char *buf) {
             buf[1] = '\0';
         } else {
             char *bufp = buf;
-            util::mem_copy(bufp, "char(", 5);
+            std::memcpy(bufp, "char(", 5);
             bufp += 5;
             bufp += util::write_i(bufp, 11, tok);
             *bufp++ = ')';
@@ -946,12 +949,12 @@ static bool error_expected(lex_state &ls, int tok) {
     char *bufp = buf;
     *bufp++ = '\'';
     char const *tk = token_to_str(tok, bufp);
-    auto tlen = util::str_len(tk);
+    auto tlen = std::strlen(tk);
     if (tk != bufp) {
-        util::mem_copy(bufp, tk, tlen);
+        std::memcpy(bufp, tk, tlen);
     }
     bufp += tlen;
-    util::mem_copy(bufp, "' expected", sizeof("' expected"));
+    std::memcpy(bufp, "' expected", sizeof("' expected"));
     ls.get_buf().set(buf);
     return ls.syntax_error();
 }
@@ -1100,7 +1103,7 @@ static bool parse_cexpr_simple(lex_state &ls, ast::c_expr &ret) {
     switch (ls.t.token) {
         case TOK_INTEGER: {
             ret.type(ls.t.numtag);
-            util::mem_copy(&ret.val, &ls.t.value, sizeof(ls.t.value));
+            std::memcpy(&ret.val, &ls.t.value, sizeof(ls.t.value));
             return ls.get();
         }
         case TOK_NAME: {
@@ -1386,13 +1389,13 @@ static bool parse_callconv_attrib(lex_state &ls, uint32_t &ret) {
         return false;
     }
     auto &b = ls.get_buf();
-    if (!util::str_cmp(b.data(), "cdecl")) {
+    if (!std::strcmp(b.data(), "cdecl")) {
         conv = ast::C_FUNC_CDECL;
-    } else if (!util::str_cmp(b.data(), "fastcall")) {
+    } else if (!std::strcmp(b.data(), "fastcall")) {
         conv = ast::C_FUNC_FASTCALL;
-    } else if (!util::str_cmp(b.data(), "stdcall")) {
+    } else if (!std::strcmp(b.data(), "stdcall")) {
         conv = ast::C_FUNC_STDCALL;
-    } else if (!util::str_cmp(b.data(), "thiscall")) {
+    } else if (!std::strcmp(b.data(), "thiscall")) {
         conv = ast::C_FUNC_THISCALL;
     } else {
         b.set("invalid calling convention");
@@ -2633,7 +2636,7 @@ static void parse_err(lua_State *L) {
 
 void parse(lua_State *L, char const *input, char const *iend, int paridx) {
     if (!iend) {
-        iend = input + util::str_len(input);
+        iend = input + std::strlen(input);
     }
     {
         lex_state ls{L, input, iend, PARSE_MODE_DEFAULT, paridx};
@@ -2662,7 +2665,7 @@ ast::c_type parse_type(
     lua_State *L, char const *input, char const *iend, int paridx
 ) {
     if (!iend) {
-        iend = input + util::str_len(input);
+        iend = input + std::strlen(input);
     }
     {
         lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF, paridx};
@@ -2692,7 +2695,7 @@ ast::c_expr_type parse_number(
     lua_State *L, ast::c_value &v, char const *input, char const *iend
 ) {
     if (!iend) {
-        iend = input + util::str_len(input);
+        iend = input + std::strlen(input);
     }
     {
         lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF};
