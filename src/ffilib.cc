@@ -1341,12 +1341,20 @@ struct ffi_module {
              * be serialized here (addresses will be taken automatically)
              */
             auto slen = ffi::check_arith<std::size_t>(L, 2);
-            if (!ud.decl.ptr_like()) {
-                lua_pushlstring(L, reinterpret_cast<char const *>(valp), slen);
-            } else {
-                lua_pushlstring(L, static_cast<char const *>(*valp), slen);
+            switch (ud.decl.type()) {
+                case ast::C_BUILTIN_PTR:
+                case ast::C_BUILTIN_ARRAY:
+                    lua_pushlstring(L, static_cast<char const *>(*valp), slen);
+                    return 1;
+                case ast::C_BUILTIN_RECORD:
+                    lua_pushlstring(
+                        L, reinterpret_cast<char const *>(valp), slen
+                    );
+                    return 1;
+                default:
+                    break;
             }
-            return 1;
+            goto converr;
         }
         /* if the length is not given, treat it like a string
          * the rules are still more loose here; arrays and pointers
@@ -1365,9 +1373,9 @@ struct ffi_module {
             default:
                 goto converr;
         }
-        if (ud.decl.type() == ast::C_BUILTIN_ARRAY) {
+        if (ud.decl.static_array()) {
             char const *strp = static_cast<char const *>(*valp);
-            /* arrays are special as they don't need to be null terminated */
+            /* static arrays are special (no need for null termination) */
             auto slen = ud.decl.alloc_size();
             /* but if an embedded zero is found, terminate at that */
             auto *p = reinterpret_cast<char const *>(

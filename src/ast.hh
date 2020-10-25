@@ -619,6 +619,14 @@ struct c_type: c_object {
         return p_flags & C_TYPE_NOSIZE;
     }
 
+    bool builtin_array() const {
+        return type() == C_BUILTIN_ARRAY;
+    }
+
+    bool static_array() const {
+        return builtin_array() && !vla() && !unbounded();
+    }
+
     bool closure() const {
         switch (type()) {
             case C_BUILTIN_FUNC:
@@ -662,10 +670,6 @@ struct c_type: c_object {
 
     bool integer() const {
         return arith() && (type() < C_BUILTIN_FLOAT);
-    }
-
-    bool builtin_array() const {
-        return type() == C_BUILTIN_ARRAY;
     }
 
     bool ptr_like() const {
