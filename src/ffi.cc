@@ -527,8 +527,7 @@ int to_lua(
                 cd.val[0] = &cd.val[1];
                 return 1;
             }
-            newcdata<void *>(L, tp).val =
-                *reinterpret_cast<void * const *>(value);
+            newcdata<void const *>(L, tp).val = value;
             return 1;
         }
 

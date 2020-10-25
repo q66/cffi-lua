@@ -47,6 +47,12 @@ int test_add_ptr(int p[2]) {
 }
 
 extern "C" DLL_EXPORT
+const char test_string[] = "foobar";
+
+extern "C" DLL_EXPORT
+const int test_ints[3] = {42, 43, 44};
+
+extern "C" DLL_EXPORT
 int TEST_STDCALL test_stdcall(int a, int b) {
     return a + b;
 }
