@@ -50,6 +50,9 @@ extern "C" DLL_EXPORT
 const char test_string[] = "foobar";
 
 extern "C" DLL_EXPORT
+const char * const test_string_ptr = "barbaz";
+
+extern "C" DLL_EXPORT
 const int test_ints[3] = {42, 43, 44};
 
 extern "C" DLL_EXPORT

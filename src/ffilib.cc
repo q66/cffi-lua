@@ -1369,7 +1369,7 @@ struct ffi_module {
             default:
                 goto converr;
         }
-        if (ud.decl.type() == ast::C_BUILTIN_ARRAY) {
+        if (ud.decl.type() == ast::C_BUILTIN_ARRAY && ud.decl.alloc_size()) {
             char const *strp = static_cast<char const *>(*valp);
             /* arrays are special as they don't need to be null terminated */
             auto slen = ud.decl.alloc_size();

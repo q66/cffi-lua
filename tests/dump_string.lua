@@ -40,3 +40,19 @@ local p =ffi.cast("struct foo const *", s)
 
 assert(ffi.string(s, ffi.sizeof(s)) == "abc")
 assert(ffi.string(p, ffi.sizeof(s)) == "abc")
+
+-- flexible array dump
+
+ffi.cdef [[
+    struct bar {
+        uint8_t x;
+        char s[];
+    };
+]]
+
+local b = ffi.new("char [5]", 0x10, 0x61, 0x62, 0x63, 0x00)
+local p = ffi.cast("struct bar const *", b)
+
+assert(p.x == 16)
+assert(ffi.string(p.s, 2) == "ab")
+assert(ffi.string(p.s) == "abc")
