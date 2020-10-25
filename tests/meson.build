@@ -22,6 +22,7 @@ test_cases = [
     ['variadic calls',               'variadic',                  false,  501],
     ['structs, arrays, unions',      'struct_array',              false,  501],
     ['structs, unions array fields', 'struct_union_array_fields', false,  501],
+    ['global variables',             'globals',                   false,  501],
     ['memory-related utilities',     'copy_fill',                 false,  501],
     ['memory serialization',         'dump_string',               false,  501],
     ['callbacks',                    'callbacks',                 false,  501],

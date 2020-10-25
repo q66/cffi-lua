@@ -319,11 +319,7 @@ struct cdata_meta {
             return 0;
         }
         if (index_common<false>(L, [L](auto &decl, void *val) {
-            void *pp = val;
-            if (decl.type() == ast::C_BUILTIN_ARRAY) {
-                pp = &val;
-            }
-            if (!ffi::to_lua(L, decl, pp, ffi::RULE_CONV)) {
+            if (!ffi::to_lua(L, decl, val, ffi::RULE_CONV)) {
                 luaL_error(L, "invalid C type");
             }
         })) {

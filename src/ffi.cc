@@ -520,15 +520,15 @@ int to_lua(
             return push_int<int>(L, tp, value, lossy);
 
         case ast::C_BUILTIN_ARRAY: {
-            if (rule == RULE_CONV) {
-                /* here, value may be a pointer to temporary, hack around it */
-                auto &cd = newcdata<void *[2]>(L, tp.as_ref());
-                cd.val[1] = *reinterpret_cast<void * const *>(value);
-                cd.val[0] = &cd.val[1];
-                return 1;
-            }
-            newcdata<void *>(L, tp).val =
-                *reinterpret_cast<void * const *>(value);
+            /* this case may be encountered twice, when retrieving array
+             * members of cdata, or when retrieving global array cdata; any
+             * other cases are not possible (e.g. you can't return an array)
+             *
+             * we need to create a C++ style reference in possible cases
+             */
+            auto &cd = newcdata<void const *[2]>(L, tp.as_ref());
+            cd.val[1] = value;
+            cd.val[0] = &cd.val[1];
             return 1;
         }
 

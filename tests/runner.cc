@@ -28,6 +28,12 @@ extern "C" int luaopen_cffi(lua_State *L);
 #endif
 
 extern "C" DLL_EXPORT
+char const test_string[] = "foobar";
+
+extern "C" DLL_EXPORT
+int const test_ints[3] = {42, 43, 44};
+
+extern "C" DLL_EXPORT
 size_t test_strlen(char const *str) {
     return strlen(str);
 }
