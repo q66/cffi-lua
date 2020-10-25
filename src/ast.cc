@@ -741,12 +741,39 @@ c_type &c_type::operator=(c_type &&v) {
     return *this;
 }
 
-static inline void add_cv(util::strbuf &o, int cv) {
+static inline bool is_token(char c) {
+    switch (c) {
+        case '&':
+        case '*':
+        case '[':
+        case ']':
+        case '(':
+        case ')':
+            return true;
+        default:
+            break;
+    }
+    return false;
+}
+
+static inline void add_cv(util::strbuf &o, int cv, bool pre) {
     if (cv & C_CV_CONST) {
-        o.append(" const");
+        if (!pre) {
+            o.append(' ');
+        }
+        o.append("const");
+        if (pre) {
+            o.append(' ');
+        }
     }
     if (cv & C_CV_VOLATILE) {
-        o.append(" volatile");
+        if (!pre) {
+            o.append(' ');
+        }
+        o.append("volatile");
+        if (pre) {
+            o.append(' ');
+        }
     }
 }
 
@@ -764,7 +791,7 @@ void c_type::do_serialize(
     if (is_ref()) {
         unref().do_serialize(o, [](util::strbuf &out, void *idata) {
             D &d = *static_cast<D *>(idata);
-            if ((out.back() != '*') && (out.back() != '(')) {
+            if (!is_token(out.back())) {
                 out.append(' ');
             }
             out.append('&');
@@ -778,11 +805,11 @@ void c_type::do_serialize(
         case C_BUILTIN_PTR:
             p_ptr->do_serialize(o, [](util::strbuf &out, void *idata) {
                 D &d = *static_cast<D *>(idata);
-                if ((out.back() != '*') && (out.back() != '(')) {
+                if (!is_token(out.back())) {
                     out.append(' ');
                 }
                 out.append('*');
-                add_cv(out, d.cv);
+                add_cv(out, d.cv, false);
                 if (d.cont) {
                     d.cont(out, d.data);
                 }
@@ -791,24 +818,22 @@ void c_type::do_serialize(
         case C_BUILTIN_ARRAY:
             p_ptr->do_serialize(o, [](util::strbuf &out, void *idata) {
                 D &d = *static_cast<D *>(idata);
+                if (!is_token(out.back())) {
+                    out.append(' ');
+                }
                 out.append('(');
                 auto sz = out.size();
                 if (d.cont) {
                     d.cont(out, d.data);
                 }
-                add_cv(out, d.ct->cv());
+                add_cv(out, d.ct->cv(), false);
                 if (sz == out.size()) {
                     out.pop_back();
-                } else {
+                    out.pop_back();
+                } else if (out.back() != ']') {
                     out.append(')');
-                }
-                if (
-                    (out.back() != '&') &&
-                    (out.back() != '*') &&
-                    (out.back() != ']') &&
-                    (out.back() != ')')
-                ) {
-                    out.append(' ');
+                } else {
+                    out.remove(sz - 1);
                 }
                 out.append('[');
                 if (d.ct->vla()) {
@@ -828,8 +853,8 @@ void c_type::do_serialize(
             p_crec->do_serialize(o, cont, data);
             break;
         default:
+            add_cv(o, val.cv, true);
             o.append(name());
-            add_cv(o, val.cv);
             if (cont) {
                 cont(o, data);
             }

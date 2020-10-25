@@ -690,6 +690,10 @@ struct strbuf {
         insert(b.data(), b.size(), idx);
     }
 
+    void remove(size_t idx, size_t n = 1) {
+        std::memmove(&p_buf[idx], &p_buf[idx + n], p_buf.size() + 1 - idx - n);
+    }
+
     void set(char const *str, std::size_t n) {
         p_buf.reserve(n + 1);
         std::memcpy(&p_buf[0], str, n);

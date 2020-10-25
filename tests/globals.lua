@@ -14,5 +14,5 @@ assert(ffi.C.test_ints[1] == 43)
 assert(ffi.C.test_ints[2] == 44)
 
 -- must be references
-assert(tostring(ffi.typeof(ffi.C.test_string)) == "ctype<char const(&)[]>")
-assert(tostring(ffi.typeof(ffi.C.test_ints)) == "ctype<int const(&)[3]>")
+assert(tostring(ffi.typeof(ffi.C.test_string)) == "ctype<const char (&)[]>")
+assert(tostring(ffi.typeof(ffi.C.test_ints)) == "ctype<const int (&)[3]>")
