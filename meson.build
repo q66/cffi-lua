@@ -201,6 +201,6 @@ endif
 runner_inc = include_directories('src')
 current_inc = include_directories('.')
 
-if get_option('tests')
+if get_option('tests') and not meson.is_cross_build()
     subdir('tests')
 endif
