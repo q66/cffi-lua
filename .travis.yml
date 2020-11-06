@@ -114,6 +114,7 @@ before_install:
               cp src/lua*.h* ../deps${lua_maj}/include
               cp src/lauxlib.h ../deps${lua_maj}/include
               cp src/liblua.a ../deps${lua_maj}
+              cp src/lua ../deps${lua_maj}
               cd ..
           done
       elif [ "$TRAVIS_OS_NAME" == "linux" ]; then
@@ -179,6 +180,7 @@ before_script:
   - |
       if [ "$FFI_TOOLCHAIN" == "msvc" ]; then
           local lua_build="Win64_dll15_lib"
+          local lua_bin="Win64_bin"
           local ffi_ver="3.3"
           local ffi_build="vc15_x64"
 
@@ -201,7 +203,10 @@ before_script:
 
               # lua from luabinaries
               wget https://downloads.sourceforge.net/project/luabinaries/${lua_ver}/Windows%20Libraries/Dynamic/lua-${lua_ver}_${lua_build}.zip || exit 1
+              wget https://downloads.sourceforge.net/project/luabinaries/${lua_ver}/Tools%20Executables/lua-${lua_ver}_${lua_bin}.zip || exit 1
               cd deps${lua_maj}
+              # unzip bin first
+              7z x ../lua-${lua_ver}_${lua_bin}.zip || exit 1
               7z x ../lua-${lua_ver}_${lua_build}.zip || exit 1
               if [ -f "lua${lua_dmaj}.lib" ]; then
                   mv lua${lua_dmaj}.lib liblua.lib

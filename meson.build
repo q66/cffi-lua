@@ -223,11 +223,11 @@ if get_option('tests') and not meson.is_cross_build() \
     # check the lua version matches the library version
     ret = run_command(lua_exe, [
         '-e',
-        'os.exit((_VERSION == "Lua @0@") and 0 or 1)'.format(luaver_str)
+        'io.write(_VERSION:match("5.+"))'
     ])
-    if ret.returncode() != 0
-        error('Given Lua executable does not match version (@0@)'.format(
-            luaver_str
+    if ret.stdout() != luaver_str
+        error('Lua executable does not match version (@0@ vs @1@)'.format(
+            ret.stdout(), luaver_str
         ))
     endif
 
