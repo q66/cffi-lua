@@ -118,7 +118,7 @@ before_install:
               cd ..
           done
       elif [ "$TRAVIS_OS_NAME" == "linux" ]; then
-          sudo apt-get -y install liblua${LUA_VERSION}-dev
+          sudo apt-get -y install lua${LUA_VERSION} liblua${LUA_VERSION}-dev
       fi
   - |
       if [ "$TRAVIS_OS_NAME" == "osx" ]; then
