@@ -1101,7 +1101,9 @@ static bool parse_cexpr_simple(lex_state &ls, ast::c_expr &ret) {
         }
     }
     switch (ls.t.token) {
-        case TOK_INTEGER: {
+        case TOK_INTEGER:
+        case TOK_FLOAT:
+        case TOK_CHAR: {
             ret.type(ls.t.numtag);
             std::memcpy(&ret.val, &ls.t.value, sizeof(ls.t.value));
             return ls.get();
