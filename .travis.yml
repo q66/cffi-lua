@@ -237,9 +237,9 @@ script:
               ninja all '&&' ninja test || exit 1
           elif [ "$FFI_TOOLCHAIN" = "msys2" ]; then
               meson .. -Dlua_version="${LUA_VERSION}" \
+                  -Dlua_path="/C/tools/msys64/mingw64/bin/lua.exe" \
                   -Dshared_libffi=true \
-                  -Ddeps_dir=deps${lua_maj} \
-                  -Dlua_path="/C/tools/msys64/mingw64/bin/lua5.3.exe" || exit 1
+                  -Ddeps_dir=deps${lua_maj} || exit 1
               ninja all && ninja test || exit 1
           else
               if [ -n "$LUA_SRC" ]; then
