@@ -17,12 +17,14 @@ assert(op == foop)
 
 -- passing pointers as arrays is ok
 
-ffi.cdef [[
-    int test_add_ptr(int p[2]);
-]]
-
 local x = ffi.new("int[2]", {5, 10})
 local xp = ffi.cast("int *", x)
 
-assert(ffi.C.test_add_ptr(x) == 15)
-assert(ffi.C.test_add_ptr(xp) == 15)
+local tap = ffi.cast("void (*)(int p[2])", function(p)
+    assert((p[0] == 5) and (p[1] == 10))
+end)
+
+tap(x)
+tap(xp)
+
+tap:free()

@@ -198,9 +198,38 @@ endif
 
 # Tests
 
-runner_inc = include_directories('src')
-current_inc = include_directories('.')
+if get_option('tests') and not meson.is_cross_build() \
+                       and not get_option('static')
+    # get lua path for the runner
+    lua_pathopt = get_option('lua_path')
+    if lua_pathopt == 'auto' and luaver == 'vendor'
+        lua_exe = find_program(
+            join_paths(deps_path, 'lua@0@'.format(luaver_str)),
+            join_paths(deps_path, 'lua@0@@1@'.format(luaver_maj, luaver_min)),
+            join_paths(deps_path, 'lua'),
+            required: true
+        )
+    elif lua_pathopt == 'auto'
+        lua_exe = find_program(
+            'lua@0@'.format(luaver_str),
+            'lua@0@@1@'.format(luaver_maj, luaver_min),
+            'lua',
+            required: true
+        )
+    else
+        lua_exe = find_program(lua_pathopt, required: true)
+    endif
 
-if get_option('tests') and not meson.is_cross_build()
+    # check the lua version matches the library version
+    ret = run_command(lua_exe, [
+        '-e',
+        'os.exit((_VERSION == "Lua @0@") and 0 or 1)'.format(luaver_str)
+    ])
+    if ret.returncode() != 0
+        error('Given Lua executable does not match version (@0@)'.format(
+            luaver_str
+        ))
+    endif
+
     subdir('tests')
 endif

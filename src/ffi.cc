@@ -520,6 +520,14 @@ int to_lua(
             return push_int<int>(L, tp, value, lossy);
 
         case ast::C_BUILTIN_ARRAY: {
+            if (rule == RULE_PASS) {
+                /* pass rule: only when passing to array args in callbacks
+                 * in this case we just drop the array bit and use a pointer
+                 */
+                newcdata<void *>(L, tp.as_type(ast::C_BUILTIN_PTR)).val =
+                    *reinterpret_cast<void * const *>(value);
+                return 1;
+            }
             /* this case may be encountered twice, when retrieving array
              * members of cdata, or when retrieving global array cdata; any
              * other cases are not possible (e.g. you can't return an array)

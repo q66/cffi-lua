@@ -52,7 +52,12 @@ The dependencies are kept intentionally minimal.
 - A C++ compiler supporting the right subset of C++14
 - Lua 5.1 or newer (tested up to and including 5.4) or equivalent (e.g. LuaJIT)
 - `libffi`
-- `meson`, `pkg-config` (optional)
+- `meson`
+
+Optional dependencies:
+
+- `pkg-config` (for automated Lua finding)
+- A Lua executable (only for tests)
 
 These toolchains have been tested:
 
@@ -73,8 +78,8 @@ testing on other architectures. If you encounter any issues on yours, feel
 free to provide patches or at least report issues.
 
 The `pkg-config` tool is optional when using `-Dlua_version=custom` and
-`-Dlibffi=custom`. However, you will need to manually specify what to include
-and link using compiler flags.
+`-Dlibffi=custom` (or `vendor`). However, for `custom`, you will need to
+manually specify what to include and link.
 
 ## Building
 
@@ -154,6 +159,10 @@ Drop any `.dll` files in the `deps` directory also. This would be the Lua
 dll file typically (e.g. `lua53.dll`). This is necessary in order to run
 tests.
 
+If you wish to run tests, also drop in the Lua executable, following the
+same naming scheme as the `.dll` file (or simply called `lua.exe`). If
+you don't do that, you will need to pass `-Dtests=false` to `meson` as well.
+
 Afterwards, run `meson` from the `build` directory (create it), like this:
 
 ```
@@ -228,8 +237,47 @@ contained in your Lua's `package.cpath`.
 
 ## Testing
 
+The module uses a native Lua executable to run tests. Since by default tests
+are enabled, the build system will search for the executable. If your copy of
+Lua is in a non-standard path, you can use `-Dlua_path=...` when configuring
+to explicitly specify where the executable is stored.
+
+Tests are only runnable when all of the following is met:
+
+- You are not cross-compiling
+- You are doing a module build (i.e. not `-Dstatic=true`)
+- The Lua executable matches the language version you are building for
+
+Either way, you can run tests with the following:
+
 ```
 $ ninja test
 ```
 
 You can see the available test cases in `tests`, they also serve as examples.
+
+Some of the tests only work if `cffi` is built with working `cffi.load`. This
+is nearly always true when you are building a module, since `cffi` supports
+more targets than Lua itself with module loading.
+
+You can also run the individual test cases standalone, like this:
+
+```
+$ lua path/to/cffi/tests/runner.lua path/to/test/case.lua
+```
+
+The environment variable `TESTS_PATH` can be used to manually specify the tests
+directory. Usually this is not necessary as it's automatically figured out.
+
+You can also specify `CFFI_PATH` as the path where `cffi.so` or `.dll` is stored.
+By default, it is assumed default `package.cpath` contains it somewhere.
+
+Additionally, `TESTLIB_PATH` should be specified as a path to the test support
+library. This library contains utilities used by some of the tests, like various
+native calls and global symbols. By default, it is stored in `build/tests`.
+If you do not specify this, tests requiring it will not run.
+
+Test cases ordinarily do not print anything to standard output or error. If the
+return code is `0`, the test has succeeded. If it is `77`, the test was skipped,
+e.g. because of the testlib not being found. In case of hard failures, an
+assertion error will be raised.

@@ -5,14 +5,16 @@ ffi.cdef [[
     extern int const test_ints[3];
 ]]
 
-assert(ffi.C.test_string[0] == string.byte('f'))
-assert(ffi.C.test_string[1] == string.byte('o'))
-assert(ffi.C.test_string[2] == string.byte('o'))
+local L = require("testlib")
 
-assert(ffi.C.test_ints[0] == 42)
-assert(ffi.C.test_ints[1] == 43)
-assert(ffi.C.test_ints[2] == 44)
+assert(L.test_string[0] == string.byte('f'))
+assert(L.test_string[1] == string.byte('o'))
+assert(L.test_string[2] == string.byte('o'))
+
+assert(L.test_ints[0] == 42)
+assert(L.test_ints[1] == 43)
+assert(L.test_ints[2] == 44)
 
 -- must be references
-assert(tostring(ffi.typeof(ffi.C.test_string)) == "ctype<const char (&)[]>")
-assert(tostring(ffi.typeof(ffi.C.test_ints)) == "ctype<const int (&)[3]>")
+assert(tostring(ffi.typeof(L.test_string)) == "ctype<const char (&)[]>")
+assert(tostring(ffi.typeof(L.test_ints)) == "ctype<const int (&)[3]>")

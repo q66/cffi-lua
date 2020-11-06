@@ -39,3 +39,9 @@ option('tests',
     value: 'true',
     description: 'Whether to build tests'
 )
+
+option('lua_path',
+    type: 'string',
+    value: 'auto',
+    description: 'Path to lua executable for tests'
+)

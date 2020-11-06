@@ -1,18 +1,8 @@
 # Test suite definitions
 
-runner_link = []
-runner_cargs = []
-if get_option('static')
-    runner_link += [cffi]
-    runner_cargs += ['-DCFFI_STATIC']
-endif
-
-runner = executable('runner', 'runner.cc',
-    include_directories: [current_inc, runner_inc] + extra_inc,
-    dependencies: [dl_lib, lua_dep],
-    link_with: runner_link,
-    cpp_args: runner_cargs + extra_cxxflags,
-    export_dynamic: true
+testlib = shared_module('testlib', ['testlib.cc'],
+    install: false,
+    cpp_args: extra_cxxflags
 )
 
 test_cases = [
@@ -21,6 +11,7 @@ test_cases = [
     ['abi example',                  'abi',                       false,  501],
     ['variadic calls',               'variadic',                  false,  501],
     ['structs, arrays, unions',      'struct_array',              false,  501],
+    ['struct passing',               'struct_pass',               false,  501],
     ['structs, unions array fields', 'struct_union_array_fields', false,  501],
     ['global variables',             'globals',                   false,  501],
     ['memory-related utilities',     'copy_fill',                 false,  501],
@@ -39,18 +30,21 @@ test_cases = [
 ]
 
 # We put the deps path in PATH because that's where our Lua dll file is
-# located and we need the test runner to be able to find this on Windows
+# located and we need the Lua executable to be able to find this on Windows
 
 penv = environment()
 penv.append('PATH', deps_path)
+penv.append('CFFI_PATH', meson.build_root())
+penv.append('TESTS_PATH', meson.current_source_dir())
+penv.append('TESTLIB_PATH', testlib.full_path())
 
 foreach tcase: test_cases
     if luaver_num < tcase[3]
         continue
     endif
-    test(tcase[0], runner,
+    test(tcase[0], lua_exe,
         args: [
-            meson.build_root(),
+            join_paths(meson.current_source_dir(), 'runner.lua'),
             join_paths(meson.current_source_dir(), tcase[1] + '.lua')
         ],
         should_fail: tcase[2], depends: cffi,

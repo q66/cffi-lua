@@ -37,12 +37,6 @@ ffi.cdef [[
     struct schara {
         char foo[4];
     };
-
-    typedef struct pass {
-        int a, b;
-    } pass;
-
-    pass test_struct_val(pass a, pass b);
 ]]
 
 -- struct
@@ -176,13 +170,3 @@ assert(ffi.string(x.foo) == "abc")
 
 x.foo = "abcd1234"
 assert(ffi.string(x.foo) == "abcd")
-
--- pass structs by value
-
-local a = ffi.new("pass", 5, 10)
-local b = ffi.new("pass", 50, 100)
-
-local c = ffi.C.test_struct_val(a, b)
-
-assert(c.a == 55)
-assert(c.b == 110)
