@@ -1,3 +1,18 @@
+# 29 November 2020 - 0.2.0
+
+**Changes:**
+
+- No longer using the C++ standard library, exceptions, RTTI and TLS
+- Lower resource utilization, simpler memory management
+- Constant expressions now properly handle errors
+- A large amount of fixes (unhandled cases, LuaJIT FFI compatibility, etc.)
+- Greatly expanded test suite
+- Removed custom test runner (using just Lua)
+
+**Requirements:**
+
+- No changes
+
 # 01 August 2020 - 0.1.1
 
 **Changes:**

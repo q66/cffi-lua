@@ -1,7 +1,7 @@
 # Project definition
 
 project('cffi-lua', ['cpp'],
-    version: '0.1.1',
+    version: '0.2.0',
     default_options: [
         'buildtype=debugoptimized', 'cpp_std=c++14', 'warning_level=3',
         'cpp_rtti=false', 'cpp_eh=none'
