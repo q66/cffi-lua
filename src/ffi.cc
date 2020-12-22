@@ -1403,8 +1403,19 @@ void from_lua(lua_State *L, ast::c_type const &decl, void *stor, int idx) {
         /* fall back to regular initialization */
         arg_stor_t sv{};
         std::size_t rsz;
-        auto *vp = from_lua(L, decl, &sv, 3, rsz, RULE_CONV);
-        std::memcpy(stor, vp, rsz);
+        auto *vp = from_lua(L, decl, &sv, idx, rsz, RULE_CONV);
+        if (decl.callable() && !vp) {
+            make_cdata_func(
+                L, nullptr, decl.function(),
+                decl.type() == ast::C_BUILTIN_PTR, nullptr
+            );
+            auto &fd = tocdata<fdata>(L, -1);
+            fd.val.cd->fref = *reinterpret_cast<int *>(&sv);
+            *static_cast<void (**)()>(stor) = fd.val.sym;
+            lua_pop(L, 1);
+        } else {
+            std::memcpy(stor, vp, rsz);
+        }
     }
 }
 

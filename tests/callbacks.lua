@@ -32,3 +32,25 @@ cb2(5, 3.14)
 assert(called3)
 
 cb2:free()
+
+-- funcs in structs
+
+ffi.cdef [[
+    struct test {
+        void (*cb)();
+    };
+]]
+
+local st = ffi.new("struct test")
+
+local called, called2 = false, false
+
+st.cb = function() called = true end
+assert(not called)
+st.cb()
+assert(called)
+
+st.cb = ffi.cast("void (*)()", function() called2 = true end)
+assert(not called2)
+st.cb()
+assert(called2)
