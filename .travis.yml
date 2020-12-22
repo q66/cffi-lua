@@ -17,7 +17,6 @@ addons:
       - libffi
       - lua
       - ninja
-    update: true
 
   # linux dependencies
   apt:
