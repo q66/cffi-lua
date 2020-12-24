@@ -25,6 +25,7 @@ test_cases = [
     ['constant expressions',         'cexpr',                     false,  501],
     ['redefinitions',                'redef',                     false,  501],
     ['casting rules',                'cast',                      false,  501],
+    ['type checks',                  'istype',                    false,  501],
     ['metatype',                     'metatype',                  false,  501],
     ['metatype (5.4)',               'metatype54',                false,  504],
 ]

@@ -1272,24 +1272,19 @@ struct ffi_module {
 
     static int istype_f(lua_State *L) {
         auto &ct = check_ct(L, 1);
-        if (!ffi::iscdata(L, 2)) {
+        auto cd = ffi::testcval<ffi::noval>(L, 2);
+        if (!cd) {
             lua_pushboolean(L, false);
             return 1;
         }
-        auto &cd = ffi::tocdata<ffi::noval>(L, 2);
         if (ct.type() == ast::C_BUILTIN_RECORD) {
-            /* if ct is a struct, accept pointers/refs to the struct */
-            /* TODO: also applies to union */
-            auto ctp = cd.decl.type();
-            if (ctp == ast::C_BUILTIN_PTR) {
-                lua_pushboolean(L, ct.is_same(cd.decl.ptr_base(), true));
-                return 1;
-            } else if (cd.decl.is_ref()) {
-                lua_pushboolean(L, ct.is_same(cd.decl, true, !ct.is_ref()));
+            /* if ct is a record, accept pointers to the struct */
+            if (cd->decl.type() == ast::C_BUILTIN_PTR) {
+                lua_pushboolean(L, ct.is_same(cd->decl.ptr_base(), true, true));
                 return 1;
             }
         }
-        lua_pushboolean(L, ct.is_same(cd.decl, true));
+        lua_pushboolean(L, ct.is_same(cd->decl, true, true));
         return 1;
     }
 
