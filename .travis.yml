@@ -11,13 +11,6 @@ dist: bionic
 osx_image: xcode11.3
 
 addons:
-  # os x dependencies
-  homebrew:
-    packages:
-      - libffi
-      - lua
-      - ninja
-
   # linux dependencies
   apt:
     packages:
@@ -42,10 +35,10 @@ matrix:
     - os: windows
       env: LUA_VERSION=5.3 FFI_TOOLCHAIN=msys2
 
-    # os x, clang, 5.3 only
+    # os x, clang, 5.4 only
     - os: osx
       compiler: clang
-      env: LUA_VERSION=5.3 CC=clang CXX=clang++
+      env: LUA_VERSION=5.4.0 LUA_SRC=1 LIBFFI_SRC=1 CC=clang CXX=clang++
 
     # x86_64 linux, test all lua versions under gcc + 5.4 under clang
     - os: linux
@@ -102,13 +95,17 @@ matrix:
 before_install:
   - |
       if [ -n "$LUA_SRC" ]; then
+          local plat="linux"
+          if [ "$TRAVIS_OS_NAME" == "osx" ]; then
+              plat="macosx"
+          fi
           for lua_ver in ${LUA_VERSION}; do
               local lua_maj=${lua_ver:0:3}
               lua_maj=${lua_maj/./}
               wget https://www.lua.org/ftp/lua-${LUA_VERSION}.tar.gz || exit 1
               tar xf lua-${LUA_VERSION}.tar.gz || exit 1
               cd lua-${LUA_VERSION}
-              make -j4 MYCFLAGS="-fPIC" PLAT=linux || exit 1
+              make -j4 MYCFLAGS="-fPIC" PLAT=$plat || exit 1
               mkdir -p ../deps${lua_maj}/include
               cp src/lua*.h* ../deps${lua_maj}/include
               cp src/lauxlib.h ../deps${lua_maj}/include
@@ -119,8 +116,32 @@ before_install:
       elif [ "$TRAVIS_OS_NAME" == "linux" ]; then
           sudo apt-get -y install lua${LUA_VERSION} liblua${LUA_VERSION}-dev
       fi
+      if [ -n "$LIBFFI_SRC" ]; then
+          wget "https://github.com/libffi/libffi/releases/download/v3.3/libffi-3.3.tar.gz" || exit 1
+          tar xf libffi-3.3.tar.gz
+          cd libffi-3.3
+          mkdir build && cd build
+          ../configure || exit 1
+          make -j4 || exit 1
+          cd ..
+          for lua_ver in ${LUA_VERSION}; do
+              local lua_maj=${lua_ver:0:3}
+              lua_maj=${lua_maj/./}
+              mkdir -p ../deps${lua_maj}/include
+              cp build/.libs/libffi.a ../deps${lua_maj}
+              cp include/ffi.h ../deps${lua_maj}/include
+              cp src/x86/ffitarget.h ../deps${lua_maj}/include
+          done
+          cd ..
+      fi
   - |
       if [ "$TRAVIS_OS_NAME" == "osx" ]; then
+          mkdir -p bin
+          cd bin
+          wget https://github.com/ninja-build/ninja/releases/download/v1.10.2/ninja-mac.zip
+          unzip ninja-mac.zip
+          export PATH="$(pwd):$PATH"
+          cd ..
           pip3 install meson
       elif [ "$TRAVIS_OS_NAME" == "linux" ]; then
           sudo pip3 install meson
@@ -241,7 +262,10 @@ script:
                   -Ddeps_dir=deps${lua_maj} || exit 1
               ninja all && ninja test || exit 1
           else
-              if [ -n "$LUA_SRC" ]; then
+              if [ -n "$LIBFFI_SRC" ]; then
+                  meson .. -Dlua_version=vendor -Dlibffi=vendor \
+                    -Ddeps_dir=deps${lua_maj} || exit 1
+              elif [ -n "$LUA_SRC" ]; then
                   meson .. -Dlua_version=vendor -Dshared_libffi=true \
                     -Ddeps_dir=deps${lua_maj} || exit 1
               else
