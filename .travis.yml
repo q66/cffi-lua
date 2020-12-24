@@ -8,7 +8,7 @@ branches:
     - /^[0-9]+\.[0-9]+\.[0-9]+$/
 
 dist: bionic
-osx_image: xcode11.3
+osx_image: xcode12.2
 
 addons:
   # linux dependencies
@@ -29,7 +29,7 @@ matrix:
   include:
     # windows, visual studio 2017, all versions
     - os: windows
-      env: LUA_VERSION="5.4.0 5.3.5 5.2.4 5.1.5" FFI_TOOLCHAIN=msvc
+      env: LUA_VERSION="5.4.0 5.3.5 5.2.4 5.1.5" LIBFFI_VERSION=3.3 FFI_TOOLCHAIN=msvc
 
     # windows, MSYS2 with mingw-w64-x86_64-gcc, 5.3 only
     - os: windows
@@ -38,7 +38,7 @@ matrix:
     # os x, clang, 5.4 only
     - os: osx
       compiler: clang
-      env: LUA_VERSION=5.4.0 LUA_SRC=1 LIBFFI_SRC=1 CC=clang CXX=clang++
+      env: LUA_VERSION=5.4.0 LUA_SRC=1 LIBFFI_VERSION=3.3 LIBFFI_SRC=1 CC=clang CXX=clang++
 
     # x86_64 linux, test all lua versions under gcc + 5.4 under clang
     - os: linux
@@ -117,9 +117,9 @@ before_install:
           sudo apt-get -y install lua${LUA_VERSION} liblua${LUA_VERSION}-dev
       fi
       if [ -n "$LIBFFI_SRC" ]; then
-          wget "https://github.com/libffi/libffi/releases/download/v3.3/libffi-3.3.tar.gz" || exit 1
-          tar xf libffi-3.3.tar.gz
-          cd libffi-3.3
+          wget "https://github.com/libffi/libffi/releases/download/v${LIBFFI_VERSION}/libffi-${LIBFFI_VERSION}.tar.gz" || exit 1
+          tar xf libffi-${LIBFFI_VERSION}.tar.gz
+          cd libffi-${LIBFFI_VERSION}
           mkdir build && cd build
           ../configure || exit 1
           make -j4 || exit 1
@@ -129,8 +129,7 @@ before_install:
               lua_maj=${lua_maj/./}
               mkdir -p ../deps${lua_maj}/include
               cp build/.libs/libffi.a ../deps${lua_maj}
-              cp include/ffi.h ../deps${lua_maj}/include
-              cp src/x86/ffitarget.h ../deps${lua_maj}/include
+              cp build/include/*.h ../deps${lua_maj}
           done
           cd ..
       fi
@@ -201,13 +200,12 @@ before_script:
       if [ "$FFI_TOOLCHAIN" == "msvc" ]; then
           local lua_build="Win64_dll15_lib"
           local lua_bin="Win64_bin"
-          local ffi_ver="3.3"
           local ffi_build="vc15_x64"
 
           # build static libffi ourselves, for our toolchain
-          wget https://github.com/winlibs/libffi/archive/libffi-${ffi_ver}.zip || exit 1
-          7z x libffi-${ffi_ver}.zip || exit 1
-          mv libffi-libffi-${ffi_ver} libffi
+          wget https://github.com/winlibs/libffi/archive/libffi-${LIBFFI_VERSION}.zip || exit 1
+          7z x libffi-${LIBFFI_VERSION}.zip || exit 1
+          mv libffi-libffi-${LIBFFI_VERSION} libffi
 
           pushd libffi/win32/${ffi_build}
           # need to run everything in the windows cmd.exe shell...
