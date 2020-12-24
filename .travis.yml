@@ -129,7 +129,7 @@ before_install:
               lua_maj=${lua_maj/./}
               mkdir -p ../deps${lua_maj}/include
               cp build/.libs/libffi.a ../deps${lua_maj}
-              cp build/include/*.h ../deps${lua_maj}
+              cp build/include/*.h ../deps${lua_maj}/include
           done
           cd ..
       fi
