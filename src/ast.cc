@@ -1073,6 +1073,21 @@ std::ptrdiff_t c_record::field_offset(
     return ret;
 }
 
+static inline ffi_type *libffi_base(ast::c_type const &tp, std::size_t &asz) {
+    if (!tp.builtin_array()) {
+        asz = 1;
+        return tp.libffi_type();
+    }
+    auto sz = tp.array_size();
+    auto *pb = &tp.ptr_base();
+    while (pb->builtin_array()) {
+        sz *= pb->array_size();
+        pb = &pb->ptr_base();
+    }
+    asz = sz;
+    return pb->libffi_type();
+}
+
 std::size_t c_record::iter_fields(bool (*cb)(
     char const *fname, ast::c_type const &type, std::size_t off, void *data
 ), void *data, std::size_t obase, bool &end) const {
@@ -1085,9 +1100,8 @@ std::size_t c_record::iter_fields(bool (*cb)(
          --nflds;
     }
     for (std::size_t i = 0; i < nflds; ++i) {
-        auto *tp = p_fields[i].type.builtin_array() ?
-                        p_fields[i].type.ptr_base().libffi_type() :
-                        p_fields[i].type.libffi_type();
+        std::size_t asz;
+        auto *tp = libffi_base(p_fields[i].type, asz);
         std::size_t align = tp->alignment;
         base = ((base + align - 1) / align) * align;
         if (p_fields[i].name.empty()) {
@@ -1106,9 +1120,7 @@ std::size_t c_record::iter_fields(bool (*cb)(
             }
         }
         if (!uni) {
-            base += p_fields[i].type.builtin_array() ?
-                        tp->size * p_fields[i].type.array_size() :
-                        tp->size;
+            base += tp->size * asz;
         }
     }
     if (flex) {
@@ -1141,9 +1153,12 @@ void c_record::set_fields(util::vector<field> fields) {
     std::size_t ffields = flex ? (nfields - 1) : nfields;
 
     std::size_t nelements = 0;
-    for (std::size_t i = 0; i < ffields; ++i)
-        nelements += p_fields[i].type.builtin_array() ?
-                        p_fields[i].type.array_size() : 1;
+    for (std::size_t i = 0; i < ffields; ++i) {
+        std::size_t asz;
+        /* the type itself is unimportant for now but we need the count */
+        libffi_base(p_fields[i].type, asz);
+        nelements += asz;
+    }
 
     p_elements = new ffi_type *[nelements + 1];
 
@@ -1165,24 +1180,16 @@ void c_record::set_fields(util::vector<field> fields) {
     };
 
     for (std::size_t i = 0, e = 0; i < ffields; ++i) {
-        if (p_fields[i].type.builtin_array()) {
-            auto *ft = p_fields[i].type.ptr_base().libffi_type();
+        std::size_t asz;
+        auto *ft = libffi_base(p_fields[i].type, asz);
 
-            usaturate(ft->size * p_fields[i].type.array_size(), ft->alignment);
+        usaturate(ft->size * asz, ft->alignment);
 
-            for (std::size_t j = 0; j < p_fields[i].type.array_size(); ++j)
-                p_elements[e + j] = ft;
-
-            e += p_fields[i].type.array_size();
-        } else {
-            auto *ft = p_fields[i].type.libffi_type();
-
-            usaturate(ft->size, ft->alignment);
-
-            p_elements[e] = ft;
-
-            e += 1;
+        for (std::size_t j = 0; j < asz; ++j) {
+            p_elements[e + j] = ft;
         }
+
+        e += asz;
     }
 
     if (is_union()) {

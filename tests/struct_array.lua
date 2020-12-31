@@ -37,6 +37,10 @@ ffi.cdef [[
     struct schara {
         char foo[4];
     };
+
+    struct multi {
+        int x[3][4][5];
+    };
 ]]
 
 -- struct
@@ -170,3 +174,10 @@ assert(ffi.string(x.foo) == "abc")
 
 x.foo = "abcd1234"
 assert(ffi.string(x.foo) == "abcd")
+
+-- multidimensional array in struct
+
+local x = ffi.new("struct multi")
+assert(ffi.sizeof(x) == ffi.sizeof("struct multi"))
+assert(ffi.sizeof(x) == ffi.sizeof("int") * 3 * 4 * 5)
+assert(ffi.sizeof(x) == ffi.sizeof("int [3][4][5]"))
