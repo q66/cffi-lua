@@ -57,6 +57,10 @@ matrix:
       arch: amd64
       compiler: gcc
       env: LUA_VERSION=5.4.0 LUA_SRC=1 CC=gcc CXX=g++
+      - os: linux
+      arch: amd64
+      compiler: gcc
+      env: LUA_VERSION=5.4.0 LUA_SRC=1 BUILDTYPE=release CC=gcc CXX=g++
     - os: linux
       arch: amd64
       compiler: clang
@@ -248,28 +252,29 @@ script:
       for lua_ver in ${LUA_VERSION}; do
           local lua_maj=${lua_ver:0:3}
           lua_maj=${lua_maj/./}
+          local margs="--buildtype=${BUILDTYPE:-debugoptimized}"
           mkdir build${lua_maj} && cd build${lua_maj}
           if [ "$FFI_TOOLCHAIN" == "msvc" ]; then
               cmd.exe //C 'C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat' amd64 '&&' \
-              meson .. -Dlua_version=vendor -Dlibffi=vendor -Ddeps_dir=deps${lua_maj} '&&' \
+              meson .. -Dlua_version=vendor -Dlibffi=vendor -Ddeps_dir=deps${lua_maj} ${margs} '&&' \
               ninja all '&&' ninja test || exit 1
           elif [ "$FFI_TOOLCHAIN" = "msys2" ]; then
               meson .. -Dlua_version="${LUA_VERSION}" \
                   -Dlua_path="/C/tools/msys64/mingw64/bin/lua.exe" \
                   -Dshared_libffi=true \
-                  -Ddeps_dir=deps${lua_maj} || exit 1
+                  -Ddeps_dir=deps${lua_maj} ${margs} || exit 1
               ninja all && ninja test || exit 1
           else
               if [ -n "$LIBFFI_SRC" ]; then
                   meson .. -Dlua_version=vendor -Dlibffi=vendor \
-                    -Ddeps_dir=deps${lua_maj} || exit 1
+                    -Ddeps_dir=deps${lua_maj} ${margs} || exit 1
               elif [ -n "$LUA_SRC" ]; then
                   meson .. -Dlua_version=vendor -Dshared_libffi=true \
-                    -Ddeps_dir=deps${lua_maj} || exit 1
+                    -Ddeps_dir=deps${lua_maj} ${margs} || exit 1
               else
                   meson .. -Dlua_version="${LUA_VERSION}" \
                       -Dshared_libffi=true \
-                      -Ddeps_dir=deps${lua_maj} || exit 1
+                      -Ddeps_dir=deps${lua_maj} ${margs} || exit 1
               fi
               ninja all && ninja test || exit 1
           fi

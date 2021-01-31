@@ -2277,6 +2277,7 @@ static ast::c_record const *parse_record(lex_state &ls, bool *newst) {
     } else {
         char buf[32];
         auto wn = ls.request_name(buf, sizeof(buf));
+        static_cast<void>(wn); /* silence NDEBUG warnings */
         assert(wn < sizeof(buf));
         sname.append(buf);
     }
@@ -2411,6 +2412,7 @@ static ast::c_enum const *parse_enum(lex_state &ls) {
     } else {
         char buf[32];
         auto wn = ls.request_name(buf, sizeof(buf));
+        static_cast<void>(wn); /* silence NDEBUG warnings */
         assert(wn < sizeof(buf));
         ename.append(buf);
     }

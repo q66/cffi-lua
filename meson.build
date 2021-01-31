@@ -3,8 +3,8 @@
 project('cffi-lua', ['cpp'],
     version: '0.2.0',
     default_options: [
-        'buildtype=debugoptimized', 'cpp_std=c++14', 'warning_level=3',
-        'cpp_rtti=false', 'cpp_eh=none'
+        'buildtype=debugoptimized', 'b_ndebug=if-release', 'cpp_std=c++14',
+        'warning_level=3', 'cpp_rtti=false', 'cpp_eh=none'
     ],
     meson_version: '>=0.50'
 )

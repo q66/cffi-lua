@@ -1220,6 +1220,7 @@ void c_record::set_fields(util::vector<field> fields) {
     auto ret = ffi_prep_cif(
         &cif, FFI_DEFAULT_ABI, 0, &p_ffi_type, nullptr
     );
+    static_cast<void>(ret); /* silence NDEBUG warnings */
     /* this should always succeed */
     assert(ret == FFI_OK);
 
