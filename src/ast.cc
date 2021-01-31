@@ -1217,9 +1217,11 @@ void c_record::set_fields(util::vector<field> fields) {
      * and validating our type definitions beforehand, but maybe make
      * it a real error?
      */
-    assert(ffi_prep_cif(
+    auto ret = ffi_prep_cif(
         &cif, FFI_DEFAULT_ABI, 0, &p_ffi_type, nullptr
-    ) == FFI_OK);
+    );
+    /* this should always succeed */
+    assert(ret == FFI_OK);
 
     if (!flex) {
         return;
