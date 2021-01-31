@@ -57,7 +57,7 @@ matrix:
       arch: amd64
       compiler: gcc
       env: LUA_VERSION=5.4.0 LUA_SRC=1 CC=gcc CXX=g++
-      - os: linux
+    - os: linux
       arch: amd64
       compiler: gcc
       env: LUA_VERSION=5.4.0 LUA_SRC=1 BUILDTYPE=release CC=gcc CXX=g++
