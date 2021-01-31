@@ -1,3 +1,11 @@
+# 31 January 2021 - 0.2.1
+
+**Changes:**
+
+- Fixed multidimensional arrays in structs
+- Fixed release builds with `NDEBUG`
+- CI updates
+
 # 29 November 2020 - 0.2.0
 
 **Changes:**
