@@ -15,6 +15,9 @@ if [ "$expected_triplet" != "$current_triplet" ]; then
     export CXX="${expected_triplet}-${CXX}"
     export STRIP="${expected_triplet}-strip"
     export AR="${expected_triplet}-ar"
+else
+    export STRIP="strip"
+    export AR="ar"
 fi
 
 case "${expected_triplet}" in

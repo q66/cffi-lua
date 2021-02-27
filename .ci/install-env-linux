@@ -31,11 +31,9 @@ mkdir -p host_tools
 echo ">> Installing meson..."
 
 if [ -n "$(command -v pip3)" ]; then
-    :
-    #sudo pip3 install meson
+    sudo pip3 install meson
 elif [ -n "$(command -v pip)" ]; then
-    :
-    #sudo pip install meson
+    sudo pip install meson
 else
     echo "ERROR: pip not found"
     exit 1
@@ -67,7 +65,7 @@ fi
 
 echo ">> Installing toolchain..."
 
-#sudo apt-get update || exit 1
-#sudo apt-get install qemu-user gcc-${expected_triplet} g++-${expected_triplet}
+sudo apt-get update || exit 1
+sudo apt-get install qemu-user gcc-${expected_triplet} g++-${expected_triplet}
 
 exit $?
