@@ -15,11 +15,7 @@ else
     export CXX="g++"
 fi
 
-if [ "$TARGET" != "darwin" -a "$expected_triplet" != "$current_triplet" ]; then
-    if [ "$CC" = "clang" ]; then
-        echo "ERROR: cross compiling only supported with gcc"
-        exit 1
-    fi
+if [ "$TARGET" != "darwin" -a "$CC" != "clang" -a "$expected_triplet" != "$current_triplet" ]; then
     cross=yes
     export CC="${expected_triplet}-${CC}"
     export CXX="${expected_triplet}-${CXX}"
