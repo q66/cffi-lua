@@ -13,6 +13,8 @@ for luaver in ${LUA_VERSIONS}; do
     cmd.exe //C 'C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat' amd64 '&&' \
     meson .. -Dlua_version=vendor -Dlibffi=vendor -Ddeps_dir=deps-${luaver} ${margs} '&&' \
     ninja all '&&' ninja test || exit 1
+
+    cd ..
 done
 
 exit 0
