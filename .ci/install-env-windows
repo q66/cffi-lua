@@ -1,0 +1,72 @@
+#!/bin/bash
+
+if [ "$TOOLCHAIN" = "msvc" ]; then
+    echo ">> Installing tools..."
+
+    choco install --no-progress -y wget || exit 1
+    choco install --no-progress -y ninja || exit 1
+
+    export PATH="/c/ProgramData/chocolatey/lib/wget/tools:$PATH"
+    export PATH="/c/ProgramData/chocolatey/lib/ninja/tools:$PATH"
+
+    pip3 install meson
+else
+    echo ">> Upgrading msys2 and installing dependencies..."
+
+    [[ ! -f C:/msys64/msys2_shell.cmd ]] && rm -rf C:/msys64
+    choco uninstall -y mingw
+    choco upgrade --no-progress -y msys2
+    export msys2='cmd //C RefreshEnv.cmd '
+    export msys2+='& set MSYS=winsymlinks:nativestrict '
+    export msys2+='& C:\\msys64\\msys2_shell.cmd -defterm -no-start'
+    export mingw64="$msys2 -mingw64 -full-path -here -c "\"\$@"\" --"
+    export msys2+=" -msys2 -c "\"\$@"\" --"
+    $msys2 pacman -S --noconfirm --needed mingw-w64-x86_64-toolchain
+    $msys2 pacman -S --noconfirm --needed mingw-w64-x86_64-meson
+    $msys2 pacman -S --noconfirm --needed mingw-w64-x86_64-lua
+    $msys2 pacman -S --noconfirm --needed mingw-w64-x86_64-libffi
+    taskkill //IM gpg-agent.exe //F # https://travis-ci.community/t/4967
+    export PATH=/C/msys64/mingw64/bin:$PATH
+
+    $msys2 pacman --sync --clean --noconfirm
+fi
+
+if [ "$TOOLCHAIN" = "msvc" ]; then
+    lua_build="Win64_dll15_lib"
+    lua_bin="Win64_bin"
+    ffi_build="vc15_x64"
+
+    echo ">> Setting up dependencies..."
+
+    # build static libffi ourselves, for our toolchain
+    wget https://github.com/winlibs/libffi/archive/libffi-${LIBFFI_VERSION}.zip || exit 1
+    7z x libffi-${LIBFFI_VERSION}.zip || exit 1
+    mv libffi-libffi-${LIBFFI_VERSION} libffi
+    pushd libffi/win32/${ffi_build}
+    # need to run everything in the windows cmd.exe shell...
+    cmd.exe //C 'C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat' amd64 '&&' \
+    msbuild.exe /property:Configuration=Release
+    cp x64/Release/libffi.lib ../../.. || exit 1
+    popd
+    for lua_ver in ${LUA_VERSIONS}; do
+        lua_dmaj=${lua_ver:0:3}
+        lua_maj=${lua_dmaj/./}
+        mkdir deps-${lua_ver}
+        # lua from luabinaries
+        wget https://downloads.sourceforge.net/project/luabinaries/${lua_ver}/Windows%20Libraries/Dynamic/lua-${lua_ver}_${lua_build}.zip || exit 1
+        wget https://downloads.sourceforge.net/project/luabinaries/${lua_ver}/Tools%20Executables/lua-${lua_ver}_${lua_bin}.zip || exit 1
+        cd deps-${lua_ver}
+        # unzip bin first
+        7z x ../lua-${lua_ver}_${lua_bin}.zip || exit 1
+        7z x ../lua-${lua_ver}_${lua_build}.zip -y || exit 1
+        if [ -f "lua${lua_dmaj}.lib" ]; then
+            mv lua${lua_dmaj}.lib liblua.lib
+        else
+            mv lua${lua_maj}.lib liblua.lib
+        fi
+        cd ..
+        cp libffi/include/ffi.h deps-${lua_ver}/include
+        cp libffi/src/x86/ffitarget.h deps-${lua_ver}/include
+        cp libffi.lib deps-${lua_ver}
+    done
+fi
