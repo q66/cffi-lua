@@ -84,10 +84,10 @@ jobs:
           persist-credentials: false
 
       - name: Prepare environment
-        run: bash ./.ci/install-env
+        run: sh ./.ci/install-env
 
       - name: Install samurai
         run: sh ./.ci/install-samu
 
       - name: Build and test cffi
-        run: bash ./.ci/build-cffi
+        run: sh ./.ci/build-cffi

@@ -2,7 +2,7 @@
 
 unset CC CXX CC_FOR_BUILD CXX_FOR_BUILD
 
-export PATH="/c/ProgramData/chocolatey/lib/ninja/tools:$PATH"
+export PATH="$(pwd)/host_tools:$PATH"
 
 echo ">> Building and testing cffi..."
 
