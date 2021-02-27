@@ -55,13 +55,6 @@ jobs:
 
     env:
       LUA_VERSIONS: '5.4.2 5.3.6 5.2.4 5.1.5'
-      TOOLCHAIN: '${{ matrix.config.toolchain }}'
-
-    strategy:
-      matrix:
-        config:
-          - { toolchain: msvc }
-          - { toolchain: msys2 }
 
     steps:
       - name: Checkout

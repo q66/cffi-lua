@@ -2,12 +2,7 @@
 
 unset CC CXX CC_FOR_BUILD CXX_FOR_BUILD
 
-if [ "$TOOLCHAIN" = "msys2" ]; then
-    export LUA_VERSIONS="5.3"
-    export PATH=/C/msys64/mingw64/bin:$PATH
-else
-    export PATH="/c/ProgramData/chocolatey/lib/ninja/tools:$PATH"
-fi
+export PATH="/c/ProgramData/chocolatey/lib/ninja/tools:$PATH"
 
 echo ">> Building and testing cffi..."
 
@@ -15,16 +10,9 @@ for luaver in ${LUA_VERSIONS}; do
     mkdir -p build-${luaver}
     cd build-${luaver}
 
-    if [ "$TOOLCHAIN" = "msvc" ]; then
-        cmd.exe //C 'C:\"Program Files (x86)"\"Microsoft Visual Studio"\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat' amd64 '&&' \
-        meson .. -Dlua_version=vendor -Dlibffi=vendor -Ddeps_dir=deps-${luaver} ${margs} '&&' \
-        ninja all '&&' ninja test || exit 1
-    else
-        meson .. -Dlua_version=${luaver} \
-            -Dlua_path="/C/msys64/mingw64/bin/lua.exe" -Dshared_libffi=true \
-            -Ddeps_dir=deps-${luaver} ${margs} || exit 1
-        ninja all && ninja test || exit 1
-    fi
+    cmd.exe //C 'C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat' amd64 '&&' \
+    meson .. -Dlua_version=vendor -Dlibffi=vendor -Ddeps_dir=deps-${luaver} ${margs} '&&' \
+    ninja all '&&' ninja test || exit 1
 done
 
 exit 0
