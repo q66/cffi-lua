@@ -111,7 +111,7 @@ echo ">> Building libffi..."
 mkdir -p libffi_build || exit 1
 
 cd libffi_build
-../libffi/configure --prefix=/ --libdir=/lib \
+CFLAGS="-fPIC" ../libffi/configure --prefix=/ --libdir=/lib \
     --host=${expected_triplet} --disable-shared || exit 1
 make -j4 || exit 1
 cd ..
@@ -127,7 +127,7 @@ for luaver in ${LUA_VERSIONS}; do
     sed -i 's/-lreadline//g' src/Makefile
     sed -i 's/-lhistory//g' src/Makefile
     sed -i 's/-lncurses//g' src/Makefile
-    make -j8 PLAT=linux CC="$CC" AR="$AR rcu" || exit 1
+    make -j8 PLAT=linux MYCFLAGS="-fPIC" CC="$CC" AR="$AR rcu" || exit 1
     cp src/lua*.h* ../deps-${luaver}/include || exit 1
     cp src/lauxlib.h ../deps-${luaver}/include || exit 1
     cp src/liblua.a ../deps-${luaver} || exit 1
