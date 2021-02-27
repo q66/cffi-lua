@@ -31,6 +31,9 @@ else
 fi
 
 case "${expected_triplet}" in
+    darwin)
+        # special case here
+        ;;
     x86_64*)
         meson_cpu_family="x86_64"
         meson_cpu="x86_64"
