@@ -12,9 +12,9 @@ export PATH="/c/ProgramData/chocolatey/lib/ninja/tools:$PATH"
 
 pip3 install meson
 
-lua_build="Win64_dll15_lib"
+lua_build="Win64_dll16_lib"
 lua_bin="Win64_bin"
-ffi_build="vc15_x64"
+ffi_build="vs16_x64"
 
 echo ">> Setting up dependencies..."
 
