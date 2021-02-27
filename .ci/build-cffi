@@ -113,9 +113,14 @@ echo ">> Building libffi..."
 
 mkdir -p libffi_build || exit 1
 
+ffi_args=""
+if [ -n "$cross" ]; then
+    ffi_args="${ffi_args} --host=${expected_triplet}"
+fi
+
 cd libffi_build
 CFLAGS="-fPIC" ../libffi/configure --prefix=/ --libdir=/lib \
-    --host=${expected_triplet} --disable-shared --disable-docs || exit 1
+    --disable-shared --disable-docs ${ffi_args} || exit 1
 make -j4 || exit 1
 cd ..
 
