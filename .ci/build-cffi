@@ -1,0 +1,172 @@
+#!/bin/sh
+
+expected_triplet=$TARGET
+
+if [ -z "$expected_triplet" ]; then
+    echo "ERROR: target triplet not provided!"
+    exit 1
+fi
+
+current_triplet=`gcc -dumpmachine`
+
+if [ "$expected_triplet" != "$current_triplet" ]; then
+    cross=yes
+    export CC="${expected_triplet}-${CC}"
+    export CXX="${expected_triplet}-${CXX}"
+    export STRIP="${expected_triplet}-strip"
+    export AR="${expected_triplet}-ar"
+fi
+
+case "${expected_triplet}" in
+    x86_64*)
+        meson_cpu_family="x86_64"
+        meson_cpu="x86_64"
+        meson_endian="little"
+        qemu_cpu="x86_64"
+        ;;
+    i686*)
+        meson_cpu_family="x86"
+        meson_cpu="i686"
+        meson_endian="little"
+        qemu_cpu="i386"
+        ;;
+    powerpc64le*)
+        meson_cpu_family="ppc64"
+        meson_cpu="ppc64le"
+        meson_endian="little"
+        qemu_cpu="ppc64le"
+        ;;
+    powerpc64*)
+        meson_cpu_family="ppc64"
+        meson_cpu="ppc64"
+        meson_endian="big"
+        qemu_cpu="ppc64"
+        ;;
+    powerpcle*)
+        if [ -n "${cross}" ]; then
+            echo "ERROR: ppcle not supported in qemu"
+            exit 1
+        fi
+        ;;
+    powerpc*)
+        meson_cpu_family="ppc"
+        meson_cpu="ppc"
+        meson_endian="big"
+        qemu_cpu="ppc"
+        ;;
+    aarch64-*)
+        meson_cpu_family="aarch64"
+        meson_cpu="aarch64"
+        meson_endian="little"
+        qemu_cpu="aarch64"
+        ;;
+    arm-*)
+        meson_cpu_family="arm"
+        meson_cpu="armv6l"
+        meson_endian="little"
+        qemu_cpu="arm"
+        ;;
+    riscv64-*)
+        meson_cpu_family="riscv64"
+        meson_cpu="riscv64"
+        meson_endian="little"
+        qemu_cpu="riscv64"
+        ;;
+    s390x*)
+        meson_cpu_family="s390x"
+        meson_cpu="s390x"
+        meson_endian="big"
+        qemu_cpu="s390x"
+        ;;
+    mips-*)
+        meson_cpu_family="mips"
+        meson_cpu="mips"
+        meson_endian="big"
+        qemu_cpu="mips"
+        ;;
+    *)
+        echo "ERROR: Cross CPU unspecified"
+        exit 1
+        ;;
+esac
+
+export PATH="$(pwd)/host_tools:$PATH"
+export NINJA="samu"
+
+echo ">> Building libffi..."
+
+mkdir -p libffi_build || exit 1
+
+cd libffi_build
+../libffi/configure --prefix=/ --libdir=/lib \
+    --host=${expected_triplet} --disable-shared || exit 1
+make -j4 || exit 1
+cd ..
+
+echo ">> Building lua..."
+
+for luaver in ${LUA_VERSIONS}; do
+    deps_path="$(pwd)/deps-${luaver}"
+    mkdir -p deps-${luaver}/include
+    cd lua-${luaver}
+    # drop unneeded functionality that'd be a hassle otherwise
+    sed -i '/.*define LUA_USE_READLINE/d' src/luaconf.h
+    sed -i 's/-lreadline//g' src/Makefile
+    sed -i 's/-lhistory//g' src/Makefile
+    sed -i 's/-lncurses//g' src/Makefile
+    make -j8 PLAT=linux CC="$CC" AR="$AR rcu" || exit 1
+    cp src/lua*.h* ../deps-${luaver}/include || exit 1
+    cp src/lauxlib.h ../deps-${luaver}/include || exit 1
+    cp src/liblua.a ../deps-${luaver} || exit 1
+    if [ -d "etc" -a -f "etc/lua.hpp" ]; then
+        cp etc/lua.hpp ../deps-${luaver}/include
+    fi
+    if [ -n "${cross}" ]; then
+        cp src/lua ../deps-${luaver}/lua.target || exit 1
+        cat << EOF > ../deps-${luaver}/lua
+#!/bin/sh
+qemu-${qemu_cpu} -L /usr/${expected_triplet} ${deps_path}/lua.target "\$@"
+EOF
+        chmod +x ../deps-${luaver}/lua
+    else
+        cp src/lua ../deps-${luaver} || exit 1
+    fi
+    cd ..
+    # also copy libffi files to each deps dir
+    cp libffi_build/include/*.h deps-${luaver}/include || exit 1
+    cp libffi_build/.libs/libffi.a deps-${luaver} || exit 1
+done
+
+echo ">> Building and testing cffi..."
+
+for luaver in ${LUA_VERSIONS}; do
+    lua_path="$(pwd)/deps-${luaver}/lua"
+
+    mkdir -p build-${luaver}
+    cd build-${luaver}
+
+    args=""
+    if [ -n "${cross}" ]; then
+        cat << EOF > crossfile
+[binaries]
+c = '${CC}'
+cpp = '${CXX}'
+strip = '${STRIP}'
+
+[host_machine]
+system = 'linux'
+cpu_family = '${meson_cpu_family}'
+cpu = '${meson_cpu}'
+endian = '${meson_endian}'
+EOF
+        args="--cross-file crossfile"
+    fi
+
+    meson .. -Dlua_version=vendor -Dlibffi=vendor -Dtests_cross=true \
+        -Ddeps_dir=deps-${luaver} -Dlua_path="${lua_path}" ${args} || exit 1
+    samu all || exit 1
+    samu test || exit 1
+    cd ..
+done
+
+exit 0

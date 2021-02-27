@@ -198,8 +198,13 @@ endif
 
 # Tests
 
-if get_option('tests') and not meson.is_cross_build() \
-                       and not get_option('static')
+if meson.is_cross_build() and get_option('tests')
+    build_tests = get_option('tests_cross')
+else
+    build_tests = get_option('tests')
+endif
+
+if build_tests and not get_option('static')
     # get lua path for the runner
     lua_pathopt = get_option('lua_path')
     if lua_pathopt == 'auto' and luaver == 'vendor'
@@ -221,6 +226,7 @@ if get_option('tests') and not meson.is_cross_build() \
     endif
 
     # check the lua version matches the library version
+    # also checks if it's actually runnable (cross-compiling?)
     ret = run_command(lua_exe, [
         '-e',
         'io.write(_VERSION:match("5.+"))'

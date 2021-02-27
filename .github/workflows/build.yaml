@@ -1,0 +1,51 @@
+name: CI
+
+on: push
+
+jobs:
+  linux:
+    name: Linux CI
+    runs-on: ubuntu-20.04
+
+    env:
+      TARGET: '${{ matrix.config.target }}'
+      LUA_VERSIONS: '5.4.2 5.3.6 5.2.4 5.1.5'
+      CC: '${{ matrix.config.cc }}'
+      CXX: '${{ matrix.confg.cxx }}'
+      RELEASE: '${{ matrix.config.release }}'
+
+    strategy:
+      matrix:
+        config:
+          # x86_64: test gcc, clang, + release mode to catch assert bugs
+          - { target: x86_64-linux-gnu, cc: gcc, cxx: g++, release: 0 }
+          #- { target: x86_64-linux-gnu, cc: gcc, cxx: g++, release: 1 }
+          #- { target: x86_64-linux-gnu, cc: clang, cxx: clang++, release: 0 }
+          # 32-bit x86
+          #- { target: i686-linux-gnu, cc: gcc, cxx: g++, release: 0 }
+          # all powerpc
+          - { target: powerpc64le-linux-gnu, cc: gcc, cxx: g++, release: 0 }
+          #- { target: powerpc64-linux-gnu, cc: gcc, cxx: g++, release: 0 }
+          #- { target: powerpc-linux-gnu, cc: gcc, cxx: g++, release: 0 }
+          # aarch64 and arm
+          #- { target: aarch64-linux-gnu, cc: gcc, cxx: g++, release: 0 }
+          #- { target: arm-linux-gnu, cc: gcc, cxx: g++, release: 0 }
+          # riscv64, s390x and mips
+          #- { target: riscv64-linux-gnu, cc: gcc, cxx: g++, release: 0 }
+          #- { target: s390x-linux-gnu, cc: gcc, cxx: g++, release: 0 }
+          #- { target: mips-linux-gnu, cc: gcc, cxx: g++, release: 0 }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          persist-credentials: false
+
+      - name: Prepare environment
+        run: sh ./.ci/install-env-linux
+
+      - name: Install samurai
+        run: sh ./.ci/install-samu
+
+      - name: Build and test cffi
+        run: sh ./.ci/build-cffi

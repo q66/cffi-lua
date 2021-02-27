@@ -40,6 +40,12 @@ option('tests',
     description: 'Whether to build tests'
 )
 
+option('tests_cross',
+    type: 'boolean',
+    value: 'false',
+    description: 'Whether to build tests when cross-compiling'
+)
+
 option('lua_path',
     type: 'string',
     value: 'auto',
