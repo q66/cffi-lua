@@ -13,9 +13,13 @@ if [ "$CC" = "clang" ]; then
     export CXX="clang++"
 else
     export CXX="g++"
-else
+fi
 
 if [ "$expected_triplet" != "$current_triplet" ]; then
+    if [ "$CC" = "clang" ]; then
+        echo "ERROR: cross compiling only supported with gcc"
+        exit 1
+    fi
     cross=yes
     export CC="${expected_triplet}-${CC}"
     export CXX="${expected_triplet}-${CXX}"
