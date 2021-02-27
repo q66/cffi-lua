@@ -172,10 +172,10 @@ cpu_family = '${meson_cpu_family}'
 cpu = '${meson_cpu}'
 endian = '${meson_endian}'
 EOF
-        args+=" --cross-file=crossfile"
+        args="${args} --cross-file=crossfile"
     fi
     if [ "$RELEASE" = "1" ]; then
-        args+=" --buildtype=debugoptimized"
+        args="${args} --buildtype=release"
     fi
 
     meson .. -Dlua_version=vendor -Dlibffi=vendor -Dtests_cross=true \
