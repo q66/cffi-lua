@@ -65,7 +65,12 @@ assert(ffi.sizeof("struct baz") == 8)
 
 assert(ffi.sizeof("struct baz_flex") == 8)
 
-assert(ffi.sizeof("struct qux") == 32)
+if ffi.alignof("uint64_t") == 8 then
+    assert(ffi.sizeof("struct qux") == 32)
+else
+    -- on x86 alignof(long long) may be 4
+    assert(ffi.sizeof("struct qux") == 28)
+end
 
 assert(ffi.sizeof("struct quux") == 12)
 
