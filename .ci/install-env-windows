@@ -2,14 +2,13 @@
 
 libffi_version=3.3
 ninja_version=1.10.2
-wget="/c/msys64/usr/bin/wget.exe"
 
 echo ">> Installing tools..."
 
 mkdir -p host_tools
 
-$wget https://github.com/ninja-build/ninja/releases/download/v${ninja_version}/ninja-win.zip || exit 1
-7z x ninja-win.zip || exit 1
+curl -L -o ninja.zip https://github.com/ninja-build/ninja/releases/download/v${ninja_version}/ninja-win.zip || exit 1
+7z x ninja.zip || exit 1
 mv ninja.exe host_tools
 
 pip3 install meson
@@ -21,8 +20,8 @@ ffi_build="vs16_x64"
 echo ">> Setting up dependencies..."
 
 # build static libffi ourselves, for our toolchain
-$wget https://github.com/winlibs/libffi/archive/libffi-${libffi_version}.zip || exit 1
-7z x libffi-${libffi_version}.zip || exit 1
+curl -L -o libffi.zip https://github.com/winlibs/libffi/archive/libffi-${libffi_version}.zip || exit 1
+7z x libffi.zip || exit 1
 mv libffi-libffi-${libffi_version} libffi
 pushd libffi/win32/${ffi_build}
 # need to run everything in the windows cmd.exe shell...
@@ -35,8 +34,8 @@ for lua_ver in ${LUA_VERSIONS}; do
     lua_maj=${lua_dmaj/./}
     mkdir deps-${lua_ver}
     # lua from luabinaries
-    $wget https://downloads.sourceforge.net/project/luabinaries/${lua_ver}/Windows%20Libraries/Dynamic/lua-${lua_ver}_${lua_build}.zip || exit 1
-    $wget https://downloads.sourceforge.net/project/luabinaries/${lua_ver}/Tools%20Executables/lua-${lua_ver}_${lua_bin}.zip || exit 1
+    curl -L -o lua-${lua_ver}_${lua_build}.zip https://downloads.sourceforge.net/project/luabinaries/${lua_ver}/Windows%20Libraries/Dynamic/lua-${lua_ver}_${lua_build}.zip || exit 1
+    curl -L -o lua-${lua_ver}_${lua_bin}.zip https://downloads.sourceforge.net/project/luabinaries/${lua_ver}/Tools%20Executables/lua-${lua_ver}_${lua_bin}.zip || exit 1
     cd deps-${lua_ver}
     # unzip bin first
     7z x ../lua-${lua_ver}_${lua_bin}.zip || exit 1
