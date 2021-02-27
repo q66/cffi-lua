@@ -1,5 +1,7 @@
 #!/bin/bash
 
+libffi_version=3.3
+
 if [ "$TOOLCHAIN" = "msvc" ]; then
     echo ">> Installing tools..."
 
@@ -39,9 +41,9 @@ if [ "$TOOLCHAIN" = "msvc" ]; then
     echo ">> Setting up dependencies..."
 
     # build static libffi ourselves, for our toolchain
-    wget https://github.com/winlibs/libffi/archive/libffi-${LIBFFI_VERSION}.zip || exit 1
-    7z x libffi-${LIBFFI_VERSION}.zip || exit 1
-    mv libffi-libffi-${LIBFFI_VERSION} libffi
+    wget https://github.com/winlibs/libffi/archive/libffi-${libffi_version}.zip || exit 1
+    7z x libffi-${libffi_version}.zip || exit 1
+    mv libffi-libffi-${libffi_version} libffi
     pushd libffi/win32/${ffi_build}
     # need to run everything in the windows cmd.exe shell...
     cmd.exe //C 'C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat' amd64 '&&' \
