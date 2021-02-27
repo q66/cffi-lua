@@ -41,7 +41,7 @@ jobs:
           persist-credentials: false
 
       #- name: Prepare environment
-      #  run: sh ./.ci/install-env-linux
+      #  run: sh ./.ci/install-env-unix
 
       #- name: Install samurai
       #  run: sh ./.ci/install-samu
@@ -62,8 +62,32 @@ jobs:
         with:
           persist-credentials: false
 
+      #- name: Prepare environment
+      #  run: bash ./.ci/install-env-windows
+
+      #- name: Build and test cffi
+      #  run: bash ./.ci/build-cffi-windows
+
+  mac:
+    name: MacOS CI
+    runs-on: macos-10.15
+
+    env:
+      TARGET: 'darwin'
+      LUA_VERSIONS: '5.4.2 5.3.6 5.2.4 5.1.5'
+      CC: 'clang'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          persist-credentials: false
+
       - name: Prepare environment
-        run: bash ./.ci/install-env-windows
+        run: bash ./.ci/install-env-unix
+
+      - name: Install samurai
+        run: sh ./.ci/install-samu
 
       - name: Build and test cffi
-        run: bash ./.ci/build-cffi-windows
+        run: bash ./.ci/build-cffi-mac

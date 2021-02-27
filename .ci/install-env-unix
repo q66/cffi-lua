@@ -51,6 +51,10 @@ for luaver in ${LUA_VERSIONS}; do
     tar xf lua-${luaver}.tar.gz || exit 1
 done
 
+if [ "$(uname -s)" != "Linux" ]; then
+    exit 0
+fi
+
 current_triplet=`gcc -dumpmachine`
 
 if [ -z "$current_triplet" ]; then
