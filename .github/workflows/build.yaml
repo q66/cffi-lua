@@ -21,18 +21,18 @@ jobs:
           #- { target: x86_64-linux-gnu, cc: gcc, release: 1 }
           - { target: x86_64-linux-gnu, cc: clang, release: 0 }
           # 32-bit x86
-          #- { target: i686-linux-gnu, cc: gcc, release: 0 }
+          - { target: i686-linux-gnu, cc: gcc, release: 0 }
           # all powerpc
           - { target: powerpc64le-linux-gnu, cc: gcc, release: 0 }
-          #- { target: powerpc64-linux-gnu, cc: gcc, release: 0 }
-          #- { target: powerpc-linux-gnu, cc: gcc, release: 0 }
+          - { target: powerpc64-linux-gnu, cc: gcc, release: 0 }
+          - { target: powerpc-linux-gnu, cc: gcc, release: 0 }
           # aarch64 and arm
-          #- { target: aarch64-linux-gnu, cc: gcc, release: 0 }
-          #- { target: arm-linux-gnu, cc: gcc, release: 0 }
+          - { target: aarch64-linux-gnu, cc: gcc, release: 0 }
+          - { target: arm-linux-gnu, cc: gcc, release: 0 }
           # riscv64, s390x and mips
-          #- { target: riscv64-linux-gnu, cc: gcc, release: 0 }
-          #- { target: s390x-linux-gnu, cc: gcc, release: 0 }
-          #- { target: mips-linux-gnu, cc: gcc, release: 0 }
+          - { target: riscv64-linux-gnu, cc: gcc, release: 0 }
+          - { target: s390x-linux-gnu, cc: gcc, release: 0 }
+          - { target: mips-linux-gnu, cc: gcc, release: 0 }
 
     steps:
       - name: Checkout
