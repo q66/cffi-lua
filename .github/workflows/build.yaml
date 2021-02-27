@@ -22,17 +22,17 @@ jobs:
           - { target: x86_64-linux-gnu, cc: clang, release: 0 }
           # 32-bit x86
           - { target: i686-linux-gnu, cc: gcc, release: 0 }
-          # all powerpc
+          # all powerpc; powerpc64 disabled for now (broken qemu)
           - { target: powerpc64le-linux-gnu, cc: gcc, release: 0 }
-          - { target: powerpc64-linux-gnu, cc: gcc, release: 0 }
+          #- { target: powerpc64-linux-gnu, cc: gcc, release: 0 }
           - { target: powerpc-linux-gnu, cc: gcc, release: 0 }
           # aarch64 and arm
           - { target: aarch64-linux-gnu, cc: gcc, release: 0 }
           - { target: arm-linux-gnueabi, cc: gcc, release: 0 }
-          # riscv64, s390x and mips
+          # riscv64, s390x and mips; mips disabled for now (broken qemu)
           - { target: riscv64-linux-gnu, cc: gcc, release: 0 }
           - { target: s390x-linux-gnu, cc: gcc, release: 0 }
-          - { target: mips-linux-gnu, cc: gcc, release: 0 }
+          #- { target: mips-linux-gnu, cc: gcc, release: 0 }
 
     steps:
       - name: Checkout
