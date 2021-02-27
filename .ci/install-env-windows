@@ -46,7 +46,7 @@ if [ "$TOOLCHAIN" = "msvc" ]; then
     mv libffi-libffi-${libffi_version} libffi
     pushd libffi/win32/${ffi_build}
     # need to run everything in the windows cmd.exe shell...
-    cmd.exe //C 'C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat' amd64 '&&' \
+    cmd.exe //C 'C:\"Program Files (x86)"\"Microsoft Visual Studio"\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat' amd64 '&&' \
     msbuild.exe /property:Configuration=Release
     cp x64/Release/libffi.lib ../../.. || exit 1
     popd

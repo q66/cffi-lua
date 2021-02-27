@@ -16,7 +16,7 @@ for luaver in ${LUA_VERSIONS}; do
     cd build-${luaver}
 
     if [ "$TOOLCHAIN" = "msvc" ]; then
-        cmd.exe //C 'C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat' amd64 '&&' \
+        cmd.exe //C 'C:\"Program Files (x86)"\"Microsoft Visual Studio"\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat' amd64 '&&' \
         meson .. -Dlua_version=vendor -Dlibffi=vendor -Ddeps_dir=deps-${luaver} ${margs} '&&' \
         ninja all '&&' ninja test || exit 1
     else
