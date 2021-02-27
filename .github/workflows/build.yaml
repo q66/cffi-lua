@@ -28,7 +28,7 @@ jobs:
           - { target: powerpc-linux-gnu, cc: gcc, release: 0 }
           # aarch64 and arm
           - { target: aarch64-linux-gnu, cc: gcc, release: 0 }
-          - { target: arm-linux-gnu, cc: gcc, release: 0 }
+          - { target: arm-linux-gnueabi, cc: gcc, release: 0 }
           # riscv64, s390x and mips
           - { target: riscv64-linux-gnu, cc: gcc, release: 0 }
           - { target: s390x-linux-gnu, cc: gcc, release: 0 }
