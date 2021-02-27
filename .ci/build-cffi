@@ -9,6 +9,12 @@ fi
 
 current_triplet=`gcc -dumpmachine`
 
+if [ "$CC" = "clang" ]; then
+    export CXX="clang++"
+else
+    export CXX="g++"
+else
+
 if [ "$expected_triplet" != "$current_triplet" ]; then
     cross=yes
     export CC="${expected_triplet}-${CC}"
