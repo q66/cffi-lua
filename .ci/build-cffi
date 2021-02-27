@@ -136,10 +136,12 @@ for luaver in ${LUA_VERSIONS}; do
     mkdir -p deps-${luaver}/include
     cd lua-${luaver}
     # drop unneeded functionality that'd be a hassle otherwise
-    sed -i '/.*define LUA_USE_READLINE/d' src/luaconf.h
-    sed -i 's/-lreadline//g' src/Makefile
-    sed -i 's/-lhistory//g' src/Makefile
-    sed -i 's/-lncurses//g' src/Makefile
+    if [ "$TARGET" != "$DARWIN" ]; then
+        sed -i '/.*define LUA_USE_READLINE/d' src/luaconf.h
+        sed -i 's/-lreadline//g' src/Makefile
+        sed -i 's/-lhistory//g' src/Makefile
+        sed -i 's/-lncurses//g' src/Makefile
+    fi
     make -j8 PLAT=${lua_plat} MYCFLAGS="-fPIC" CC="$CC" AR="$AR rcu" || exit 1
     cp src/lua*.h* ../deps-${luaver}/include || exit 1
     cp src/lauxlib.h ../deps-${luaver}/include || exit 1

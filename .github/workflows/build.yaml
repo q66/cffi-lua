@@ -18,20 +18,20 @@ jobs:
         config:
           # x86_64: test gcc, clang, + release mode to catch assert bugs
           - { target: x86_64-linux-gnu, cc: gcc, release: 0 }
-          #- { target: x86_64-linux-gnu, cc: gcc, release: 1 }
-          #- { target: x86_64-linux-gnu, cc: clang, release: 0 }
+          - { target: x86_64-linux-gnu, cc: gcc, release: 1 }
+          - { target: x86_64-linux-gnu, cc: clang, release: 0 }
           # 32-bit x86
-          #- { target: i686-linux-gnu, cc: gcc, release: 0 }
+          - { target: i686-linux-gnu, cc: gcc, release: 0 }
           # all powerpc; powerpc64 disabled for now (broken qemu)
-          #- { target: powerpc64le-linux-gnu, cc: gcc, release: 0 }
+          - { target: powerpc64le-linux-gnu, cc: gcc, release: 0 }
           #- { target: powerpc64-linux-gnu, cc: gcc, release: 0 }
-          #- { target: powerpc-linux-gnu, cc: gcc, release: 0 }
+          - { target: powerpc-linux-gnu, cc: gcc, release: 0 }
           # aarch64 and arm
-          #- { target: aarch64-linux-gnu, cc: gcc, release: 0 }
-          #- { target: arm-linux-gnueabi, cc: gcc, release: 0 }
+          - { target: aarch64-linux-gnu, cc: gcc, release: 0 }
+          - { target: arm-linux-gnueabi, cc: gcc, release: 0 }
           # riscv64, s390x and mips; mips disabled for now (broken qemu)
-          #- { target: riscv64-linux-gnu, cc: gcc, release: 0 }
-          #- { target: s390x-linux-gnu, cc: gcc, release: 0 }
+          - { target: riscv64-linux-gnu, cc: gcc, release: 0 }
+          - { target: s390x-linux-gnu, cc: gcc, release: 0 }
           #- { target: mips-linux-gnu, cc: gcc, release: 0 }
 
     steps:
@@ -40,14 +40,14 @@ jobs:
         with:
           persist-credentials: false
 
-      #- name: Prepare environment
-      #  run: sh ./.ci/install-env
+      - name: Prepare environment
+        run: sh ./.ci/install-env
 
-      #- name: Install samurai
-      #  run: sh ./.ci/install-samu
+      - name: Install samurai
+        run: sh ./.ci/install-samu
 
-      #- name: Build and test cffi
-      #  run: sh ./.ci/build-cffi
+      - name: Build and test cffi
+        run: sh ./.ci/build-cffi
 
   windows:
     name: Windows CI
@@ -62,11 +62,11 @@ jobs:
         with:
           persist-credentials: false
 
-      #- name: Prepare environment
-      #  run: bash ./.ci/install-env-windows
+      - name: Prepare environment
+        run: bash ./.ci/install-env-windows
 
-      #- name: Build and test cffi
-      #  run: bash ./.ci/build-cffi-windows
+      - name: Build and test cffi
+        run: bash ./.ci/build-cffi-windows
 
   mac:
     name: MacOS CI

@@ -69,12 +69,33 @@ There are some things notably missing at this point.
 ## Platform support
 
 The project supports every system and architecture that has a `libffi`
-implementation and a C++14 compiler. The CI explicitly tests `x86_64`,
-`ppc64le`, `aarch64` and `s390x`, on Linux, Windows and macOS operating
-systems. Little and big endian architectures are both supported. Currently
-32-bit systems lack a CI, as they are not provided by Travis.
+implementation and a C++14 compiler. We have a continuous integration
+setup that tests multiple architectures on Linux as well as `x86_64`
+macOS and Windows.
 
 In addition to supporting every Lua version starting with 5.1, effort is
 made when it comes to supporting unusual Lua configurations (such as ones
 with differently configured numeric types). This is however not tested, so
 if you run into issues, feel free to provide a patch.
+
+The CI matrix currently includes the following:
+
+| Architecture | Word size | Endianness | OS      | Compiler | Build type       |
+|--------------|-----------|------------|---------|----------|------------------|
+| `x86_64`     | 64        | little     | Linux   | `gcc`    | `debugoptimized` |
+| `x86_64`     | 64        | little     | Linux   | `gcc`    | `release`        |
+| `x86_64`     | 64        | little     | Linux   | `clang`  | `debugoptimized` |
+| `x86_64`     | 64        | little     | Windows | `cl.exe` | `debugoptimized` |
+| `x86_64`     | 64        | little     | MacOS   | `clang`  | `debugoptimized` |
+| `ppc64le`    | 64        | little     | Linux   | `gcc`    | `debugoptimized` |
+| `aarch64`    | 64        | little     | Linux   | `gcc`    | `debugoptimized` |
+| `riscv64`    | 64        | little     | Linux   | `gcc`    | `debugoptimized` |
+| `s390x`      | 64        | big        | Linux   | `gcc`    | `debugoptimized` |
+| `i686`       | 32        | little     | Linux   | `gcc`    | `debugoptimized` |
+| `ppc`        | 32        | big        | Linux   | `gcc`    | `debugoptimized` |
+| `armv6l`     | 32        | little     | Linux   | `gcc`    | `debugoptimized` |
+
+This is not an exhaustive list of supported targets but rather just a limited
+list intended to cover everything (64-bit systems, 32-bit systems, little and
+big endian, Linux, macOS and Windows, and release build to catch assertion
+related bugs).
