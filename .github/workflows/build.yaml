@@ -18,7 +18,7 @@ jobs:
         config:
           # x86_64: test gcc, clang, + release mode to catch assert bugs
           - { target: x86_64-linux-gnu, cc: gcc, release: 0 }
-          #- { target: x86_64-linux-gnu, cc: gcc, release: 1 }
+          - { target: x86_64-linux-gnu, cc: gcc, release: 1 }
           - { target: x86_64-linux-gnu, cc: clang, release: 0 }
           # 32-bit x86
           - { target: i686-linux-gnu, cc: gcc, release: 0 }
