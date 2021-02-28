@@ -3,7 +3,7 @@
 libffi_version=3.3
 ninja_version=1.10.2
 
-echo ">> Installing tools..."
+echo ">> Installing meson..."
 
 mkdir -p host_tools
 
@@ -13,42 +13,34 @@ mv ninja.exe host_tools
 
 pip3 install meson
 
-lua_build="Win64_dll16_lib"
-lua_bin="Win64_bin"
-ffi_build="vs16_x64"
+echo ">> Getting libffi..."
 
-echo ">> Setting up dependencies..."
-
-# build static libffi ourselves, for our toolchain
 curl -L -o libffi.zip https://github.com/winlibs/libffi/archive/libffi-${libffi_version}.zip || exit 1
 7z x libffi.zip || exit 1
 mv libffi-libffi-${libffi_version} libffi
-pushd libffi/win32/${ffi_build}
-# need to run everything in the windows cmd.exe shell...
-cmd.exe //C 'C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat' '&&' \
-msbuild.exe /property:Configuration=Release
-cp x64/Release/libffi.lib ../../.. || exit 1
-popd
-for lua_ver in ${LUA_VERSIONS}; do
-    lua_dmaj=${lua_ver:0:3}
+
+echo ">> Getting lua..."
+
+lua_build="Win64_dll16_lib"
+lua_bin="Win64_bin"
+
+for luaver in ${LUA_VERSIONS}; do
+    lua_dmaj=${luaver:0:3}
     lua_maj=${lua_dmaj/./}
-    mkdir deps-${lua_ver}
     # lua from luabinaries
-    curl -L -o lua-${lua_ver}_${lua_build}.zip https://downloads.sourceforge.net/project/luabinaries/${lua_ver}/Windows%20Libraries/Dynamic/lua-${lua_ver}_${lua_build}.zip || exit 1
-    curl -L -o lua-${lua_ver}_${lua_bin}.zip https://downloads.sourceforge.net/project/luabinaries/${lua_ver}/Tools%20Executables/lua-${lua_ver}_${lua_bin}.zip || exit 1
-    cd deps-${lua_ver}
+    curl -L -o lua-${luaver}-bin.zip https://downloads.sourceforge.net/project/luabinaries/${luaver}/Windows%20Libraries/Dynamic/lua-${luaver}_${lua_build}.zip || exit 1
+    curl -L -o lua-${luaver}-lib.zip https://downloads.sourceforge.net/project/luabinaries/${luaver}/Tools%20Executables/lua-${luaver}_${lua_bin}.zip || exit 1
+    mkdir lua-${luaver}
+    cd lua-${luaver}
     # unzip bin first
-    7z x ../lua-${lua_ver}_${lua_bin}.zip || exit 1
-    7z x ../lua-${lua_ver}_${lua_build}.zip -y || exit 1
+    7z x ../lua-${luaver}_${lua_bin}.zip || exit 1
+    7z x ../lua-${luaver}_${lua_build}.zip -y || exit 1
     if [ -f "lua${lua_dmaj}.lib" ]; then
         mv lua${lua_dmaj}.lib liblua.lib
     else
         mv lua${lua_maj}.lib liblua.lib
     fi
     cd ..
-    cp libffi/include/ffi.h deps-${lua_ver}/include
-    cp libffi/src/x86/ffitarget.h deps-${lua_ver}/include
-    cp libffi.lib deps-${lua_ver}
 done
 
 exit 0

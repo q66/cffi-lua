@@ -1,8 +1,28 @@
 #!/bin/bash
 
+ffi_build="vs16_x64"
+
 unset CC CXX CC_FOR_BUILD CXX_FOR_BUILD
 
 export PATH="$(pwd)/host_tools:$PATH"
+
+echo ">> Building libffi..."
+
+pushd libffi/win32/${ffi_build}
+# need to run everything in the windows cmd.exe shell...
+cmd.exe //C 'C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat' '&&' \
+msbuild.exe /property:Configuration=Release
+cp x64/Release/libffi.lib ../../.. || exit 1
+popd
+
+echo ">> Setting up lua..."
+
+for luaver in ${LUA_VERSIONS}; do
+    mv lua-${luaver} deps-${luaver} || exit 1
+    cp libffi/include/ffi.h deps-${lua_ver}/include || exit 1
+    cp libffi/src/x86/ffitarget.h deps-${lua_ver}/include || exit 1
+    cp libffi.lib deps-${lua_ver} || exit 1
+done
 
 echo ">> Building and testing cffi..."
 
