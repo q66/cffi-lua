@@ -28,13 +28,13 @@ for luaver in ${LUA_VERSIONS}; do
     lua_dmaj=${luaver:0:3}
     lua_maj=${lua_dmaj/./}
     # lua from luabinaries
-    curl -L -o lua-${luaver}-bin.zip https://downloads.sourceforge.net/project/luabinaries/${luaver}/Windows%20Libraries/Dynamic/lua-${luaver}_${lua_build}.zip || exit 1
-    curl -L -o lua-${luaver}-lib.zip https://downloads.sourceforge.net/project/luabinaries/${luaver}/Tools%20Executables/lua-${luaver}_${lua_bin}.zip || exit 1
+    curl -L -o lua-${luaver}-bin.zip https://downloads.sourceforge.net/project/luabinaries/${luaver}/Tools%20Executables/lua-${luaver}_${lua_bin}.zip || exit 1
+    curl -L -o lua-${luaver}-lib.zip https://downloads.sourceforge.net/project/luabinaries/${luaver}/Windows%20Libraries/Dynamic/lua-${luaver}_${lua_build}.zip || exit 1
     mkdir lua-${luaver}
     cd lua-${luaver}
     # unzip bin first
-    7z x ../lua-${luaver}_${lua_bin}.zip || exit 1
-    7z x ../lua-${luaver}_${lua_build}.zip -y || exit 1
+    7z x ../lua-${luaver}-bin.zip || exit 1
+    7z x ../lua-${luaver}-lib.zip -y || exit 1
     if [ -f "lua${lua_dmaj}.lib" ]; then
         mv lua${lua_dmaj}.lib liblua.lib
     else
