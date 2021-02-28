@@ -4,7 +4,7 @@ on: push
 
 jobs:
   linux:
-    name: Linux CI
+    name: Linux
     runs-on: ubuntu-20.04
 
     env:
@@ -50,7 +50,7 @@ jobs:
         run: sh ./.ci/build-cffi
 
   windows:
-    name: Windows CI
+    name: Windows
     runs-on: windows-2019
 
     env:
@@ -69,7 +69,7 @@ jobs:
         run: bash ./.ci/build-cffi-windows
 
   mac:
-    name: MacOS CI
+    name: MacOS
     runs-on: macos-10.15
 
     env:
