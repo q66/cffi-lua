@@ -21,20 +21,31 @@ if [ "$TARGET" != "darwin" -a "$CC" != "clang" -a "$expected_triplet" != "$curre
     export CXX="${expected_triplet}-${CXX}"
     export STRIP="${expected_triplet}-strip"
     export AR="${expected_triplet}-ar"
+    export AS="${expected_triplet}-as"
 else
     export STRIP="strip"
     export AR="ar"
 fi
 
+extra_cflags="-fPIC"
+meson_system="linux"
+
 case "${expected_triplet}" in
     darwin)
         # special case here
+        meson_system="darwin"
         ;;
     x86_64*)
         meson_cpu_family="x86_64"
         meson_cpu="x86_64"
         meson_endian="little"
         qemu_cpu="x86_64"
+        case "${expected_triplet}" in
+            *w64*)
+                meson_system="windows"
+                extra_cflags=""
+                ;;
+        esac
         ;;
     i686*)
         meson_cpu_family="x86"
@@ -115,7 +126,7 @@ if [ -n "$cross" ]; then
 fi
 
 cd libffi_build
-CFLAGS="-fPIC" ../libffi/configure --prefix=/ --libdir=/lib \
+CFLAGS="${extra_cflags}" ../libffi/configure --prefix=/ --libdir=/lib \
     --disable-shared --disable-docs ${ffi_args} || exit 1
 make -j4 || exit 1
 cd ..
@@ -123,34 +134,52 @@ cd ..
 echo ">> Building lua..."
 
 lua_plat=linux
-if [ "$TARGET" = "darwin" ]; then
-    lua_plat=macosx
-fi
+case "$TARGET" in
+    darwin) lua_plat=macosx;;
+    x86_64-w64*) lua_plat=mingw;;
+esac
 
 for luaver in ${LUA_VERSIONS}; do
     deps_path="$(pwd)/deps-${luaver}"
+    wine_pfx="$(pwd)/.wine"
     mkdir -p deps-${luaver}/include
     cd lua-${luaver}
     # drop unneeded functionality that'd be a hassle otherwise
-    if [ "$TARGET" != "$DARWIN" ]; then
+    if [ "$lua_plat" = "linux" ]; then
         sed -i '/.*define LUA_USE_READLINE/d' src/luaconf.h
         sed -i 's/-lreadline//g' src/Makefile
         sed -i 's/-lhistory//g' src/Makefile
         sed -i 's/-lncurses//g' src/Makefile
     fi
-    make -j8 PLAT=${lua_plat} MYCFLAGS="-fPIC" CC="$CC" AR="$AR rcu" || exit 1
+    make -j8 PLAT=${lua_plat} MYCFLAGS="${extra_cflags}" CC="$CC" AR="$AR rcu" || exit 1
     cp src/lua*.h* ../deps-${luaver}/include || exit 1
     cp src/lauxlib.h ../deps-${luaver}/include || exit 1
-    cp src/liblua.a ../deps-${luaver} || exit 1
+    if [ "${meson_system}" = "windows" ]; then
+        cp src/lua*.dll ../deps-${luaver} || exit 1
+        ln -sr ../deps-${luaver}/lua*.dll ../deps-${luaver}/liblua.dll
+    else
+        cp src/liblua.a ../deps-${luaver} || exit 1
+    fi
     if [ -d "etc" -a -f "etc/lua.hpp" ]; then
         cp etc/lua.hpp ../deps-${luaver}/include
     fi
     if [ -n "${cross}" ]; then
-        cp src/lua ../deps-${luaver}/lua.target || exit 1
-        cat << EOF > ../deps-${luaver}/lua
+        if [ "${meson_system}" = "windows" ]; then
+            cp src/lua.exe ../deps-${luaver} || exit 1
+            cat << EOF > ../deps-${luaver}/lua
+#!/bin/sh
+export WINEDEBUG=-all
+export WINEPREFIX="${wine_pfx}"
+export DISPLAY=
+wine ${deps_path}/lua.exe "\$@"
+EOF
+        else
+            cp src/lua ../deps-${luaver}/lua.target || exit 1
+            cat << EOF > ../deps-${luaver}/lua
 #!/bin/sh
 qemu-${qemu_cpu} -L /usr/${expected_triplet} ${deps_path}/lua.target "\$@"
 EOF
+        fi
         chmod +x ../deps-${luaver}/lua
     else
         cp src/lua ../deps-${luaver} || exit 1
@@ -178,7 +207,7 @@ cpp = '${CXX}'
 strip = '${STRIP}'
 
 [host_machine]
-system = 'linux'
+system = '${meson_system}'
 cpu_family = '${meson_cpu_family}'
 cpu = '${meson_cpu}'
 endian = '${meson_endian}'

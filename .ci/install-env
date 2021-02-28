@@ -69,7 +69,15 @@ fi
 
 echo ">> Installing toolchain..."
 
+if [ "$expected_triplet" = "x86_64-w64-mingw32" ]; then
+    gcc_suffix="mingw-w64"
+    extra_packages="wine"
+else
+    gcc_suffix="${expected_triplet}"
+    extra_packages="qemu-user"
+fi
+
 sudo apt-get update || exit 1
-sudo apt-get install qemu-user gcc-${expected_triplet} g++-${expected_triplet}
+sudo apt-get install gcc-${gcc_suffix} g++-${gcc_suffix} ${extra_packages}
 
 exit $?

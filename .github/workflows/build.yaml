@@ -33,6 +33,8 @@ jobs:
           - { target: riscv64-linux-gnu, cc: gcc, release: 0 }
           - { target: s390x-linux-gnu, cc: gcc, release: 0 }
           #- { target: mips-linux-gnu, cc: gcc, release: 0 }
+          # x86_64 windows cross, release mode
+          - { target: x86_64-w64-mingw32, cc: gcc, release: 1 }
 
     steps:
       - name: Checkout
