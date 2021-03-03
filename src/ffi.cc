@@ -563,9 +563,13 @@ template<typename T>
 static inline void *write_int(
     lua_State *L, int index, void *stor, std::size_t &s
 ) {
-    lua_Integer v = lua_isboolean(L, index) ?
-        lua_toboolean(L, index) : lua_tointeger(L, index);
-    *static_cast<T *>(stor) = T(v);
+    if (lua_isinteger(L, index)) {
+        *static_cast<T *>(stor) = T(lua_tointeger(L, index));
+    } else if (lua_isboolean(L, index)) {
+        *static_cast<T *>(stor) = T(lua_toboolean(L, index));
+    } else {
+        *static_cast<T *>(stor) = T(lua_tonumber(L, index));
+    }
     s = sizeof(T);
     return stor;
 }
@@ -1182,7 +1186,11 @@ static void from_lua_table_record(
             lua_getfield(L, tidx, fname);
             if (lua_isnil(L, -1)) {
                 lua_pop(L, 1);
-                return uni || fld.unbounded();
+                /* only end at flex members; with unions we want to check
+                 * if we can init any other field, with structs we want
+                 * to continue initializing other fields
+                 */
+                return fld.unbounded();
             }
         } else if (ninit) {
             push_init(L, tidx, sidx++);
@@ -1220,6 +1228,7 @@ static void from_lua_table_record(
         }
         filled = true;
         lua_pop(L, 1);
+        /* with unions we're only ever initializing one field */
         return uni;
     });
     if (empty) {

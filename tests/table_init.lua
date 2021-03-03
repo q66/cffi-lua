@@ -25,6 +25,11 @@ ffi.cdef [[
         char const *s;
         size_t a;
     };
+
+    union uinit2 {
+        int a;
+        double b;
+    };
 ]]
 
 local x
@@ -108,3 +113,19 @@ x = ffi.new("union uinit", { s = str })
 assert(ffi.string(x.s) == "hello world")
 assert(x.s == ffi.cast("void *", x.a))
 assert(x.s ~= x.a)
+
+-- test if union initialization by name works
+x = ffi.new("union uinit2", { a = 5 })
+assert(x.a == 5)
+
+-- test union init of first field
+x = ffi.new("union uinit2", 5)
+assert(x.a == 5)
+
+-- should be properly truncated
+x = ffi.new("union uinit2", { a = 3.14 })
+assert(x.a == 3)
+
+-- test initialization of second field
+x = ffi.new("union uinit2", { b = 3.14 })
+assert(x.b == 3.14)
