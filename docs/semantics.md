@@ -481,9 +481,8 @@ Callback creation can happen implicitly (e.g. by passing Lua functions) or
 you can explicitly use `cffi.cast` (or `cffi.new`) to create a callback.
 
 Keep in mind that **vararg functions are not supported as callbacks**. You
-also **can pass a struct by value**, unlike LuaJIT, but because of limitations
-of `cffi` itself, you can't pass `union`s by value, just like with standard
-calls.
+also **can pass a struct by value**, unlike LuaJIT; passing of unions by
+value is subject to the same limitations as in normal functions.
 
 There are no limitations or checks on the Lua function. The arguments passed
 to the Lua function will undergo conversions according to their standard

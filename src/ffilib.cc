@@ -1569,6 +1569,10 @@ converr:
 #else
         lua_setfield(L, -2, "hardfp");
 #endif
+#ifdef FFI_ABI_UNIONVAL
+        lua_pushboolean(L, true);
+        lua_setfield(L, -2, "unionval");
+#endif
     }
 
     static void setup(lua_State *L) {

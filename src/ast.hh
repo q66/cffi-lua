@@ -1049,9 +1049,14 @@ struct c_record: c_object {
     }
 
     bool passable() const {
-        if (opaque() || is_union()) {
+        if (opaque()) {
             return false;
         }
+#ifndef FFI_ABI_UNIONVAL
+        if (is_union()) {
+            return false;
+        }
+#endif
         bool ret = true;
         iter_fields([&ret](auto *, auto &type, std::size_t) {
             if (!type.passable()) {

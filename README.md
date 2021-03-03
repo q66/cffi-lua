@@ -37,7 +37,7 @@ See `STATUS.md`.
 
 - Equality comparisons against `nil` always result in `false`
 - Equality comparisons between `cdata` and Lua values are always `false`
-- Passing `union`s (or `struct`s containing `union`s) by value is not supported
+- Passing `union`s (or `struct`s containing `union`s) is not supported everywhere
 - Bitfields are not supported
 - Several new API extensions
 

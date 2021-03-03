@@ -211,6 +211,26 @@
 #  define FFI_USE_DLFCN 1
 #endif
 
+/* abi-specific features */
+
+/* passing unions by value:
+ *
+ * - all 32-bit x86 except windows fastcall passes values on the stack - safe
+ * - windows fastcall may pass some in regs but always the same ones - safe
+ * - windows x64 ABI doesn't care about union contents for passing - safe
+ *
+ * every other ABI is for now forbidden from passing unions by value since
+ * it is not known whether it is safe to do so; usually this would need some
+ * manual handling as the type of register used for passing may depend on the
+ * type being passed (i.e. same-size same-alignment unions with different
+ * fields may use different registers)
+ */
+#if FFI_ARCH == FFI_ARCH_X86
+#  define FFI_ABI_UNIONVAL 1
+#elif defined(FFI_WINDOWS_ABI) && (FFI_ARCH == FFI_ARCH_X64)
+#  define FFI_ABI_UNIONVAL 1
+#endif
+
 /* some compiler bits */
 
 #if defined(__GNUC__)

@@ -330,11 +330,13 @@ and `false` otherwise. The following parameters are defined:
 | eabi      | 32-bit ARM EABI         |
 | uwp       | Windows UWP             |
 | elfv2     | 64-bit POWER ELFv2      |
+| unionval  | Can pass union by value |
 | fpu       | Hardware FPU            |
 | hardfp    | Hard float ABI          |
 | softfp    | Soft float ABI          |
 
-**Extensions:** The `elfv2` parameter has been added. The others match LuaJIT.
+**Extensions:** The `elfv2` and `unionval` parameters have been added.
+The others match LuaJIT.
 
 ### cffi.os
 
