@@ -34,17 +34,18 @@ notably:
   - Callbacks are currently unrestricted (no limit, no handle reuse)
     - This may change in the future, so do not rely on it
 
-# Passing unions by value
+## Passing unions by value
 
 Since `libffi` does not have reliable support for `union`s, `cffi` does not
 support it for all targets, only those that are explicitly handled. Currently
 this includes:
 
-- All 32-bit `x86` targets (calling convention uses the stack)
-- 64-bit x86 Windows ABI (may use registers, but always passed as integers)
+- 32-bit x86 (uses the stack)
+- ARM and Aarch64 (all composite types are passed in GPRs)
+- Windows x64 (always passed like integers)
 
 Every other target forbids this. Both passing and returning is forbidden, and
-`struct`s containing `union`s are likewise not allowed. Keep in mind that this
+structs containing unions are likewise not allowed. Keep in mind that this
 only applies to parameter passing and returning by value; you can pass them by
 pointer everywhere, as well as allocate them.
 
@@ -53,7 +54,7 @@ The system will not let you declare such functions on unsupported targets.
 The `cffi.abi("unionval")` can be used to check the support from Lua in a generic
 manner.
 
-## TODO
+## Missing features
 
 There are some things notably missing at this point.
 
@@ -71,7 +72,7 @@ There are some things notably missing at this point.
 - `__declspec(align(n))` (MSVC extension)
 - `__ptr32`, `__ptr64` (MSVC extension)
 - `#pragma pack` (MSVC extension)
-- Passing `union` as arguments and return values (`libffi` limitation)
+- Passing `union` by value is not supported everywhere
 - `__stdcall` on Windows is not auto-guessed and must be tagged explicitly
 
 ### Not supported by LuaJIT

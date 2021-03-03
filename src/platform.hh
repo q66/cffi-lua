@@ -218,6 +218,7 @@
  * - all 32-bit x86 except windows fastcall passes values on the stack - safe
  * - windows fastcall may pass some in regs but always the same ones - safe
  * - windows x64 ABI doesn't care about union contents for passing - safe
+ * - arm and aarch64 - composite types go in GPRs or on the stack - safe
  *
  * every other ABI is for now forbidden from passing unions by value since
  * it is not known whether it is safe to do so; usually this would need some
@@ -225,7 +226,8 @@
  * type being passed (i.e. same-size same-alignment unions with different
  * fields may use different registers)
  */
-#if FFI_ARCH == FFI_ARCH_X86
+#if (FFI_ARCH == FFI_ARCH_X86) || (FFI_ARCH == FFI_ARCH_ARM) || \
+    (FFI_ARCH == FFI_ARCH_ARM64)
 #  define FFI_ABI_UNIONVAL 1
 #elif defined(FFI_WINDOWS_ABI) && (FFI_ARCH == FFI_ARCH_X64)
 #  define FFI_ABI_UNIONVAL 1
