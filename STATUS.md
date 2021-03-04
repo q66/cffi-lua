@@ -36,15 +36,17 @@ notably:
 
 ## Passing unions by value
 
+**CURRENTLY DISABLED.** The functionality is failing tests for the time being.
+
 Since `libffi` does not have reliable support for `union`s, `cffi` does not
 support it for all targets, only those that are explicitly handled. Currently
 this includes:
 
 - 32-bit x86 (all)
 - 64-bit x86 (Windows)
-- ARM and Aarch64 (little endian)
-- little endian POWER
-- MIPS(64) (little endian)
+- ARM and Aarch64 (all)
+- PowerPC and POWER (all)
+- MIPS(64) (all)
 
 Every other target forbids this. Both passing and returning is forbidden, and
 structs containing unions are likewise not allowed. Keep in mind that this

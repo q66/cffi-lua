@@ -237,14 +237,16 @@
  * unions may occasionally go in FPRs/VRRs; this is handled explicitly in
  * our implementation
  *
- * the current implementation has bugs preventing correct operation on BE
+ * currently buggy, so disable
  */
-#if (FFI_CPU(X86) || FFI_CPU(ARM) || FFI_CPU(ARM64) || \
+#if 0
+#if FFI_CPU(X86) || FFI_CPU(ARM) || FFI_CPU(ARM64) || \
     FFI_CPU(PPC) || FFI_CPU(PPC64) || FFI_CPU(MIPS32) || \
-    FFI_CPU(MIPS64)) && defined(FFI_LITTLE_ENDIAN)
+    FFI_CPU(MIPS64)
 #  define FFI_ABI_UNIONVAL 1
 #elif defined(FFI_WINDOWS_ABI) && (FFI_ARCH == FFI_ARCH_X64)
 #  define FFI_ABI_UNIONVAL 1
+#endif
 #endif
 
 /* some compiler bits */
