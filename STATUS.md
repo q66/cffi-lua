@@ -44,6 +44,7 @@ this includes:
 - 64-bit x86 (Windows)
 - ARM and Aarch64 (all)
 - PowerPC and POWER (all)
+- MIPS(64) (all)
 
 Every other target forbids this. Both passing and returning is forbidden, and
 structs containing unions are likewise not allowed. Keep in mind that this

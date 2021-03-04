@@ -220,11 +220,12 @@
 
 /* passing unions by value:
  *
- * - all 32-bit x86 except windows fastcall passes values on the stack - safe
- * - windows fastcall may pass some in regs but always the same ones - safe
- * - windows x64 ABI doesn't care about union contents for passing - safe
- * - arm and aarch64 - composite types go in GPRs or on the stack - safe
- * - ppc and ppc64 - composite types go in GPRs or on the stack - safe
+ * - all 32-bit x86 except windows fastcall passes values on the stack
+ * - windows fastcall may pass some in regs but always the same ones
+ * - windows x64 ABI doesn't care about union contents for passing
+ * - arm and aarch64 - composite types go in GPRs or on the stack
+ * - ppc and ppc64 - composite types go in GPRs or on the stack
+ * - mips - unions are like structs, structs go in GPRs or on the stack
  *
  * every other ABI is for now forbidden from passing unions by value since
  * it is not known whether it is safe to do so; usually this would need some
@@ -237,7 +238,8 @@
  * our implementation
  */
 #if FFI_CPU(X86) || FFI_CPU(ARM) || FFI_CPU(ARM64) || \
-    FFI_CPU(PPC) || FFI_CPU(PPC64)
+    FFI_CPU(PPC) || FFI_CPU(PPC64) || FFI_CPU(MIPS32) || \
+    FFI_CPU(MIPS64)
 #  define FFI_ABI_UNIONVAL 1
 #elif defined(FFI_WINDOWS_ABI) && (FFI_ARCH == FFI_ARCH_X64)
 #  define FFI_ABI_UNIONVAL 1
