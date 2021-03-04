@@ -42,9 +42,9 @@ this includes:
 
 - 32-bit x86 (all)
 - 64-bit x86 (Windows)
-- ARM and Aarch64 (all)
-- PowerPC and POWER (all)
-- MIPS(64) (all)
+- ARM and Aarch64 (little endian)
+- little endian POWER
+- MIPS(64) (little endian)
 
 Every other target forbids this. Both passing and returning is forbidden, and
 structs containing unions are likewise not allowed. Keep in mind that this
