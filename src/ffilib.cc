@@ -1604,7 +1604,7 @@ converr:
             {"eval", eval_f},
             {"type", type_f},
 
-            {NULL, NULL}
+            {nullptr, nullptr}
         };
         luaL_newlib(L, lib_def);
 

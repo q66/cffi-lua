@@ -305,7 +305,7 @@ static void *get_sym(c_lib const *cl, char const *name) {
             switch (i) {
                 case FFI_DL_HANDLE_EXE:
                     GetModuleHandleExA(
-                        GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, NULL, &h
+                        GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, nullptr, &h
                     );
                     break;
                 case FFI_DL_HANDLE_DLL:

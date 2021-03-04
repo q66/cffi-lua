@@ -61,6 +61,11 @@ union test_union {
     double b;
 };
 
+union test_union2 {
+    double a;
+    double b;
+};
+
 extern "C" DLL_EXPORT
 test_struct test_struct_val(test_struct a, test_struct b) {
     return test_struct{a.a + b.a, a.b + b.b};
@@ -70,5 +75,12 @@ extern "C" DLL_EXPORT
 test_union test_union_val(test_union a, test_union b) {
     test_union ret;
     ret.a = int(a.b + b.b);
+    return ret;
+}
+
+extern "C" DLL_EXPORT
+test_union2 test_union_val2(test_union2 a) {
+    test_union2 ret;
+    ret.b = a.a;
     return ret;
 }

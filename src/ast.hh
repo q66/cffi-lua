@@ -1096,6 +1096,10 @@ struct c_record: c_object {
         }, &cb, 0, end);
     }
 
+    util::vector<field> const &raw_fields() const {
+        return p_fields;
+    }
+
 private:
     std::size_t iter_fields(bool (*cb)(
         char const *fname, c_type const &type, std::size_t off, void *data

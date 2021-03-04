@@ -40,9 +40,10 @@ Since `libffi` does not have reliable support for `union`s, `cffi` does not
 support it for all targets, only those that are explicitly handled. Currently
 this includes:
 
-- 32-bit x86 (uses the stack)
-- ARM and Aarch64 (all composite types are passed in GPRs)
-- Windows x64 (always passed like integers)
+- 32-bit x86 (all)
+- 64-bit x86 (Windows)
+- ARM and Aarch64 (all)
+- PowerPC and POWER (all)
 
 Every other target forbids this. Both passing and returning is forbidden, and
 structs containing unions are likewise not allowed. Keep in mind that this

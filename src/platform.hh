@@ -85,6 +85,8 @@
 #define FFI_ARCH_MIPS32  7
 #define FFI_ARCH_MIPS64  8
 
+#define FFI_CPU(arch) (FFI_ARCH == FFI_ARCH_##arch)
+
 #if defined(__i386) || defined(__i386__) || defined(_M_IX86)
 #  define FFI_ARCH FFI_ARCH_X86
 #  define FFI_ARCH_NAME "x86"
@@ -116,6 +118,9 @@
       defined(__powerpc64) || defined(__ppc64) || defined(__PPC64) || \
       defined(__POWERPC64__) || defined(__POWERPC64) || defined(_M_PPC64)
 #  define FFI_ARCH FFI_ARCH_PPC64
+#  if defined(_CALL_ELF) && (_CALL_ELF == 2)
+#    define FFI_ARCH_PPC64_ELFV2 1
+#  endif
 #  if defined(FFI_LITTLE_ENDIAN)
 #    define FFI_ARCH_NAME "ppc64le"
 #  else
@@ -219,15 +224,20 @@
  * - windows fastcall may pass some in regs but always the same ones - safe
  * - windows x64 ABI doesn't care about union contents for passing - safe
  * - arm and aarch64 - composite types go in GPRs or on the stack - safe
+ * - ppc and ppc64 - composite types go in GPRs or on the stack - safe
  *
  * every other ABI is for now forbidden from passing unions by value since
  * it is not known whether it is safe to do so; usually this would need some
  * manual handling as the type of register used for passing may depend on the
  * type being passed (i.e. same-size same-alignment unions with different
  * fields may use different registers)
+ *
+ * aarch64 and ppc64le have a concept of homogenous aggregates, which means
+ * unions may occasionally go in FPRs/VRRs; this is handled explicitly in
+ * our implementation
  */
-#if (FFI_ARCH == FFI_ARCH_X86) || (FFI_ARCH == FFI_ARCH_ARM) || \
-    (FFI_ARCH == FFI_ARCH_ARM64)
+#if FFI_CPU(X86) || FFI_CPU(ARM) || FFI_CPU(ARM64) || \
+    FFI_CPU(PPC) || FFI_CPU(PPC64)
 #  define FFI_ABI_UNIONVAL 1
 #elif defined(FFI_WINDOWS_ABI) && (FFI_ARCH == FFI_ARCH_X64)
 #  define FFI_ABI_UNIONVAL 1

@@ -1133,11 +1133,126 @@ std::size_t c_record::iter_fields(bool (*cb)(
     return base;
 }
 
+#if FFI_CPU(ARM64) || defined(FFI_ARCH_PPC64_ELFV2)
+#define FFI_UNION_HAGGREG 1
+#endif
+
+#ifdef FFI_UNION_HAGGREG
+static ffi_type *union_base_type(c_type const &ct, std::size_t &asz) {
+    ffi_type *ret = nullptr;
+
+    if (ct.is_ref()) {
+        return nullptr;
+    }
+
+    switch (ct.type()) {
+        case C_BUILTIN_ARRAY:
+            asz *= ct.array_size();
+            return union_base_type(ct.ptr_base(), asz);
+
+        case C_BUILTIN_FLOAT:
+            return &ffi_type_float;
+        case C_BUILTIN_DOUBLE:
+            return &ffi_type_double;
+        case C_BUILTIN_LDOUBLE:
+            return &ffi_type_longdouble;
+
+        case C_BUILTIN_RECORD:
+            break;
+
+        default:
+            return nullptr;
+    }
+
+    auto &rec = ct.record();
+    auto &flds = rec.raw_fields();
+
+    for (std::size_t i = 0; i < flds.size(); ++i) {
+        std::size_t nasz = 1;
+        auto &fld = flds[i];
+        ffi_type *hg = union_base_type(fld.type, nasz);
+        if (!hg || (ret && (hg != ret))) {
+            return nullptr;
+        }
+        asz += nasz;
+        ret = hg;
+    }
+    return ret;
+}
+#endif
+
+static ffi_type **resolve_union(
+    util::vector<c_record::field> const &flds, ffi_type &fft
+) {
+    std::size_t nflds = flds.size();
+    std::size_t usize = 0;
+    unsigned short ualign = 0;
+    bool maybe_homog = true;
+    ffi_type *ubase = nullptr;
+
+    for (std::size_t i = 0; i < nflds; ++i) {
+        std::size_t asz = 1;
+        ffi_type *try_ubase;
+#ifdef FFI_UNION_HAGGREG
+        try_ubase = union_base_type(flds[i].type, asz);
+#else
+        try_ubase = nullptr;
+#endif
+        if (!try_ubase) {
+            maybe_homog = false;
+            try_ubase = libffi_base(flds[i].type, asz);
+        } else if (ubase && (try_ubase != ubase)) {
+            maybe_homog = false;
+        }
+        if (try_ubase->alignment > ualign) {
+            ualign = try_ubase->alignment;
+        }
+        if ((try_ubase->size * asz) > usize) {
+            usize = try_ubase->size * asz;
+        }
+        if (maybe_homog) {
+            ubase = try_ubase;
+        }
+    }
+    /* except for homogenous aggregates of floats, fill with integers */
+    if (!maybe_homog) {
+        if (!(usize % 8)) {
+            ubase = &ffi_type_uint64;
+        } else if (!(usize % 4)) {
+            ubase = &ffi_type_uint32;
+        } else if (!(usize % 2)) {
+            ubase = &ffi_type_uint16;
+        } else {
+            ubase = &ffi_type_uint8;
+        }
+    }
+    std::size_t nelems = usize / ubase->size;
+    ffi_type **elems = new ffi_type *[nelems + 1];
+    elems[nelems] = nullptr;
+    fft.elements = &elems[0];
+    for (std::size_t i = 0; i < nelems; ++i) {
+        elems[i] = ubase;
+    }
+    fft.type = FFI_TYPE_STRUCT;
+    fft.size = usize;
+    fft.alignment = ualign;
+    return elems;
+}
+
 void c_record::set_fields(util::vector<field> fields) {
     assert(p_fields.empty());
     assert(!p_elements);
 
     p_fields = util::move(fields);
+
+    /* unions are handled specially; they are a struct that is filled
+     * to the correct size and with correct types to satisfy ABI (when
+     * passing is allowed); alignment is handled manually
+     */
+    if (is_union()) {
+        p_elements = resolve_union(p_fields, p_ffi_type);
+        return;
+    }
 
     /* when dealing with flexible array members, we will need to pad the
      * struct to satisfy alignment of the flexible member, and use that
@@ -1146,7 +1261,7 @@ void c_record::set_fields(util::vector<field> fields) {
      * when the last member is a VLA, we don't know the size, so do the
      * same thing as when flexible, but make the VLA inaccessible
      */
-    bool flex = !is_union() && !p_fields.empty() && (
+    bool flex = !p_fields.empty() && (
         p_fields.back().type.unbounded() || p_fields.back().type.vla()
     );
     std::size_t nfields = p_fields.size();
@@ -1168,34 +1283,13 @@ void c_record::set_fields(util::vector<field> fields) {
     p_ffi_type.elements = &p_elements[0];
     p_elements[nelements] = nullptr;
 
-    /* for unions, assign the elements as usual, but also check the size of the
-     * largest and the alignment of the most aligned */
-    std::size_t usize = 0;
-    unsigned short ualign = 0;
-    auto usaturate = [&usize, &ualign](
-        std::size_t size, unsigned short align
-    ) {
-        usize = (size > usize) ? size : usize;
-        ualign = (align > ualign) ? align : ualign;
-    };
-
     for (std::size_t i = 0, e = 0; i < ffields; ++i) {
         std::size_t asz;
         auto *ft = libffi_base(p_fields[i].type, asz);
-
-        usaturate(ft->size * asz, ft->alignment);
-
         for (std::size_t j = 0; j < asz; ++j) {
             p_elements[e + j] = ft;
         }
-
         e += asz;
-    }
-
-    if (is_union()) {
-        p_ffi_type.size = usize;
-        p_ffi_type.alignment = ualign;
-        return;
     }
 
     if (flex) {
