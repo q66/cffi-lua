@@ -56,31 +56,57 @@ struct test_struct {
     int a, b;
 };
 
-union test_union {
-    int a;
-    double b;
-};
-
-union test_union2 {
-    double a;
-    double b;
-};
-
 extern "C" DLL_EXPORT
 test_struct test_struct_val(test_struct a, test_struct b) {
     return test_struct{a.a + b.a, a.b + b.b};
 }
 
-extern "C" DLL_EXPORT
-test_union test_union_val(test_union a, test_union b) {
-    test_union ret;
-    ret.a = int(a.b + b.b);
-    return ret;
-}
+/* union value passing tests */
 
-extern "C" DLL_EXPORT
-test_union2 test_union_val2(test_union2 a) {
-    test_union2 ret;
-    ret.b = a.a;
-    return ret;
-}
+#define UNION_TEST(uname, ubody) \
+    union uname ubody; \
+    extern "C" DLL_EXPORT uname test_##uname(uname v) { \
+        return v; \
+    }
+
+UNION_TEST(u1, { signed char a; })
+UNION_TEST(u2, { unsigned short a; })
+UNION_TEST(u3, { int a; })
+UNION_TEST(u4, { long long a; })
+UNION_TEST(u5, { float a; })
+UNION_TEST(u6, { double a; })
+UNION_TEST(u7, { long double a; })
+
+UNION_TEST(us1, { struct { signed char a; } x; })
+UNION_TEST(us2, { struct { unsigned short a; } x; })
+UNION_TEST(us3, { struct { int a; } x; })
+UNION_TEST(us4, { struct { long long a; } x; })
+UNION_TEST(us5, { struct { float a; } x; })
+UNION_TEST(us6, { struct { double a; } x; })
+UNION_TEST(us7, { struct { long double a; } x; })
+
+UNION_TEST(ud1, { signed char a; int b; })
+UNION_TEST(ud2, { unsigned short a; long b; })
+UNION_TEST(ud3, { int a; signed char b; })
+UNION_TEST(ud4, { long long a; float b; })
+UNION_TEST(ud5, { float a; long long b; })
+UNION_TEST(ud6, { double a; short b; })
+UNION_TEST(ud7, { long double a; long b; })
+
+UNION_TEST(ut1, { signed char a; struct { int x; float y; long z; } b; })
+UNION_TEST(ut2, { unsigned short a; struct { char x; double y; long double z; } b; })
+UNION_TEST(ut3, { int a; struct { int x; int y; int z; } b; })
+UNION_TEST(ut4, { long long a; struct { short x; long y; float z; } b; })
+UNION_TEST(ut5, { float a; struct { float x; float y; float z; float w; } b; })
+UNION_TEST(ut6, { double a; struct { double x; int y; long long z; } b; })
+UNION_TEST(ut7, { long double a; struct { long double x; long double y; long double z; } b; })
+
+UNION_TEST(uh1, { struct { double x; double y; } a; struct { double x; double y; double z; } b; })
+UNION_TEST(uh2, { double a; struct { double x; double y; } b; })
+UNION_TEST(uh3, { struct { double x; struct { double y; double z; } w; } a; struct { double x; double y; double z; } b; })
+UNION_TEST(uh4, { struct { double x; struct { double y; double z; } w; } a; struct { double x; } b; })
+
+UNION_TEST(ui1, { struct { int x; int y; } a; struct { int x; int y; int z; } b; })
+UNION_TEST(ui2, { int a; struct { int x; int y; } b; })
+UNION_TEST(ui3, { struct { int x; struct { int y; int z; } w; } a; struct { int x; int y; int z; } b; })
+UNION_TEST(ui4, { struct { int x; struct { int y; int z; } w; } a; struct { int x; } b; })
