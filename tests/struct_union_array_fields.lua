@@ -41,12 +41,23 @@ ffi.cdef [[
         struct quux z;
     };
 
+    union ufoo_u {
+        uint32_t x;
+        uint64_t y[2];
+        uint32_t z[2];
+    };
+
     struct ufoo {
         union {
             uint32_t x;
             uint64_t y[2];
             uint32_t z[2];
         };
+    };
+
+    union ubar_u {
+        uint8_t x[5];
+        int16_t y;
     };
 
     struct ubar {
@@ -76,6 +87,15 @@ assert(ffi.sizeof("struct quux") == 12)
 
 assert(ffi.sizeof("struct quuux") == 20)
 
+assert(ffi.sizeof("union ufoo_u") == 16)
+assert(ffi.alignof("union ufoo_u") == 8)
+
 assert(ffi.sizeof("struct ufoo") == 16)
+assert(ffi.alignof("struct ufoo") == 8)
+
+print(ffi.sizeof("union ubar_u"))
+assert(ffi.sizeof("union ubar_u") == 6)
+assert(ffi.alignof("union ubar_u") == 2)
 
 assert(ffi.sizeof("struct ubar") == 6)
+assert(ffi.alignof("struct ubar") == 2)

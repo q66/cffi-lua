@@ -1214,28 +1214,66 @@ static ffi_type **resolve_union(
             ubase = try_ubase;
         }
     }
-    /* except for homogenous aggregates of floats, fill with integers */
-    if (!maybe_homog) {
-        if (!(usize % 8)) {
-            ubase = &ffi_type_uint64;
-        } else if (!(usize % 4)) {
-            ubase = &ffi_type_uint32;
-        } else if (!(usize % 2)) {
-            ubase = &ffi_type_uint16;
-        } else {
-            ubase = &ffi_type_uint8;
-        }
+
+    fft.type = FFI_TYPE_STRUCT;
+    /* the alignment is one thing we always know for sure */
+    fft.alignment = ualign;
+
+    if (maybe_homog) {
+        /* homogenous aggregates: our size and alignment are specific and
+         * strict, so just make up a structure that is N times our wanted
+         * type where N is the number of times the type can fit in the size
+         *
+         * and set the alingnment to alignment of the type
+         */
+         std::size_t nelem = (usize / ubase->size);
+         ffi_type **elems = new ffi_type *[nelem + 1];
+         for (std::size_t i = 0; i < nelem; ++i) {
+             elems[i] = ubase;
+         }
+         elems[nelem] = nullptr;
+         fft.size = usize;
+         fft.elements = &elems[0];
+         return elems;
     }
-    std::size_t nelems = usize / ubase->size;
-    ffi_type **elems = new ffi_type *[nelems + 1];
-    elems[nelems] = nullptr;
-    fft.elements = &elems[0];
-    for (std::size_t i = 0; i < nelems; ++i) {
+
+    /* other types, fill with biggest integers that have an alignment
+     * same or looser than the alignment of the biggest field, and size
+     * same or smaller than the alignment to prevent overpadding
+     */
+    auto check_ubase = [ualign](auto &tp) {
+        if (ualign % tp.alignment) {
+            return false;
+        }
+        return (tp.alignment >= tp.size);
+    };
+    if (check_ubase(ffi_type_uint64)) {
+        ubase = &ffi_type_uint64;
+    } else if (check_ubase(ffi_type_uint32)) {
+        ubase = &ffi_type_uint32;
+    } else if (check_ubase(ffi_type_uint16)) {
+        ubase = &ffi_type_uint16;
+    } else {
+        ubase = &ffi_type_uint8;
+    }
+
+    /* pad size to multiple of alignment: this is the real size of the type */
+    usize = ((usize + ualign - 1) / ualign) * ualign;
+    /* this is how many of selected base type can fit in wholly */
+    std::size_t nelem = usize / ubase->size;
+    /* pad the rest with bytes */
+    std::size_t npad = usize - (nelem * ubase->size);
+    /* the actual number of fields: whole elements + pad bytes + terminator */
+    ffi_type **elems = new ffi_type *[nelem + npad + 1];
+    for (std::size_t i = 0; i < nelem; ++i) {
         elems[i] = ubase;
     }
-    fft.type = FFI_TYPE_STRUCT;
+    for (std::size_t i = 0; i < npad; ++i) {
+        elems[nelem + i] = &ffi_type_uchar;
+    }
+    elems[nelem] = nullptr;
     fft.size = usize;
-    fft.alignment = ualign;
+    fft.elements = &elems[0];
     return elems;
 }
 
