@@ -23,7 +23,7 @@ ffi.cdef [[
 
     struct qux {
         uint32_t x;
-        /* pad 4 */
+        /* pad 4... mostly */
         uint64_t y[2];
         uint32_t z[2];
     };
@@ -88,10 +88,10 @@ assert(ffi.sizeof("struct quux") == 12)
 assert(ffi.sizeof("struct quuux") == 20)
 
 assert(ffi.sizeof("union ufoo_u") == 16)
-assert(ffi.alignof("union ufoo_u") == 8)
+assert(ffi.alignof("union ufoo_u") == ffi.alignof("uint64_t"))
 
 assert(ffi.sizeof("struct ufoo") == 16)
-assert(ffi.alignof("struct ufoo") == 8)
+assert(ffi.alignof("struct ufoo") == ffi.alignof("uint64_t"))
 
 print(ffi.sizeof("union ubar_u"))
 assert(ffi.sizeof("union ubar_u") == 6)

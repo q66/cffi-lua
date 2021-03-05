@@ -1223,8 +1223,6 @@ static ffi_type **resolve_union(
         /* homogenous aggregates: our size and alignment are specific and
          * strict, so just make up a structure that is N times our wanted
          * type where N is the number of times the type can fit in the size
-         *
-         * and set the alingnment to alignment of the type
          */
          std::size_t nelem = (usize / ubase->size);
          ffi_type **elems = new ffi_type *[nelem + 1];
