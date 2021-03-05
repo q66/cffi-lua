@@ -1,5 +1,15 @@
 local ffi = require("cffi")
 
+local field_size = function(tp, t2)
+    if not t2 then
+        return ffi.sizeof(tp)
+    end
+    return math.max(ffi.sizeof(tp), ffi.alignof(t2))
+end
+
+local expected_sz
+local exepcted_al
+
 ffi.cdef [[
     struct foo {
         uint8_t x;
@@ -21,9 +31,15 @@ ffi.cdef [[
         char z[];
     };
 
+    /* flex members may add padding but do not add their own size */
+    struct pad_flex {
+        uint8_t x;
+        uint64_t y[];
+    };
+
     struct qux {
         uint32_t x;
-        /* pad 4... mostly */
+        /* on most platforms, pad 4 */
         uint64_t y[2];
         uint32_t z[2];
     };
@@ -68,34 +84,94 @@ ffi.cdef [[
     };
 ]]
 
-assert(ffi.sizeof("struct foo") == 8)
+-- struct foo
 
-assert(ffi.sizeof("struct bar") == 3)
+expected_sz = (
+    field_size("uint8_t", "uint32_t") +
+    field_size("uint32_t")
+)
+assert(ffi.sizeof("struct foo") == expected_sz)
 
-assert(ffi.sizeof("struct baz") == 8)
+-- struct bar
 
-assert(ffi.sizeof("struct baz_flex") == 8)
+expected_sz = field_size("uint8_t") * 3
+assert(ffi.sizeof("struct bar") == expected_sz)
 
-if ffi.alignof("uint64_t") == 8 then
-    assert(ffi.sizeof("struct qux") == 32)
-else
-    -- on x86 alignof(long long) may be 4
-    assert(ffi.sizeof("struct qux") == 28)
-end
+-- struct baz, struct baz_flex
 
-assert(ffi.sizeof("struct quux") == 12)
+expected_sz = (
+    field_size("uint32_t", "uint8_t") +
+    field_size("uint8_t") * 4
+)
+assert(ffi.sizeof("struct baz") == expected_sz)
+assert(ffi.sizeof("struct baz_flex") == expected_sz)
 
-assert(ffi.sizeof("struct quuux") == 20)
+-- struct pad_flex
 
-assert(ffi.sizeof("union ufoo_u") == 16)
-assert(ffi.alignof("union ufoo_u") == ffi.alignof("uint64_t"))
+expected_sz = (
+    field_size("uint8_t", "uint64_t")
+)
+assert(ffi.sizeof("struct pad_flex") == expected_sz)
 
-assert(ffi.sizeof("struct ufoo") == 16)
-assert(ffi.alignof("struct ufoo") == ffi.alignof("uint64_t"))
+-- struct qux
 
-print(ffi.sizeof("union ubar_u"))
-assert(ffi.sizeof("union ubar_u") == 6)
-assert(ffi.alignof("union ubar_u") == 2)
+expected_sz = (
+    field_size("uint32_t", "uint64_t") +
+    field_size("uint64_t") * 2 +
+    field_size("uint32_t[2]", "uint64_t")
+)
+assert(ffi.sizeof("struct qux") == expected_sz)
 
-assert(ffi.sizeof("struct ubar") == 6)
-assert(ffi.alignof("struct ubar") == 2)
+-- struct quux
+
+expected_sz = (
+    field_size("uint32_t", "struct { uint8_t x[4]; }") +
+    field_size("struct { uint8_t x[4]; }") * 2
+)
+assert(ffi.sizeof("struct quux") == expected_sz)
+
+-- struct quuux
+
+expected_sz = (
+    field_size("uint32_t", "struct bar") +
+    field_size("struct bar", "struct quux") +
+    field_size("struct quux")
+)
+assert(ffi.sizeof("struct quuux") == expected_sz)
+
+-- union ufoo_u, struct ufoo
+
+expected_sz = math.max(
+    field_size("uint32_t"),
+    field_size("uint64_t[2]"),
+    field_size("uint32_t[2]")
+)
+expected_al = math.max(
+    ffi.alignof("uint32_t"),
+    ffi.alignof("uint64_t")
+)
+assert(ffi.sizeof("union ufoo_u") == expected_sz)
+assert(ffi.alignof("union ufoo_u") == expected_al)
+assert(ffi.sizeof("struct ufoo") == expected_sz)
+assert(ffi.alignof("struct ufoo") == expected_al)
+assert((expected_sz % expected_al) == 0)
+
+-- union ubar_u, struct ubar
+
+local int16_al = ffi.alignof("int16_t")
+
+expected_sz = math.max(
+    math.floor((field_size("uint8_t[5]") + int16_al - 1) / int16_al) * int16_al,
+    field_size("int16_t")
+)
+expected_al = math.max(
+    ffi.alignof("uint8_t"),
+    int16_al
+)
+print(ffi.sizeof("union ubar_u"), expected_sz)
+assert(ffi.sizeof("union ubar_u") == expected_sz)
+assert(ffi.alignof("union ubar_u") == expected_al)
+assert(ffi.sizeof("struct ubar") == expected_sz)
+assert(ffi.alignof("struct ubar") == expected_al)
+assert((expected_sz % expected_al) == 0)
+
