@@ -119,6 +119,7 @@ The CI matrix currently includes the following:
 | `i686`       | 32        | little     | Linux   | `gcc`    | `debugoptimized` |
 | `ppc`        | 32        | big        | Linux   | `gcc`    | `debugoptimized` |
 | `armv6l`     | 32        | little     | Linux   | `gcc`    | `debugoptimized` |
+| `m68k`       | 32        | big        | Linux   | `gcc`    | `debugoptimized` |
 
 This is not an exhaustive list of supported targets but rather just a limited
 list intended to cover everything (64-bit systems, 32-bit systems, little and

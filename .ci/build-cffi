@@ -107,6 +107,12 @@ case "${expected_triplet}" in
         meson_endian="big"
         qemu_cpu="mips"
         ;;
+    m68k*)
+        meson_cpu_family="m68k"
+        meson_cpu="m68k"
+        meson_endian="big"
+        qemu_cpu="m68k"
+        ;;
     *)
         echo "ERROR: Cross CPU unspecified"
         exit 1

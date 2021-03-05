@@ -29,10 +29,12 @@ jobs:
           # aarch64 and arm
           - { target: aarch64-linux-gnu, cc: gcc, release: 0 }
           - { target: arm-linux-gnueabi, cc: gcc, release: 0 }
-          # riscv64, s390x and mips; mips disabled for now (broken qemu)
+          # riscv64 and s390x
           - { target: riscv64-linux-gnu, cc: gcc, release: 0 }
           - { target: s390x-linux-gnu, cc: gcc, release: 0 }
+          # mips, m68k; mips disabled for now (broken qemu)
           #- { target: mips-linux-gnu, cc: gcc, release: 0 }
+          - { target: m68k-linux-gnu, cc: gcc, release: 0 }
           # x86_64 windows cross, release mode
           - { target: x86_64-w64-mingw32, cc: gcc, release: 1 }
 

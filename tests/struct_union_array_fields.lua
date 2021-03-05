@@ -1,10 +1,12 @@
 local ffi = require("cffi")
 
 local field_size = function(tp, t2)
+    local sz = ffi.sizeof(tp)
     if not t2 then
-        return ffi.sizeof(tp)
+        return sz
     end
-    return math.max(ffi.sizeof(tp), ffi.alignof(t2))
+    local al = ffi.alignof(t2)
+    return math.floor((sz + al - 1) / al) * al
 end
 
 local expected_sz
@@ -97,13 +99,23 @@ assert(ffi.sizeof("struct foo") == expected_sz)
 expected_sz = field_size("uint8_t") * 3
 assert(ffi.sizeof("struct bar") == expected_sz)
 
--- struct baz, struct baz_flex
+-- struct baz
 
 expected_sz = (
     field_size("uint32_t", "uint8_t") +
     field_size("uint8_t") * 4
 )
 assert(ffi.sizeof("struct baz") == expected_sz)
+
+-- struct baz_flex
+
+expected_sz = (
+    field_size("uint32_t", "uint8_t") +
+    field_size("uint8_t") * 2
+)
+-- pad to multiple of alignment of uint32_t
+local uint32_al = ffi.alignof("uint32_t")
+expected_sz = math.floor((expected_sz + uint32_al - 1) / uint32_al) * uint32_al
 assert(ffi.sizeof("struct baz_flex") == expected_sz)
 
 -- struct pad_flex
