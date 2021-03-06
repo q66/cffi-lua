@@ -126,7 +126,7 @@ echo ">> Installing toolchain..."
 
 if [ "$expected_triplet" = "x86_64-w64-mingw32" ]; then
     gcc_suffix="mingw-w64"
-    extra_packages="wine-stable"
+    extra_packages="wine"
 else
     gcc_suffix="${expected_triplet}"
 fi
