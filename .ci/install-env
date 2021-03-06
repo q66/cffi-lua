@@ -68,53 +68,6 @@ if [ "$expected_triplet" = "$current_triplet" ]; then
     exit 0
 fi
 
-case "${expected_triplet}" in
-    x86_64*mingw*)
-        qemu_cpu="none"
-        ;;
-    x86_64*)
-        qemu_cpu="x86_64"
-        ;;
-    i686*)
-        qemu_cpu="i386"
-        ;;
-    powerpc64le*)
-        qemu_cpu="ppc64le"
-        ;;
-    powerpc64*)
-        qemu_cpu="ppc64"
-        ;;
-    powerpcle*)
-        echo "ERROR: ppcle not supported in qemu"
-        exit 1
-        ;;
-    powerpc*)
-        qemu_cpu="ppc"
-        ;;
-    aarch64-*)
-        qemu_cpu="aarch64"
-        ;;
-    arm-*)
-        qemu_cpu="arm"
-        ;;
-    riscv64-*)
-        qemu_cpu="riscv64"
-        ;;
-    s390x*)
-        qemu_cpu="s390x"
-        ;;
-    mips-*)
-        qemu_cpu="mips"
-        ;;
-    m68k*)
-        qemu_cpu="m68k"
-        ;;
-    *)
-        echo "ERROR: unknown qemu CPU"
-        exit 1
-        ;;
-esac
-
 echo ">> Installing toolchain..."
 
 if [ "$expected_triplet" = "x86_64-w64-mingw32" ]; then
@@ -127,14 +80,5 @@ fi
 
 sudo apt-get update || exit 1
 sudo apt-get install gcc-${gcc_suffix} g++-${gcc_suffix} ${extra_packages}
-
-if [ "$qemu_cpu" != "none" ]; then
-    ln -s `which qemu-${qemu_cpu}` `pwd`/host_tools/qemu
-    # work around glibc being dumb
-    # the cache format is not endian agnostic, so unless a dummy file exists
-    # here, qemu will try to use host's and it will crash guest glibc on BE
-    sudo mkdir -p /usr/${expected_triplet}/etc
-    sudo touch /usr/${expected_triplet}/etc/ld.so.cache
-fi
 
 exit $?

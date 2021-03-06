@@ -44,57 +44,74 @@ case "${expected_triplet}" in
                 meson_system="windows"
                 extra_cflags=""
                 ;;
+            *)
+                qemu_cpu="x86_64"
+                ;;
         esac
         ;;
     i686*)
         meson_cpu_family="x86"
         meson_cpu="i686"
         meson_endian="little"
+        qemu_cpu="i386"
         ;;
     powerpc64le*)
         meson_cpu_family="ppc64"
         meson_cpu="ppc64le"
         meson_endian="little"
+        qemu_cpu="ppc64le"
         ;;
     powerpc64*)
         meson_cpu_family="ppc64"
         meson_cpu="ppc64"
         meson_endian="big"
+        qemu_cpu="ppc64"
+        ;;
+    powerpcle*)
+        echo "ERROR: ppcle not supported in qemu"
+        exit 1
         ;;
     powerpc*)
         meson_cpu_family="ppc"
         meson_cpu="ppc"
         meson_endian="big"
+        qemu_cpu="ppc"
         ;;
     aarch64-*)
         meson_cpu_family="aarch64"
         meson_cpu="aarch64"
         meson_endian="little"
+        qemu_cpu="aarch64"
         ;;
     arm-*)
         meson_cpu_family="arm"
         meson_cpu="armv6l"
         meson_endian="little"
+        qemu_cpu="arm"
         ;;
     riscv64-*)
         meson_cpu_family="riscv64"
         meson_cpu="riscv64"
         meson_endian="little"
+        qemu_cpu="riscv64"
         ;;
     s390x*)
         meson_cpu_family="s390x"
         meson_cpu="s390x"
         meson_endian="big"
+        qemu_cpu="s390x"
         ;;
     mips-*)
         meson_cpu_family="mips"
         meson_cpu="mips"
         meson_endian="big"
+        qemu_cpu="mips"
         ;;
     m68k*)
         meson_cpu_family="m68k"
         meson_cpu="m68k"
         meson_endian="big"
+        qemu_cpu="m68k"
         ;;
     *)
         echo "ERROR: Cross CPU unspecified"
@@ -105,6 +122,15 @@ esac
 host_tools="$(pwd)/host_tools"
 export PATH="${host_tools}:$PATH"
 export NINJA="samu"
+
+if [ -n "$qemu_cpu" -a -n "$cross" ]; then
+    echo ">> Preparing qemu..."
+    # work around glibc being dumb
+    # the cache format is not endian agnostic, so unless a dummy file exists
+    # here, qemu will try to use host's and it will crash guest glibc on BE
+    sudo mkdir -p /usr/${expected_triplet}/etc
+    sudo touch /usr/${expected_triplet}/etc/ld.so.cache
+fi
 
 echo ">> Building libffi..."
 
