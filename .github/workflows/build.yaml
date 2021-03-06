@@ -24,7 +24,7 @@ jobs:
           - { target: i686-linux-gnu, cc: gcc, release: 0 }
           # all powerpc
           - { target: powerpc64le-linux-gnu, cc: gcc, release: 0 }
-          - { target: powerpc64-linux-gnu, cc: gcc, release: 0 }
+          #- { target: powerpc64-linux-gnu, cc: gcc, release: 0 }
           - { target: powerpc-linux-gnu, cc: gcc, release: 0 }
           # aarch64 and arm
           - { target: aarch64-linux-gnu, cc: gcc, release: 0 }
@@ -33,8 +33,8 @@ jobs:
           - { target: riscv64-linux-gnu, cc: gcc, release: 0 }
           - { target: s390x-linux-gnu, cc: gcc, release: 0 }
           # mips, m68k
-          - { target: mips-linux-gnu, cc: gcc, release: 0 }
-          - { target: m68k-linux-gnu, cc: gcc, release: 0 }
+          #- { target: mips-linux-gnu, cc: gcc, release: 0 }
+          #- { target: m68k-linux-gnu, cc: gcc, release: 0 }
           # x86_64 windows cross, release mode
           - { target: x86_64-w64-mingw32, cc: gcc, release: 1 }
 
