@@ -171,6 +171,8 @@ ${host_tools}/qemu -L /usr/${expected_triplet} ${deps_path}/lua.target "\$@"
 EOF
         fi
         chmod +x ../deps-${luaver}/lua
+        echo ">> Testing cross lua:"
+        ../deps-${luaver}/lua -v || exit 1
     else
         cp src/lua ../deps-${luaver} || exit 1
     fi
