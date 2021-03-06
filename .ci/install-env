@@ -30,6 +30,8 @@ mkdir -p host_tools
 
 echo ">> Installing meson..."
 
+sudo apt-get install python3-setuptools python3-pip
+
 if [ -n "$(command -v pip3)" ]; then
     sudo pip3 install meson
 elif [ -n "$(command -v pip)" ]; then
