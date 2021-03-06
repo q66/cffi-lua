@@ -372,18 +372,17 @@ int call_cif(cdata<fdata> &fud, lua_State *L, std::size_t largs) {
 
     ffi_call(&fud.val.cif, fud.val.sym, rval, vals);
 #ifdef FFI_BIG_ENDIAN
-    /* for small return types, ffi_arg must be used to hold the result,
-     * and it is assumed that they will be accessed like integers via
-     * the ffi_arg; that also means that on big endian systems the
+    /* for small integer return types, ffi_arg must be used to hold the
+     * result, and it is assumed that they will be accessed like integers
+     * via the ffi_arg; that also means that on big endian systems the
      * value will be stored in the latter part of the memory...
      *
-     * we're taking an address to the beginning in general, so make
-     * a special case here; only small types will have this problem
+     * so special case this thing, so that small integers are special
      *
      * there shouldn't be any other places that make this assumption
      */
     auto rsz = func->result().alloc_size();
-    if (rsz < sizeof(ffi_arg)) {
+    if ((rsz < sizeof(ffi_arg)) && func->result().integer()) {
         auto *p = static_cast<unsigned char *>(rval);
         rval = p + sizeof(ffi_arg) - rsz;
     }

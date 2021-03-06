@@ -73,9 +73,9 @@ should work (technically there are some GCC/Clang/MSVC-specific diagnostic
 pragmas used, but these are conditional and only used to control warnings).
 
 The module should work on any CPU architecture supported by `libffi`. The CI
-system tests `x86_64`, `ppc64le`, `aarch64` and `s390x`, in addition to local
-testing on other architectures. If you encounter any issues on yours, feel
-free to provide patches or at least report issues.
+system tests a large variety of CPU architectures (see `STATUS.md`). If you
+encounter any issues on yours, please send patches or at least report them
+so they can be fixed.
 
 The `pkg-config` tool is optional when using `-Dlua_version=custom` and
 `-Dlibffi=custom` (or `vendor`). However, for `custom`, you will need to

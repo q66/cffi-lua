@@ -10,6 +10,7 @@ test_cases = [
     ['simple example',               'simple',                    false,  501],
     ['abi example',                  'abi',                       false,  501],
     ['variadic calls',               'variadic',                  false,  501],
+    ['fundamental type passing',     'simple_pass',               false,  501],
     ['structs, arrays, unions',      'struct_array',              false,  501],
     ['struct passing',               'struct_pass',               false,  501],
     ['structs, unions array fields', 'struct_union_array_fields', false,  501],

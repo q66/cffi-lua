@@ -61,6 +61,32 @@ test_struct test_struct_val(test_struct a, test_struct b) {
     return test_struct{a.a + b.a, a.b + b.b};
 }
 
+/* fundamental type passing tests */
+
+/* need to return a struct to read it in lua as bytes */
+#define TYPE_TEST(tname, fname) \
+    struct test_struct_##fname { tname x; }; \
+    extern "C" DLL_EXPORT test_struct_##fname test_##fname(tname v) { \
+        test_struct_##fname r; \
+        std::memcpy(&r, &v, sizeof(r)); \
+        return r; \
+    }
+
+TYPE_TEST(unsigned char, uchar)
+TYPE_TEST(unsigned short, ushort)
+TYPE_TEST(unsigned int, uint)
+TYPE_TEST(unsigned long, ulong)
+TYPE_TEST(unsigned long long, ullong)
+TYPE_TEST(float, float)
+TYPE_TEST(double, double)
+TYPE_TEST(long double, ldouble)
+
+/* some individual tests without using a record */
+
+extern "C" DLL_EXPORT float test_raw_float(float v) { return v; }
+extern "C" DLL_EXPORT char test_raw_char(char c) { return c; }
+extern "C" DLL_EXPORT int test_raw_int(int v) { return v; }
+
 /* union value passing tests */
 
 #define UNION_TEST(uname, ubody) \
