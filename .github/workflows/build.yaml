@@ -22,9 +22,9 @@ jobs:
           - { target: x86_64-linux-gnu, cc: clang, release: 0 }
           # 32-bit x86
           - { target: i686-linux-gnu, cc: gcc, release: 0 }
-          # all powerpc; powerpc64 disabled for now (broken qemu)
+          # all powerpc
           - { target: powerpc64le-linux-gnu, cc: gcc, release: 0 }
-          #- { target: powerpc64-linux-gnu, cc: gcc, release: 0 }
+          - { target: powerpc64-linux-gnu, cc: gcc, release: 0 }
           - { target: powerpc-linux-gnu, cc: gcc, release: 0 }
           # aarch64 and arm
           - { target: aarch64-linux-gnu, cc: gcc, release: 0 }
@@ -32,8 +32,8 @@ jobs:
           # riscv64 and s390x
           - { target: riscv64-linux-gnu, cc: gcc, release: 0 }
           - { target: s390x-linux-gnu, cc: gcc, release: 0 }
-          # mips, m68k; mips disabled for now (broken qemu)
-          #- { target: mips-linux-gnu, cc: gcc, release: 0 }
+          # mips, m68k
+          - { target: mips-linux-gnu, cc: gcc, release: 0 }
           - { target: m68k-linux-gnu, cc: gcc, release: 0 }
           # x86_64 windows cross, release mode
           - { target: x86_64-w64-mingw32, cc: gcc, release: 1 }

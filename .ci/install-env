@@ -63,8 +63,61 @@ if [ -z "$current_triplet" ]; then
 fi
 
 if [ "$expected_triplet" = "$current_triplet" ]; then
-    echo "ERROR: Not cross-compiling, done..."
     exit 0
+fi
+
+case "${expected_triplet}" in
+    x86_64*mingw*)
+        qemu_cpu="none"
+        ;;
+    x86_64*)
+        qemu_cpu="x86_64"
+        ;;
+    i686*)
+        qemu_cpu="i386"
+        ;;
+    powerpc64le*)
+        qemu_cpu="ppc64le"
+        ;;
+    powerpc64*)
+        qemu_cpu="ppc64"
+        ;;
+    powerpcle*)
+        echo "ERROR: ppcle not supported in qemu"
+        exit 1
+        ;;
+    powerpc*)
+        qemu_cpu="ppc"
+        ;;
+    aarch64-*)
+        qemu_cpu="aarch64"
+        ;;
+    arm-*)
+        qemu_cpu="arm"
+        ;;
+    riscv64-*)
+        qemu_cpu="riscv64"
+        ;;
+    s390x*)
+        qemu_cpu="s390x"
+        ;;
+    mips-*)
+        qemu_cpu="mips"
+        ;;
+    m68k*)
+        qemu_cpu="m68k"
+        ;;
+    *)
+        echo "ERROR: unknown qemu CPU"
+        exit 1
+        ;;
+esac
+
+if [ "$qemu_cpu" != "none" ]; then
+    echo ">> Getting qemu..."
+    wget "https://ftp.octaforge.org/q66/random/qemu-user-static/qemu-${qemu_cpu}-static.gz" || exit 1
+    zcat "qemu-${qemu_cpu}-static.gz" > host_tools/qemu
+    chmod +x host_tools/qemu
 fi
 
 echo ">> Installing toolchain..."
@@ -74,7 +127,6 @@ if [ "$expected_triplet" = "x86_64-w64-mingw32" ]; then
     extra_packages="wine"
 else
     gcc_suffix="${expected_triplet}"
-    extra_packages="qemu-user"
 fi
 
 sudo apt-get update || exit 1

@@ -113,13 +113,17 @@ The CI matrix currently includes the following:
 | `x86_64`     | 64        | little     | Windows | `cl.exe` | `debugoptimized` |
 | `x86_64`     | 64        | little     | MacOS   | `clang`  | `debugoptimized` |
 | `ppc64le`    | 64        | little     | Linux   | `gcc`    | `debugoptimized` |
+| `ppc64`      | 64        | big        | Linux   | `gcc`    | `debugoptimized` |
 | `aarch64`    | 64        | little     | Linux   | `gcc`    | `debugoptimized` |
 | `riscv64`    | 64        | little     | Linux   | `gcc`    | `debugoptimized` |
 | `s390x`      | 64        | big        | Linux   | `gcc`    | `debugoptimized` |
 | `i686`       | 32        | little     | Linux   | `gcc`    | `debugoptimized` |
+| `mips`       | 32        | big        | Linux   | `gcc`    | `debugoptimized` |
 | `ppc`        | 32        | big        | Linux   | `gcc`    | `debugoptimized` |
 | `armv6l`     | 32        | little     | Linux   | `gcc`    | `debugoptimized` |
 | `m68k`       | 32        | big        | Linux   | `gcc`    | `debugoptimized` |
+
+Note: `ppc64` is ABIv1.
 
 This is not an exhaustive list of supported targets but rather just a limited
 list intended to cover everything (64-bit systems, 32-bit systems, little and
