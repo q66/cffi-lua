@@ -193,7 +193,7 @@ EOF
             cp src/lua ../deps-${luaver}/lua.target || exit 1
             cat << EOF > ../deps-${luaver}/lua
 #!/bin/sh
-${host_tools}/qemu -L /usr/${expected_triplet} ${deps_path}/lua.target "\$@"
+qemu-${qemu_cpu} -L /usr/${expected_triplet} ${deps_path}/lua.target "\$@"
 EOF
         fi
         chmod +x ../deps-${luaver}/lua

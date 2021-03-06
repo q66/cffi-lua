@@ -371,7 +371,7 @@ enum conv_rule {
  */
 int to_lua(
     lua_State *L, ast::c_type const &tp, void const *value, int rule,
-    bool lossy = false
+    bool ffi_ret, bool lossy = false
 );
 
 /* a unified version of from_lua that combines together the complex aggregate

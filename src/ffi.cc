@@ -135,7 +135,7 @@ static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
     closure_data &cd = *fud.val.cd;
     lua_rawgeti(cd.L, LUA_REGISTRYINDEX, cd.fref);
     for (std::size_t i = 0; i < fargs; ++i) {
-        to_lua(cd.L, pars[i].type(), args[i], RULE_PASS);
+        to_lua(cd.L, pars[i].type(), args[i], RULE_PASS, false);
     }
 
     if (fun->result().type() != ast::C_BUILTIN_VOID) {
@@ -371,28 +371,12 @@ int call_cif(cdata<fdata> &fud, lua_State *L, std::size_t largs) {
     }
 
     ffi_call(&fud.val.cif, fud.val.sym, rval, vals);
-#ifdef FFI_BIG_ENDIAN
-    /* for small integer return types, ffi_arg must be used to hold the
-     * result, and it is assumed that they will be accessed like integers
-     * via the ffi_arg; that also means that on big endian systems the
-     * value will be stored in the latter part of the memory...
-     *
-     * so special case this thing, so that small integers are special
-     *
-     * there shouldn't be any other places that make this assumption
-     */
-    auto rsz = func->result().alloc_size();
-    if ((rsz < sizeof(ffi_arg)) && func->result().integer()) {
-        auto *p = static_cast<unsigned char *>(rval);
-        rval = p + sizeof(ffi_arg) - rsz;
-    }
-#endif
-    return to_lua(L, func->result(), rval, RULE_RET);
+    return to_lua(L, func->result(), rval, RULE_RET, true);
 }
 
 template<typename T>
 static inline int push_int(
-    lua_State *L, ast::c_type const &tp, void const *value, bool lossy
+    lua_State *L, ast::c_type const &tp, void const *value, bool rv, bool lossy
 ) {
 #if LUA_VERSION_NUM < 503
     /* generally floats, so we're assuming IEEE754 binary floats */
@@ -404,14 +388,21 @@ static inline int push_int(
     /* on lua 5.3+, we can use integers builtin in the language instead */
     using LT = lua_Integer;
 #endif
-    if ((util::limit_digits<T>() <= util::limit_digits<LT>()) || lossy) {
+    T actual_val;
+    if (rv && (sizeof(T) < sizeof(ffi_sarg))) {
+        using U = ffi_sarg *;
+        actual_val = T(*U(value));
+    } else {
         using U = T *;
-        lua_pushinteger(L, lua_Integer(*U(value)));
+        actual_val = *U(value);
+    }
+    if ((util::limit_digits<T>() <= util::limit_digits<LT>()) || lossy) {
+        lua_pushinteger(L, lua_Integer(actual_val));
         return 1;
     }
     /* doesn't fit into the range, so make scalar cdata */
     auto &cd = newcdata(L, tp, sizeof(T));
-    std::memcpy(&cd.val, value, sizeof(T));
+    std::memcpy(&cd.val, &actual_val, sizeof(T));
     return 1;
 }
 
@@ -432,7 +423,7 @@ static inline int push_flt(
 
 int to_lua(
     lua_State *L, ast::c_type const &tp, void const *value,
-    int rule, bool lossy
+    int rule, bool ffi_ret, bool lossy
 ) {
     if (tp.is_ref()) {
         if (tp.type() == ast::C_BUILTIN_FUNC) {
@@ -445,6 +436,7 @@ int to_lua(
         if (rule == RULE_CONV) {
             /* dereference, continue as normal */
             value = *reinterpret_cast<void * const *>(value);
+            ffi_ret = false;
         } else {
             /* reference cdata */
             newcdata<void *>(L, tp).val =
@@ -469,31 +461,31 @@ int to_lua(
         case ast::C_BUILTIN_LDOUBLE:
             return push_flt<long double>(L, tp, value, lossy);
         case ast::C_BUILTIN_CHAR:
-            return push_int<char>(L, tp, value, lossy);
+            return push_int<char>(L, tp, value, ffi_ret, lossy);
         case ast::C_BUILTIN_SCHAR:
-            return push_int<signed char>(L, tp, value, lossy);
+            return push_int<signed char>(L, tp, value, ffi_ret, lossy);
         case ast::C_BUILTIN_UCHAR:
-            return push_int<unsigned char>(L, tp, value, lossy);
+            return push_int<unsigned char>(L, tp, value, ffi_ret, lossy);
         case ast::C_BUILTIN_SHORT:
-            return push_int<short>(L, tp, value, lossy);
+            return push_int<short>(L, tp, value, ffi_ret, lossy);
         case ast::C_BUILTIN_USHORT:
-            return push_int<unsigned short>(L, tp, value, lossy);
+            return push_int<unsigned short>(L, tp, value, ffi_ret, lossy);
         case ast::C_BUILTIN_INT:
-            return push_int<int>(L, tp, value, lossy);
+            return push_int<int>(L, tp, value, ffi_ret, lossy);
         case ast::C_BUILTIN_UINT:
-            return push_int<unsigned int>(L, tp, value, lossy);
+            return push_int<unsigned int>(L, tp, value, ffi_ret, lossy);
         case ast::C_BUILTIN_LONG:
-            return push_int<long>(L, tp, value, lossy);
+            return push_int<long>(L, tp, value, ffi_ret, lossy);
         case ast::C_BUILTIN_ULONG:
-            return push_int<unsigned long>(L, tp, value, lossy);
+            return push_int<unsigned long>(L, tp, value, ffi_ret, lossy);
         case ast::C_BUILTIN_LLONG:
-            return push_int<long long>(L, tp, value, lossy);
+            return push_int<long long>(L, tp, value, ffi_ret, lossy);
         case ast::C_BUILTIN_ULLONG:
-            return push_int<unsigned long long>(L, tp, value, lossy);
+            return push_int<unsigned long long>(L, tp, value, ffi_ret, lossy);
 
         case ast::C_BUILTIN_PTR:
             if (tp.ptr_base().type() == ast::C_BUILTIN_FUNC) {
-                return to_lua(L, tp.ptr_base(), value, rule, lossy);
+                return to_lua(L, tp.ptr_base(), value, rule, false, lossy);
             }
             /* pointers should be handled like large cdata, as they need
              * to be represented as userdata objects on lua side either way
@@ -516,7 +508,7 @@ int to_lua(
 
         case ast::C_BUILTIN_ENUM:
             /* TODO: large enums */
-            return push_int<int>(L, tp, value, lossy);
+            return push_int<int>(L, tp, value, ffi_ret, lossy);
 
         case ast::C_BUILTIN_ARRAY: {
             if (rule == RULE_PASS) {
@@ -1446,13 +1438,13 @@ void get_global(lua_State *L, lib::c_lib const *dl, const char *sname) {
                     var.type().function(), false, nullptr
                 );
             } else {
-                to_lua(L, var.type(), symp, RULE_RET);
+                to_lua(L, var.type(), symp, RULE_RET, false);
             }
             return;
         }
         case ast::c_object_type::CONSTANT: {
             auto &cd = decl->as<ast::c_constant>();
-            to_lua(L, cd.type(), &cd.value(), RULE_RET);
+            to_lua(L, cd.type(), &cd.value(), RULE_RET, false);
             return;
         }
         default:

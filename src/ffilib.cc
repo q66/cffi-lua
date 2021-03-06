@@ -319,7 +319,7 @@ struct cdata_meta {
             return 0;
         }
         if (index_common<false>(L, [L](auto &decl, void *val) {
-            if (!ffi::to_lua(L, decl, val, ffi::RULE_CONV)) {
+            if (!ffi::to_lua(L, decl, val, ffi::RULE_CONV, false)) {
                 luaL_error(L, "invalid C type");
             }
         })) {
@@ -1467,7 +1467,7 @@ converr:
                 val = cd->val;
             }
             if (tp->arith()) {
-                ffi::to_lua(L, *tp, val, ffi::RULE_CONV, true);
+                ffi::to_lua(L, *tp, val, ffi::RULE_CONV, false, true);
                 return 1;
             }
             switch (btp) {
@@ -1493,7 +1493,7 @@ converr:
 
     static int toretval_f(lua_State *L) {
         auto &cd = ffi::checkcdata<void *>(L, 1);
-        ffi::to_lua(L, cd.decl, &cd.val, ffi::RULE_RET);
+        ffi::to_lua(L, cd.decl, &cd.val, ffi::RULE_RET, false);
         return 1;
     }
 
