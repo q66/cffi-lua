@@ -206,8 +206,8 @@ endian = '${meson_endian}'
 EOF
         args="${args} --cross-file=crossfile"
     fi
-    if [ "$RELEASE" = "1" ]; then
-        args="${args} --buildtype=release"
+    if [ -n "$BUILDTYPE" ]; then
+        args="${args} --buildtype=$BUILDTYPE"
     fi
 
     meson .. -Dlua_version=vendor -Dlibffi=vendor -Dtests_cross=true \

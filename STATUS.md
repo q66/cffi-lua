@@ -121,7 +121,7 @@ The CI matrix currently includes the following:
 | `mips`       | 32        | big        | Linux   | `gcc`    | `debugoptimized` |
 | `ppc`        | 32        | big        | Linux   | `gcc`    | `debugoptimized` |
 | `armv6l`     | 32        | little     | Linux   | `gcc`    | `debugoptimized` |
-| `m68k`       | 32        | big        | Linux   | `gcc`    | `debugoptimized` |
+| `m68k`       | 32        | big        | Linux   | `gcc`    | `debug`          |
 
 Note: `ppc64` is ABIv1.
 

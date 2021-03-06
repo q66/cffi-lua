@@ -11,32 +11,35 @@ jobs:
       TARGET: '${{ matrix.config.target }}'
       LUA_VERSIONS: '5.4.2 5.3.6 5.2.4 5.1.5'
       CC: '${{ matrix.config.cc }}'
-      RELEASE: '${{ matrix.config.release }}'
+      BUILDTYPE: '${{ matrix.config.buildtype }}'
 
     strategy:
       matrix:
         config:
           # x86_64: test gcc, clang, + release mode to catch assert bugs
-          - { target: x86_64-linux-gnu, cc: gcc, release: 0 }
-          - { target: x86_64-linux-gnu, cc: gcc, release: 1 }
-          - { target: x86_64-linux-gnu, cc: clang, release: 0 }
+          - { target: x86_64-linux-gnu, cc: gcc, buildtype: debugoptimized }
+          - { target: x86_64-linux-gnu, cc: gcc, buildtype: release }
+          - { target: x86_64-linux-gnu, cc: clang, buildtype: debugoptimized }
           # 32-bit x86
-          - { target: i686-linux-gnu, cc: gcc, release: 0 }
+          - { target: i686-linux-gnu, cc: gcc, buildtype: debugoptimized }
           # all powerpc
-          - { target: powerpc64le-linux-gnu, cc: gcc, release: 0 }
-          - { target: powerpc64-linux-gnu, cc: gcc, release: 0 }
-          - { target: powerpc-linux-gnu, cc: gcc, release: 0 }
+          - { target: powerpc64le-linux-gnu, cc: gcc, buildtype: debugoptimized }
+          - { target: powerpc64-linux-gnu, cc: gcc, buildtype: debugoptimized }
+          - { target: powerpc-linux-gnu, cc: gcc, buildtype: debugoptimized }
           # aarch64 and arm
-          - { target: aarch64-linux-gnu, cc: gcc, release: 0 }
-          - { target: arm-linux-gnueabi, cc: gcc, release: 0 }
+          - { target: aarch64-linux-gnu, cc: gcc, buildtype: debugoptimized }
+          - { target: arm-linux-gnueabi, cc: gcc, buildtype: debugoptimized }
           # riscv64 and s390x
-          - { target: riscv64-linux-gnu, cc: gcc, release: 0 }
-          - { target: s390x-linux-gnu, cc: gcc, release: 0 }
+          - { target: riscv64-linux-gnu, cc: gcc, buildtype: debugoptimized }
+          - { target: s390x-linux-gnu, cc: gcc, buildtype: debugoptimized }
           # mips, m68k
-          - { target: mips-linux-gnu, cc: gcc, release: 0 }
-          - { target: m68k-linux-gnu, cc: gcc, release: 0 }
+          # on m68k, building with optimizations results in some broken tests,
+          # notably returning a struct with a single float inside by value
+          # this is not our bug, a standalone testcase reproduces it
+          - { target: mips-linux-gnu, cc: gcc, buildtype: debugoptimized }
+          - { target: m68k-linux-gnu, cc: gcc, buildtype: debug }
           # x86_64 windows cross, release mode
-          - { target: x86_64-w64-mingw32, cc: gcc, release: 1 }
+          - { target: x86_64-w64-mingw32, cc: gcc, buildtype: release }
 
     steps:
       - name: Checkout

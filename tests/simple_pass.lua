@@ -20,6 +20,9 @@ val_test("unsigned short", "ushort")
 val_test("unsigned int", "uint")
 val_test("unsigned long", "ulong")
 val_test("unsigned long long", "ullong")
+-- this case breaks on m68k with optimized builds; the result will be empty
+-- it is not reproducible when returning the float type directly, and it is
+-- also not reproducible with integer types
 val_test("float", "float")
 val_test("double", "double")
 --val_test("long double", "ldouble")
