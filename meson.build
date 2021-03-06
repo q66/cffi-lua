@@ -30,19 +30,11 @@ endif
 
 # Configuration data; optional but helps
 
-config_h = configuration_data()
-
-config_h.set('SIZEOF_POINTER', cxx.sizeof('void *'))
-
 if host_machine.endian() == 'big'
-    config_h.set10('HAVE_BIG_ENDIAN', true)
+    extra_cxxflags += '-DFFI_BIG_ENDIAN'
+else
+    extra_cxxflags += '-DFFI_LITTLE_ENDIAN'
 endif
-
-if cxx.has_header('endian.h')
-    config_h.set10('HAVE_ENDIAN_H', true)
-endif
-
-extra_cxxflags += '-DHAVE_CONFIG_H=1'
 
 # Vendor library path; used to find libs and also added to PATH for Windows
 
@@ -92,7 +84,7 @@ if ffiver == 'custom'
 elif ffiver == 'vendor'
     ffi_dep = cxx.find_library('ffi', dirs: deps_libs)
     extra_inc += include_directories(join_paths(deps_path, 'include'))
-    config_h.set10('HAVE_FFI_H', true)
+    extra_cxxflags += '-DHAVE_FFI_H'
 else
     ffi_dep = dependency('libffi')
 endif
@@ -105,9 +97,9 @@ dl_lib = cxx.find_library('dl', required: false)
 
 if ffiver != 'vendor'
     if cxx.has_header('ffi.h', dependencies: ffi_dep)
-        config_h.set10('HAVE_FFI_H', true)
+        extra_cxxflags += '-DHAVE_FFI_H'
     elif cxx.has_header('ffi/ffi.h', dependencies: ffi_dep)
-        config_h.set10('HAVE_FFI_FFI_H', true)
+        extra_cxxflags += '-DHAVE_FFI_FFI_H'
     else
         error('libffi header file not found')
     endif
@@ -122,12 +114,8 @@ endif
 # These are Windows only
 
 if get_option('shared_libffi')
-    config_h.set10('HAVE_LIBFFI_DLLIMPORT', true)
+    extra_cxxflags += '-DHAVE_LIBFFI_DLLIMPORT'
 endif
-
-# Write configuration data
-
-configure_file(output: 'config.h', configuration: config_h)
 
 # Module build definition
 

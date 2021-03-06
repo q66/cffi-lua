@@ -9,29 +9,6 @@
 #ifndef PLATFORM_HH
 #define PLATFORM_HH
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
-/* host system endianness */
-
-#if defined(HAVE_BIG_ENDIAN) || defined(__BIG_ENDIAN__) || \
-    defined(__ARMEB__) || defined(__AARCH64EB__) || ( \
-        defined(__BYTE_ORDER__) && \
-        (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__) \
-    )
-#  define FFI_BIG_ENDIAN 1
-#elif defined(HAVE_ENDIAN_H)
-#  include <endian.h>
-#  if __BYTE_ORDER == __BIG_ENDIAN
-#    define FFI_BIG_ENDIAN 1
-#  else
-#    define FFI_LITTLE_ENDIAN 1
-#  endif
-#else
-#  define FFI_LITTLE_ENDIAN 1
-#endif
-
 /* OS; defined to be luajit compatible
  *
  * If undetected, it will still work, but the OS will be "Other"

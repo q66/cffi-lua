@@ -1530,18 +1530,20 @@ converr:
     static void setup_abi(lua_State *L) {
         lua_newtable(L);
         lua_pushboolean(L, true);
-#if UINTPTR_MAX > 0xFFFFFFFF
-        lua_setfield(L, -2, "64bit");
-#elif UINTPTR_MAX > 0xFFFF
-        lua_setfield(L, -2, "32bit");
-#else
-        lua_pop(L, 1);
-#endif
+        if (sizeof(void *) == 8) {
+            lua_setfield(L, -2, "64bit");
+        } else if (sizeof(void *) == 4) {
+            lua_setfield(L, -2, "32bit");
+        } else {
+            lua_pop(L, 1);
+        }
         lua_pushboolean(L, true);
-#ifdef FFI_BIG_ENDIAN
+#if defined(FFI_BIG_ENDIAN)
         lua_setfield(L, -2, "be");
-#else
+#elif defined(FFI_LITTLE_ENDIAN)
         lua_setfield(L, -2, "le");
+#else
+#  error "Unknown machine endianness"
 #endif
 #ifdef FFI_WINDOWS_ABI
         lua_pushboolean(L, true);
