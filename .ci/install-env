@@ -115,13 +115,6 @@ case "${expected_triplet}" in
         ;;
 esac
 
-if [ "$qemu_cpu" != "none" ]; then
-    echo ">> Getting qemu..."
-    wget "https://ftp.octaforge.org/q66/random/qemu-user-static/qemu-${qemu_cpu}-static.gz" || exit 1
-    zcat "qemu-${qemu_cpu}-static.gz" > host_tools/qemu
-    chmod +x host_tools/qemu
-fi
-
 echo ">> Installing toolchain..."
 
 if [ "$expected_triplet" = "x86_64-w64-mingw32" ]; then
@@ -129,9 +122,19 @@ if [ "$expected_triplet" = "x86_64-w64-mingw32" ]; then
     extra_packages="wine"
 else
     gcc_suffix="${expected_triplet}"
+    extra_packages="qemu-user"
 fi
 
 sudo apt-get update || exit 1
 sudo apt-get install gcc-${gcc_suffix} g++-${gcc_suffix} ${extra_packages}
+
+if [ "$qemu_cpu" != "none" ]; then
+    ln -s `which qemu-${qemu_cpu}` `pwd`/host_tools/qemu
+    # work around glibc being dumb
+    # the cache format is not endian agnostic, so unless a dummy file exists
+    # here, qemu will try to use host's and it will crash guest glibc on BE
+    sudo mkdir -p /usr/${expected_triplet}/etc
+    sudo touch /usr/${expected_triplet}/etc/ld.so.cache
+fi
 
 exit $?
