@@ -43,7 +43,7 @@ this includes:
 - 32-bit x86 (all)
 - 64-bit x86 (Windows)
 - 32-bit ARM (all)
-- PowerPC and POWER (32-bit SVR4 ABI, 64-bit ELFv2 ABI)
+- 32-bit PowerPC
 - MIPS(64) (all)
 
 Every other target forbids this. Both passing and returning is forbidden, and

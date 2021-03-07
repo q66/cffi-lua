@@ -293,10 +293,9 @@
  * unions may occasionally go in FPRs/VRRs; this is handled explicitly in
  * our implementation
  *
- * aarch64 currently disabled - buggy
+ * ppc64 and aarch64 currently disabled - buggy
  */
-#if FFI_CPU(X86) || FFI_CPU(ARM) || \
-    FFI_CPU(PPC) || defined(FFI_ARCH_PPC64_ELFV2) || \
+#if FFI_CPU(X86) || FFI_CPU(ARM) || FFI_CPU(PPC) || \
     FFI_CPU(MIPS32) || FFI_CPU(MIPS64)
 #  define FFI_ABI_UNIONVAL 1
 #elif defined(FFI_WINDOWS_ABI) && (FFI_ARCH == FFI_ARCH_X64)
