@@ -28,7 +28,7 @@ val_test("double", "double")
 
 -- libffi seemingly has a bug where long double in a struct is not passed
 -- correctly on x86_64 on Linux, should not be ours so don't trigger it
-if cffi.os ~= "Windows" and cffi.arch ~= "x64" then
+if ffi.os ~= "Windows" and ffi.arch ~= "x64" then
     val_test("long double", "ldouble")
 end
 
