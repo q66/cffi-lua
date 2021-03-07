@@ -157,7 +157,7 @@ for luaver in ${LUA_VERSIONS}; do
     deps_dir="deps-${luaver}-${expected_triplet}"
     deps_path="$(pwd)/${deps_dir}"
     wine_pfx="$(pwd)/.wine"
-    mkdir -p d${deps_dir}/include
+    mkdir -p ${deps_dir}/include
     cd lua-${luaver}
     # drop unneeded functionality that'd be a hassle otherwise
     if [ "$lua_plat" = "linux" ]; then
