@@ -120,8 +120,13 @@ the appropriate include path and linkage via `CXXFLAGS` and `LDFLAGS`.
 It is also possible to pass `-Dlua_version=vendor`, in which case the
 library will be taken from `deps` and the includes from `deps/include`.
 The `deps` directory can be either in the source root or in the directory
-you run `meson` from. On Unix-like systems, the library will be named
-`liblua.a`.
+you run `meson` from.
+
+Keep in mind that on Unix-likes, it is not necessary to actually link against
+the Lua library. Even when using `pkg-config`, the build system will always
+remove the linkage. The Lua symbols are instead supplied to the module
+through the executable it's loaded from. This does not work on Windows,
+where you actually need to link against the DLL for Lua modules to work.
 
 When using `homebrew` on macOS, its `libffi` is not installed globally.
 Therefore, you will need to set your `PKG_CONFIG_PATH` so that `pkg-config`
@@ -147,16 +152,16 @@ To build on Windows with an MSVC-style toolchain, first get yourself a binary
 distribution of `libffi` and the right version of Lua. They must be compatible
 with the runtime you're targeting.
 
-Drop the `.lib` files (import libs or static libs) of `libffi` and `lua`
-in the `deps` directory (either in the source root or the directory you
-are running `meson` from). The naming is up to you, `meson` will accept
-library names with or without `lib` prefix, and the build system accepts
-both unversioned and versioned to cover all environments. Usually, for Lua
-you will have something like `lua53.lib`. Also, drop the include files for
-`libffi` (`ffi.h` and `ffitarget.h`) into `deps/include`, same with the Lua
-include files.
+Drop the `.lib` files (import lib for Lua, static lib for `libffi`, unless you
+link `libffi` dynamically) of `libffi` and `lua` in the `deps` directory (either
+in the source root or the directory you are running `meson` from). The naming
+is up to you, `meson` will accept library names with or without `lib` prefix,
+and the build system accepts both unversioned and versioned to cover all
+environments. Usually, for Lua you will have something like `lua53.lib`.
+Also, drop the include files for `libffi` (`ffi.h` and `ffitarget.h`) into
+`deps/include`, same with the Lua include files.
 
-It is recommended that you use a static library for `libffi`.
+It is recommended that you always use a static library for `libffi`.
 
 Drop any `.dll` files in the `deps` directory also. This would be the Lua
 dll file typically (e.g. `lua53.dll`).
@@ -216,7 +221,8 @@ ninja test
 
 If you have just a plain MinGW compiler and no package manager environment
 with it, you will need to set it up manually and use `vendor` or `custom`
-for `lua_version` and `libffi`.
+for `lua_version` and `libffi`. Keep in mind that you don't need import
+libraries for the MinGW compiler, you can link against DLLs directly.
 
 ## Installing
 
