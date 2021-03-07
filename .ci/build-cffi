@@ -236,8 +236,8 @@ EOF
 
     meson .. -Dlua_version=vendor -Dlibffi=vendor -Dtests_cross=true \
         -Ddeps_dir=deps-${luaver} -Dlua_path="${lua_path}" ${args} || exit 1
-    samu all || exit 1
-    samu test || exit 1
+    ninja all || exit 1
+    ninja test || exit 1
     cd ..
 done
 
