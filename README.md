@@ -149,15 +149,17 @@ with the runtime you're targeting.
 
 Drop the `.lib` files (import libs or static libs) of `libffi` and `lua`
 in the `deps` directory (either in the source root or the directory you
-are running `meson` from), naming them `libffi.lib` and `liblua.lib`. Drop
-the include files for `libffi` (`ffi.h` and `ffitarget.h`) into `deps/include`,
-same with the Lua include files.
+are running `meson` from). The naming is up to you, `meson` will accept
+library names with or without `lib` prefix, and the build system accepts
+both unversioned and versioned to cover all environments. Usually, for Lua
+you will have something like `lua53.lib`. Also, drop the include files for
+`libffi` (`ffi.h` and `ffitarget.h`) into `deps/include`, same with the Lua
+include files.
 
 It is recommended that you use a static library for `libffi`.
 
 Drop any `.dll` files in the `deps` directory also. This would be the Lua
-dll file typically (e.g. `lua53.dll`). This is necessary in order to run
-tests.
+dll file typically (e.g. `lua53.dll`).
 
 If you wish to run tests, also drop in the Lua executable, following the
 same naming scheme as the `.dll` file (or simply called `lua.exe`). If

@@ -35,11 +35,6 @@ for luaver in ${LUA_VERSIONS}; do
     # unzip bin first
     7z x ../lua-${luaver}-bin.zip || exit 1
     7z x ../lua-${luaver}-lib.zip -y || exit 1
-    if [ -f "lua${lua_dmaj}.lib" ]; then
-        mv lua${lua_dmaj}.lib liblua.lib
-    else
-        mv lua${lua_maj}.lib liblua.lib
-    fi
     cd ..
 done
 

@@ -171,9 +171,6 @@ for luaver in ${LUA_VERSIONS}; do
     cp src/lauxlib.h ../${deps_dir}/include || exit 1
     if [ "${meson_system}" = "windows" ]; then
         cp src/lua*.dll ../${deps_dir} || exit 1
-        ln -sr ../${deps_dir}/lua*.dll ../${deps_dir}/liblua.dll
-    else
-        cp src/liblua.a ../${deps_dir} || exit 1
     fi
     if [ -d "etc" -a -f "etc/lua.hpp" ]; then
         cp etc/lua.hpp ../${deps_dir}/include

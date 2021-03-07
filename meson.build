@@ -69,7 +69,7 @@ elif luaver != 'auto' and luaver != 'custom' and luaver != 'vendor'
 elif luaver == 'custom'
     lua_dep = dependency('', required: false)
 elif luaver == 'vendor'
-    lua_dep = cxx.find_library('lua', dirs: deps_libs)
+    lua_dep = dependency('', required: false)
     extra_inc += include_directories(join_paths(deps_path, 'include'))
 else
     lua_dep = dependency('lua')
@@ -148,14 +148,30 @@ cffi_src = [
     'src/main.cc'
 ]
 
-# avoid linking module against lua except on windows where it's needed
+# on windows, we need to link to the dll, the dll has a specific name that
+# follows the lua version we depend on; on unix-likes we on the other hand
+# do not need the library at all, so skip it
 if host_machine.system() == 'windows'
-    lua_pdep = lua_dep
+    # msys2, etc
+    lua_adep = cxx.find_library('lua', dirs: deps_libs, required: false)
+    if not lua_adep.found()
+        # lua 5.1 uses lua5.1.dll/lib
+        lua_adep = cxx.find_library(
+            'lua@0@.@1@'.format(luaver_maj, luaver_min),
+            dirs: deps_libs, required: false
+        )
+    endif
+    if not lua_adep.found()
+        # lua 5.2 onwards uses lua5.2.dll/lib
+        lua_adep = cxx.find_library(
+            'lua@0@@1@'.format(luaver_maj, luaver_min), dirs: deps_libs
+        )
+    endif
 else
-    lua_pdep = lua_dep.partial_dependency(compile_args: true, includes: true)
+    lua_adep = lua_dep.partial_dependency(compile_args: true, includes: true)
 endif
 
-cffi_deps = [dl_lib, ffi_dep, lua_pdep]
+cffi_deps = [dl_lib, ffi_dep, lua_adep]
 
 if get_option('static')
     cffi = static_library('cffi-lua-@0@'.format(luaver_str),
