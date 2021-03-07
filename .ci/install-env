@@ -39,7 +39,7 @@ echo ">> Updating package database..."
 echo ">> Installing meson..."
 
 if [ -n "$is_linux" ]; then
-    sudo apt-get install meson
+    sudo apt-get install ninja-build
 else
     ninja_version=1.10.2
     cd host_tools
@@ -47,8 +47,16 @@ else
     tar xf ninja-mac.zip || exit 1
     rm ninja-mac.zip
     cd ..
-    sudo pip3 install meson || exit 1
     export PATH="$(pwd)/host_tools:$PATH"
+fi
+
+if [ -n "$(command -v pip3)" ]; then
+    sudo pip3 install meson || exit 1
+elif [ -n "$(command -v pip)" ]; then
+    sudo pip install meson || exit 1
+else
+    echo "ERROR: pip not found"
+    exit 1
 fi
 
 ensure_tool meson
