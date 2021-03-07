@@ -47,6 +47,12 @@
 #  define FFI_OS_NAME "Other"
 #endif
 
+#if !defined(FFI_BIG_ENDIAN) && !defined(FFI_LITTLE_ENDIAN)
+#  error "Unknown machine endianness"
+#elif defined(FFI_BIG_ENDIAN) && defined(FFI_LITTLE_ENDIAN)
+#  error "Choose just one endianness"
+#endif
+
 /* Arch; defined to be luajit compatible
  *
  * IF undetected, it will still work, but the arch will be "unknown"
@@ -61,6 +67,19 @@
 #define FFI_ARCH_PPC64   6
 #define FFI_ARCH_MIPS32  7
 #define FFI_ARCH_MIPS64  8
+/* these architectures are not defined in luajit */
+#define FFI_ARCH_ALPHA   9
+#define FFI_ARCH_HPPA    10
+#define FFI_ARCH_IA64    11
+#define FFI_ARCH_M68K    12
+#define FFI_ARCH_MBLAZE  13
+#define FFI_ARCH_OR1K    14
+#define FFI_ARCH_RV32    15
+#define FFI_ARCH_RV64    16
+#define FFI_ARCH_SH4     17
+#define FFI_ARCH_SPARC   18
+#define FFI_ARCH_SPARC64 19
+#define FFI_ARCH_S390    20
 
 #define FFI_CPU(arch) (FFI_ARCH == FFI_ARCH_##arch)
 
@@ -150,6 +169,66 @@
 #  else
 #    define FFI_ARCH_SOFTFP  0
 #    define FFI_ARCH_HAS_FPU 1
+#  endif
+#elif defined(__alpha__) || defined(__alpha)
+#  define FFI_ARCH FFI_ARCH_ALPHA
+#  define FFI_ARCH_NAME "alpha"
+#elif defined(__hppa__) || defined(__HPPA__) || defined(__hppa)
+#  define FFI_ARCH FFI_ARCH_HPPA
+#  define FFI_ARCH_NAME "hppa"
+#elif defined(__ia64__) || defined(_IA64) || defined(__IA64__) || \
+      defined(_M_IA64) || defined(__itanium__)
+#  define FFI_ARCH FFI_ARCH_IA64
+#  define FFI_ARCH_NAME "ia64"
+#elif defined(__m68k__) || defined(__MC68K__)
+#  define FFI_ARCH FFI_ARCH_M68K
+#  define FFI_ARCH_NAME "m68k"
+#elif defined(__MICROBLAZE__)
+#  define FFI_ARCH FFI_ARCH_MBLAZE
+#  if defined(__MICROBLAZEEL__)
+#    define FFI_ARCH_NAME "microblazeel"
+#  else
+#    define FFI_ARCH_NAME "microblaze"
+#  endif
+#elif defined(__OR1K__)
+#  define FFI_ARCH FFI_ARCH_OR1K
+#  define FFO_ARCH_NAME "or1k"
+#elif defined(__riscv) || defined(__riscv__)
+#  if __riscv_xlen == 32
+#    define FFI_ARCH FFI_ARCH_RV32
+#    define FFI_ARCH_NAME "riscv32"
+#  else
+#    define FFI_ARCH FFI_ARCH_RV64
+#    define FFI_ARCH_NAME "riscv64"
+#  endif
+#  ifdef __riscv_float_abi_soft
+#    define FFI_ARCH_SOFTFP  1
+#    define FFI_ARCH_HAS_FPU 0
+#  else
+#    define FFI_ARCH_SOFTFP  0
+#    define FFI_ARCH_HAS_FPU 1
+#  endif
+#elif defined(__sh__) && defined(__SH4__)
+#  define FFI_ARCH FFI_ARCH_SH4
+#  if defined(FFI_BIG_ENDIAN)
+#    define FFI_ARCH_NAME "sh4eb"
+#  else
+#    define FFI_ARCH_NAME "sh4"
+#  endif
+#elif defined(__sparc__) || defined(__sparc)
+#  if defined(__sparc_v9__) || defined(__sparcv9) || defined(__arch64__)
+#    define FFI_ARCH FFI_ARCH_SPARC64
+#    define FFI_ARCH_NAME "sparc64"
+#  else
+#    define FFI_ARCH FFI_ARCH_SPARC
+#    define FFI_ARCH_NAME "sparc"
+#  endif
+#elif defined(__s390__) || defined(__s390x__) || defined(__zarch__)
+#  define FFI_ARCH FFI_ARCH_S390
+#  if defined(__s390x__)
+#    define FFI_ARCH_NAME "s390x"
+#  else
+#    define FFI_ARCH_NAME "s390"
 #  endif
 #else
 #  define FFI_ARCH FFI_ARCH_UNKNOWN

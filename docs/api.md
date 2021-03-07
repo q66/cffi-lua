@@ -347,29 +347,44 @@ These values exactly match LuaJIT.
 
 The target architecture name.
 
-| Name         | Architecture    |
-| -------------|-----------------|
-| `x86`        | IA-32           |
-| `x64`        | x86\_64         |
-| `arm`        | 32-bit ARM LE   |
-| `armeb`      | 32-bit ARM BE   |
-| `arm64`      | AArch64 LE      |
-| `arm64be`    | AArch64 BE      |
-| `ppc`        | PowerPC BE      |
-| `ppcle`      | PowerPC LE      |
-| `ppc64le`    | 64-bit POWER LE |
-| `ppc64`      | 64-bit POWER    |
-| `mips`       | MIPS BE         |
-| `mipsel`     | MIPS LE         |
-| `mips32r6`   | MIPS R6 BE      |
-| `mips32r6el` | MIPS R6 LE      |
-| `mips64`     | MIPS64 BE       |
-| `mips64el`   | MIPS64 LE       |
-| `mips64r6`   | MIPS64 R6 BE    |
-| `mips64r6el` | MIPS64 R6 LE    |
-| `unknown`    | Other           |
+| Name           | Architecture    | Present in LuaJIT |
+| ---------------|-----------------|-------------------|
+| `alpha`        | DEC Alpha       | no                |
+| `arm`          | 32-bit ARM LE   | yes               |
+| `armeb`        | 32-bit ARM BE   | yes               |
+| `arm64`        | AArch64 LE      | yes               |
+| `arm64be`      | AArch64 BE      | yes               |
+| `hppa`         | PA-RISC         | no                |
+| `m68k`         | Motorola 68k    | no                |
+| `microblaze`   | Microblaze BE   | no                |
+| `microblazeel` | Microblaze LE   | no                |
+| `mips`         | MIPS BE         | yes               |
+| `mipsel`       | MIPS LE         | yes               |
+| `mips32r6`     | MIPS R6 BE      | yes               |
+| `mips32r6el`   | MIPS R6 LE      | yes               |
+| `mips64`       | MIPS64 BE       | yes               |
+| `mips64el`     | MIPS64 LE       | yes               |
+| `mips64r6`     | MIPS64 R6 BE    | yes               |
+| `mips64r6el`   | MIPS64 R6 LE    | yes               |
+| `or1k`         | OpenRISC        | no                |
+| `ppc`          | PowerPC BE      | yes               |
+| `ppcle`        | PowerPC LE      | no                |
+| `ppc64le`      | 64-bit POWER LE | no                |
+| `ppc64`        | 64-bit POWER    | no                |
+| `riscv32`      | 32-bit RISC-V   | no                |
+| `riscv64`      | 64-bit RISC-V   | no                |
+| `s390`         | IBM System/390  | no                |
+| `s390x`        | IBM Z           | no                |
+| `sh4`          | SH-4            | no                |
+| `sh4eb`        | SH-4 BE         | no                |
+| `sparc`        | 32-bit SPARC    | no                |
+| `sparc64`      | 64-bit SPARC    | no                |
+| `x64`          | x86\_64         | yes               |
+| `x86`          | IA-32           | yes               |
+| `unknown`      | Other           | yes               |
 
-This matches LuaJIT.
+This is extended over LuaJIT; the entries which LuaJIT had stay compatible,
+others are custom extensions for new architectures.
 
 ## Callback methods
 

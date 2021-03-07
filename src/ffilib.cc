@@ -1540,10 +1540,8 @@ converr:
         lua_pushboolean(L, true);
 #if defined(FFI_BIG_ENDIAN)
         lua_setfield(L, -2, "be");
-#elif defined(FFI_LITTLE_ENDIAN)
-        lua_setfield(L, -2, "le");
 #else
-#  error "Unknown machine endianness"
+        lua_setfield(L, -2, "le");
 #endif
 #ifdef FFI_WINDOWS_ABI
         lua_pushboolean(L, true);
