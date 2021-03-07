@@ -50,9 +50,6 @@ jobs:
       - name: Prepare environment
         run: sh ./.ci/install-env
 
-      - name: Install samurai
-        run: sh ./.ci/install-samu
-
       - name: Build and test cffi
         run: sh ./.ci/build-cffi
 
@@ -92,9 +89,6 @@ jobs:
 
       - name: Prepare environment
         run: sh ./.ci/install-env
-
-      - name: Install samurai
-        run: sh ./.ci/install-samu
 
       - name: Build and test cffi
         run: sh ./.ci/build-cffi

@@ -15,6 +15,10 @@ ensure_tool() {
     fi
 }
 
+if [ "$(uname -s)" = "Linux" ]; then
+    is_linux=yes
+fi
+
 echo ">> Checking tools..."
 
 ensure_tool gcc
@@ -25,20 +29,27 @@ ensure_tool git
 ensure_tool tar
 ensure_tool wget
 ensure_tool make
+ensure_tool meson
+ensure_tool ninja
 
 mkdir -p host_tools
 
+echo ">> Updating package database..."
+
+[ -n "$is_linux" ] && sudo apt-get update
+
 echo ">> Installing meson..."
 
-sudo apt-get install python3-setuptools python3-pip
-
-if [ -n "$(command -v pip3)" ]; then
-    sudo pip3 install meson
-elif [ -n "$(command -v pip)" ]; then
-    sudo pip install meson
+if [ -n "$is_linux" ]; then
+    sudo apt-get install meson
 else
-    echo "ERROR: pip not found"
-    exit 1
+    ninja_version=1.10.2
+    cd host_tools
+    wget "https://github.com/ninja-build/ninja/releases/download/v${ninja_version}/ninja-mac.zip" || exit 1
+    tar xf ninja-mac.zip || exit 1
+    rm ninja-mac.zip
+    cd ..
+    sudo pip3 install meson || exit 1
 fi
 
 echo ">> Getting libffi..."
@@ -78,7 +89,6 @@ else
     extra_packages="qemu-user"
 fi
 
-sudo apt-get update || exit 1
-sudo apt-get install gcc-${gcc_suffix} g++-${gcc_suffix} ${extra_packages}
+sudo apt-get install gcc-${gcc_suffix} g++-${gcc_suffix} ${extra_packages} || exit 1
 
 exit $?

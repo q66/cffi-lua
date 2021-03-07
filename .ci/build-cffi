@@ -119,9 +119,7 @@ case "${expected_triplet}" in
         ;;
 esac
 
-host_tools="$(pwd)/host_tools"
-export PATH="${host_tools}:$PATH"
-export NINJA="samu"
+export PATH="$(pwd)/host_tools:$PATH"
 
 if [ -n "$qemu_cpu" -a -n "$cross" ]; then
     echo ">> Preparing qemu..."
