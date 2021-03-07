@@ -154,9 +154,10 @@ case "$TARGET" in
 esac
 
 for luaver in ${LUA_VERSIONS}; do
-    deps_path="$(pwd)/deps-${luaver}"
+    deps_dir="deps-${luaver}-${expected_triplet}"
+    deps_path="$(pwd)/${deps_dir}"
     wine_pfx="$(pwd)/.wine"
-    mkdir -p deps-${luaver}/include
+    mkdir -p d${deps_dir}/include
     cd lua-${luaver}
     # drop unneeded functionality that'd be a hassle otherwise
     if [ "$lua_plat" = "linux" ]; then
@@ -166,21 +167,21 @@ for luaver in ${LUA_VERSIONS}; do
         sed -i 's/-lncurses//g' src/Makefile
     fi
     make -j8 PLAT=${lua_plat} MYCFLAGS="${extra_cflags}" CC="$CC" AR="$AR rcu" || exit 1
-    cp src/lua*.h* ../deps-${luaver}/include || exit 1
-    cp src/lauxlib.h ../deps-${luaver}/include || exit 1
+    cp src/lua*.h* ../${deps_dir}/include || exit 1
+    cp src/lauxlib.h ../${deps_dir}/include || exit 1
     if [ "${meson_system}" = "windows" ]; then
-        cp src/lua*.dll ../deps-${luaver} || exit 1
-        ln -sr ../deps-${luaver}/lua*.dll ../deps-${luaver}/liblua.dll
+        cp src/lua*.dll ../${deps_dir} || exit 1
+        ln -sr ../${deps_dir}/lua*.dll ../${deps_dir}/liblua.dll
     else
-        cp src/liblua.a ../deps-${luaver} || exit 1
+        cp src/liblua.a ../${deps_dir} || exit 1
     fi
     if [ -d "etc" -a -f "etc/lua.hpp" ]; then
-        cp etc/lua.hpp ../deps-${luaver}/include
+        cp etc/lua.hpp ../${deps_dir}/include
     fi
     if [ -n "${cross}" ]; then
         if [ "${meson_system}" = "windows" ]; then
-            cp src/lua.exe ../deps-${luaver} || exit 1
-            cat << EOF > ../deps-${luaver}/lua
+            cp src/lua.exe ../${deps_dir} || exit 1
+            cat << EOF > ../${deps_dir}/lua
 #!/bin/sh
 export WINEDEBUG=-all
 export WINEPREFIX="${wine_pfx}"
@@ -188,31 +189,32 @@ export DISPLAY=
 wine ${deps_path}/lua.exe "\$@"
 EOF
         else
-            cp src/lua ../deps-${luaver}/lua.target || exit 1
-            cat << EOF > ../deps-${luaver}/lua
+            cp src/lua ../${deps_dir}/lua.target || exit 1
+            cat << EOF > ../${deps_dir}/lua
 #!/bin/sh
 qemu-${qemu_cpu} -L /usr/${expected_triplet} ${deps_path}/lua.target "\$@"
 EOF
         fi
-        chmod +x ../deps-${luaver}/lua
+        chmod +x ../${deps_dir}/lua
         echo ">> Testing cross lua:"
-        ../deps-${luaver}/lua -v || exit 1
+        ../${deps_dir}/lua -v || exit 1
     else
-        cp src/lua ../deps-${luaver} || exit 1
+        cp src/lua ../${deps_dir} || exit 1
     fi
     cd ..
     # also copy libffi files to each deps dir
-    cp libffi_build/include/*.h deps-${luaver}/include || exit 1
-    cp libffi_build/.libs/libffi.a deps-${luaver} || exit 1
+    cp libffi_build/include/*.h ${deps_dir}/include || exit 1
+    cp libffi_build/.libs/libffi.a ${deps_dir} || exit 1
 done
 
 echo ">> Building and testing cffi..."
 
 for luaver in ${LUA_VERSIONS}; do
-    lua_path="$(pwd)/deps-${luaver}/lua"
+    deps_dir="deps-${luaver}-${expected_triplet}"
+    lua_path="$(pwd)/${deps_dir}/lua"
 
-    mkdir -p build-${luaver}
-    cd build-${luaver}
+    mkdir -p build-${luaver}-${expected_triplet}
+    cd build-${luaver}-${expected_triplet}
 
     args=""
     if [ -n "${cross}" ]; then
@@ -235,7 +237,7 @@ EOF
     fi
 
     meson .. -Dlua_version=vendor -Dlibffi=vendor -Dtests_cross=true \
-        -Ddeps_dir=deps-${luaver} -Dlua_path="${lua_path}" ${args} || exit 1
+        -Ddeps_dir=${deps_dir} -Dlua_path="${lua_path}" ${args} || exit 1
     ninja all || exit 1
     ninja test || exit 1
     cd ..
