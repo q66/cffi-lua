@@ -29,8 +29,6 @@ ensure_tool git
 ensure_tool tar
 ensure_tool wget
 ensure_tool make
-ensure_tool meson
-ensure_tool ninja
 
 mkdir -p host_tools
 
@@ -50,7 +48,11 @@ else
     rm ninja-mac.zip
     cd ..
     sudo pip3 install meson || exit 1
+    export PATH="$(pwd)/host_tools:$PATH"
 fi
+
+ensure_tool meson
+ensure_tool ninja
 
 echo ">> Getting libffi..."
 
