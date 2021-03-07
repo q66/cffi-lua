@@ -25,7 +25,12 @@ val_test("unsigned long long", "ullong")
 -- also not reproducible with integer types
 val_test("float", "float")
 val_test("double", "double")
---val_test("long double", "ldouble")
+
+-- libffi seemingly has a bug where long double in a struct is not passed
+-- correctly on x86_64 on Linux, should not be ours so don't trigger it
+if cffi.os ~= "Windows" and cffi.arch ~= "x64" then
+    val_test("long double", "ldouble")
+end
 
 ffi.cdef [[
     float test_raw_float(float v);
