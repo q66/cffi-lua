@@ -22,11 +22,7 @@
 #pragma clang diagnostic ignored "-Wlanguage-extension-token"
 #endif
 
-#ifdef HAVE_FFI_FFI_H
-#include <ffi/ffi.h>
-#else
 #include <ffi.h>
-#endif
 
 #if defined(FFI_DIAGNOSTIC_PRAGMA_CLANG)
 #pragma clang diagnostic pop

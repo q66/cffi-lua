@@ -9,7 +9,7 @@ project('cffi-lua', ['cpp'],
     meson_version: '>=0.50'
 )
 
-# Extra compiler warnings for gcc/clang + symbol visibility
+# Extra compiler warnings for gcc/clang
 
 cxx = meson.get_compiler('cpp')
 
@@ -24,11 +24,7 @@ if get_option('buildtype') != 'plain'
     endif
 endif
 
-if cxx.has_argument('-fvisibility=hidden')
-    extra_cxxflags += '-fvisibility=hidden'
-endif
-
-# Configuration data; optional but helps
+# Endianness specification is mandatory
 
 if host_machine.endian() == 'big'
     extra_cxxflags += '-DFFI_BIG_ENDIAN'
@@ -84,7 +80,6 @@ if ffiver == 'custom'
 elif ffiver == 'vendor'
     ffi_dep = cxx.find_library('ffi', dirs: deps_libs)
     extra_inc += include_directories(join_paths(deps_path, 'include'))
-    extra_cxxflags += '-DHAVE_FFI_H'
 else
     ffi_dep = dependency('libffi')
 endif
@@ -93,27 +88,9 @@ endif
 
 dl_lib = cxx.find_library('dl', required: false)
 
-# Header checks
-
-if ffiver != 'vendor'
-    if cxx.has_header('ffi.h', dependencies: ffi_dep)
-        extra_cxxflags += '-DHAVE_FFI_H'
-    elif cxx.has_header('ffi/ffi.h', dependencies: ffi_dep)
-        extra_cxxflags += '-DHAVE_FFI_FFI_H'
-    else
-        error('libffi header file not found')
-    endif
-endif
-
-if luaver != 'vendor'
-    if not cxx.has_header('lua.hpp', dependencies: lua_dep)
-        error('lua header file not found')
-    endif
-endif
-
 # These are Windows only
 
-if get_option('shared_libffi')
+if not get_option('shared_libffi')
     extra_cxxflags += '-DHAVE_LIBFFI_DLLIMPORT'
 endif
 
@@ -180,7 +157,8 @@ if get_option('static')
         pic: true,
         dependencies: cffi_deps,
         include_directories: extra_inc,
-        cpp_args: extra_cxxflags
+        cpp_args: extra_cxxflags,
+        gnu_symbol_visibility: 'hidden'
     )
 else
     lua_modpath = get_option('lua_install_path')
@@ -196,7 +174,8 @@ else
         name_suffix: plugin_suffix,
         dependencies: cffi_deps,
         cpp_args: ['-DCFFI_LUA_DLL'] + extra_cxxflags,
-        include_directories: extra_inc
+        include_directories: extra_inc,
+        gnu_symbol_visibility: 'hidden'
     )
 endif
 
