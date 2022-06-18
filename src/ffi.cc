@@ -1459,7 +1459,7 @@ void set_global(lua_State *L, lib::c_lib const *dl, char const *sname, int idx) 
     auto &ds = ast::decl_store::get_main(L);
     auto const *decl = ds.lookup(sname);
     if (!decl) {
-        luaL_error(L, "missing declaration for symbol '%s'", decl->name());
+        luaL_error(L, "missing declaration for symbol '%s'", sname);
         return;
     }
     if (decl->obj_type() != ast::c_object_type::VARIABLE) {
