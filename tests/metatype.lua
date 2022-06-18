@@ -18,16 +18,16 @@ local foo = ffi.metatype("foo", {
         end
     },
 
-    __len = function(self) return 1337 end,
-    __unm = function(self) return -1337 end,
+    __len = function(self) return self.x end,
+    __unm = function(self) return self.y end,
 })
 
 local x = foo(5, 10)
 assert(x.x == 5)
 assert(x.y == 10)
 assert(x:sum() == 15)
-assert(#x == 1337)
-assert(-x == -1337)
+assert(#x == 5)
+assert(-x == 10)
 
 local x = foo.named_ctor(500, 1000)
 assert(x.x == 500)
