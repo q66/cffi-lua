@@ -384,7 +384,10 @@ struct cdata_meta {
     ) {
         /* custom metatypes, either operand */
         if (cd && metatype_check<mtype>(L, 1)) {
-            lua_insert(L, 1);
+            /* some versions of lua use a dummy second operand, so we
+             * cannot just insert the function to the top of the stack
+             */
+            lua_pushvalue(L, 1);
             lua_call(L, 1, rvals);
             return true;
         }
