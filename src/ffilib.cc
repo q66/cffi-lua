@@ -382,13 +382,15 @@ struct cdata_meta {
     static inline bool unop_try_mt(
         lua_State *L, ffi::cdata<void *> *cd, int rvals = 1
     ) {
+        auto nargs = lua_gettop(L);
         /* custom metatypes, either operand */
         if (cd && metatype_check<mtype>(L, 1)) {
             /* some versions of lua use a dummy second operand, so we
-             * cannot just insert the function to the top of the stack
+             * have to implement this in a manner that just passes through
+             * all the arguments regardless of their count
              */
-            lua_pushvalue(L, 1);
-            lua_call(L, 1, rvals);
+            lua_insert(L, 1);
+            lua_call(L, nargs, rvals);
             return true;
         }
         return false;
