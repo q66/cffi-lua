@@ -379,27 +379,9 @@ struct cdata_meta {
     }
 
     template<ffi::metatype_flag mtype>
-    static inline bool unop_try_mt(
-        lua_State *L, ffi::cdata<void *> *cd, int rvals = 1
-    ) {
-        auto nargs = lua_gettop(L);
-        /* custom metatypes, either operand */
-        if (cd && metatype_check<mtype>(L, 1)) {
-            /* some versions of lua use a dummy second operand, so we
-             * have to implement this in a manner that just passes through
-             * all the arguments regardless of their count
-             */
-            lua_insert(L, 1);
-            lua_call(L, nargs, rvals);
-            return true;
-        }
-        return false;
-    }
-
-    template<ffi::metatype_flag mtype>
-    static inline bool binop_try_mt(
+    static inline bool op_try_mt(
         lua_State *L, ffi::cdata<void *> const *cd1,
-        ffi::cdata<void *> const *cd2
+        ffi::cdata<void *> const *cd2, int rvals = 1
     ) {
         /* custom metatypes, either operand */
         if (
@@ -407,7 +389,7 @@ struct cdata_meta {
             (cd2 && metatype_check<mtype>(L, 2))
         ) {
             lua_insert(L, 1);
-            lua_call(L, 2, 1);
+            lua_call(L, lua_gettop(L) - 1, rvals);
             return true;
         }
         return false;
@@ -416,7 +398,7 @@ struct cdata_meta {
     static int concat(lua_State *L) {
         auto *cd1 = ffi::testcdata<void *>(L, 1);
         auto *cd2 = ffi::testcdata<void *>(L, 2);
-        if (binop_try_mt<ffi::METATYPE_FLAG_CONCAT>(L, cd1, cd2)) {
+        if (op_try_mt<ffi::METATYPE_FLAG_CONCAT>(L, cd1, cd2)) {
             return 1;
         }
         luaL_error(
@@ -428,7 +410,7 @@ struct cdata_meta {
 
     static int len(lua_State *L) {
         auto *cd = ffi::testcdata<void *>(L, 1);
-        if (unop_try_mt<ffi::METATYPE_FLAG_LEN>(L, cd)) {
+        if (op_try_mt<ffi::METATYPE_FLAG_LEN>(L, cd, nullptr)) {
             return 1;
         }
         luaL_error(
@@ -550,14 +532,14 @@ struct cdata_meta {
         if (cd1 && cd1->decl.ptr_like()) {
             auto asize = cd1->decl.ptr_base().alloc_size();
             if (!asize) {
-                if (binop_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
+                if (op_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
                     return 1;
                 }
                 luaL_error(L, "unknown C type size");
             }
             std::ptrdiff_t d;
             if (!ffi::test_arith<std::ptrdiff_t>(L, 2, d)) {
-                if (binop_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
+                if (op_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
                     return 1;
                 }
                 ffi::check_arith<std::ptrdiff_t>(L, 2);
@@ -571,14 +553,14 @@ struct cdata_meta {
         } else if (cd2 && cd2->decl.ptr_like()) {
             auto asize = cd2->decl.ptr_base().alloc_size();
             if (!asize) {
-                if (binop_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
+                if (op_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
                     return 1;
                 }
                 luaL_error(L, "unknown C type size");
             }
             std::ptrdiff_t d;
             if (!ffi::test_arith<std::ptrdiff_t>(L, 1, d)) {
-                if (binop_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
+                if (op_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
                     return 1;
                 }
                 ffi::check_arith<std::ptrdiff_t>(L, 1);
@@ -590,7 +572,7 @@ struct cdata_meta {
             ret.val = d * asize + p;
             return 1;
         }
-        if (binop_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
+        if (op_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
             return 1;
         }
         arith_64bit_bin(L, ast::c_expr_binop::ADD);
@@ -604,14 +586,14 @@ struct cdata_meta {
         if (cd1 && cd1->decl.ptr_like()) {
             auto asize = cd1->decl.ptr_base().alloc_size();
             if (!asize) {
-                if (binop_try_mt<ffi::METATYPE_FLAG_SUB>(L, cd1, cd2)) {
+                if (op_try_mt<ffi::METATYPE_FLAG_SUB>(L, cd1, cd2)) {
                     return 1;
                 }
                 luaL_error(L, "unknown C type size");
             }
             if (cd2 && cd2->decl.ptr_like()) {
                 if (!cd1->decl.ptr_base().is_same(cd2->decl.ptr_base(), true)) {
-                    if (binop_try_mt<ffi::METATYPE_FLAG_SUB>(L, cd1, cd2)) {
+                    if (op_try_mt<ffi::METATYPE_FLAG_SUB>(L, cd1, cd2)) {
                         return 1;
                     }
                     cd2->decl.serialize(L);
@@ -628,7 +610,7 @@ struct cdata_meta {
             }
             std::ptrdiff_t d;
             if (!ffi::test_arith<std::ptrdiff_t>(L, 2, d)) {
-                if (binop_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
+                if (op_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
                     return 1;
                 }
                 ffi::check_arith<std::ptrdiff_t>(L, 2);
@@ -638,7 +620,7 @@ struct cdata_meta {
             ret.val = p + d;
             return 1;
         }
-        if (binop_try_mt<ffi::METATYPE_FLAG_SUB>(L, cd1, cd2)) {
+        if (op_try_mt<ffi::METATYPE_FLAG_SUB>(L, cd1, cd2)) {
             return 1;
         }
         arith_64bit_bin(L, ast::c_expr_binop::SUB);
@@ -649,7 +631,7 @@ struct cdata_meta {
     static int arith_bin(lua_State *L) {
         auto *cd1 = ffi::testcdata<void *>(L, 1);
         auto *cd2 = ffi::testcdata<void *>(L, 2);
-        if (!binop_try_mt<mflag>(L, cd1, cd2)) {
+        if (!op_try_mt<mflag>(L, cd1, cd2)) {
             arith_64bit_bin(L, bop);
         }
         return 1;
@@ -677,7 +659,7 @@ struct cdata_meta {
     static int pow(lua_State *L) {
         auto *cd1 = ffi::testcdata<void *>(L, 1);
         auto *cd2 = ffi::testcdata<void *>(L, 2);
-        if (binop_try_mt<ffi::METATYPE_FLAG_POW>(L, cd1, cd2)) {
+        if (op_try_mt<ffi::METATYPE_FLAG_POW>(L, cd1, cd2)) {
             return 1;
         }
         ast::c_value lhs, rhs;
@@ -703,7 +685,7 @@ struct cdata_meta {
     template<ffi::metatype_flag mflag, ast::c_expr_unop uop>
     static int arith_un(lua_State *L) {
         auto *cd = ffi::testcdata<void *>(L, 1);
-        if (unop_try_mt<mflag>(L, cd)) {
+        if (op_try_mt<mflag>(L, cd, nullptr)) {
             return 1;
         }
         ast::c_expr uexp{ast::C_TYPE_WEAK}, exp;
@@ -751,14 +733,14 @@ struct cdata_meta {
                 );
                 return 1;
             }
-            if (binop_try_mt<ffi::METATYPE_FLAG_EQ>(L, cd1, cd2)) {
+            if (op_try_mt<ffi::METATYPE_FLAG_EQ>(L, cd1, cd2)) {
                 return 1;
             }
             /* if any operand is non-arithmetic, compare by address */
             lua_pushboolean(L, cd1->get_deref_addr() == cd2->get_deref_addr());
             return 1;
         }
-        if (binop_try_mt<ffi::METATYPE_FLAG_EQ>(L, cd1, cd2)) {
+        if (op_try_mt<ffi::METATYPE_FLAG_EQ>(L, cd1, cd2)) {
             return 1;
         }
         /* otherwise compare values */
@@ -774,9 +756,9 @@ struct cdata_meta {
         if (!cd1 || !cd2) {
             auto *ccd = (cd1 ? cd1 : cd2);
             if (!ccd->decl.arith() || !lua_isnumber(L, 2 - !cd1)) {
-                if (binop_try_mt<mf1>(L, cd1, cd2)) {
+                if (op_try_mt<mf1>(L, cd1, cd2)) {
                     return true;
-                } else if ((mf2 != mf1) && binop_try_mt<mf2>(L, cd2, cd1)) {
+                } else if ((mf2 != mf1) && op_try_mt<mf2>(L, cd2, cd1)) {
                     lua_pushboolean(L, !lua_toboolean(L, -1));
                     return true;
                 }
@@ -798,9 +780,9 @@ struct cdata_meta {
             (cd1->decl.type() != ast::C_BUILTIN_PTR) ||
             (cd2->decl.type() != ast::C_BUILTIN_PTR)
         ) || (!cd1->decl.ptr_base().is_same(cd2->decl.ptr_base(), true))) {
-            if (binop_try_mt<mf1>(L, cd1, cd2)) {
+            if (op_try_mt<mf1>(L, cd1, cd2)) {
                 return true;
-            } else if ((mf2 != mf1) && binop_try_mt<mf2>(L, cd2, cd1)) {
+            } else if ((mf2 != mf1) && op_try_mt<mf2>(L, cd2, cd1)) {
                 lua_pushboolean(L, !lua_toboolean(L, -1));
                 return true;
             }
@@ -809,9 +791,9 @@ struct cdata_meta {
                 ffi::lua_serialize(L, 1), ffi::lua_serialize(L, 2)
             );
         }
-        if (binop_try_mt<mf1>(L, cd1, cd2)) {
+        if (op_try_mt<mf1>(L, cd1, cd2)) {
             return true;
-        } else if ((mf2 != mf1) && binop_try_mt<mf2>(L, cd2, cd1)) {
+        } else if ((mf2 != mf1) && op_try_mt<mf2>(L, cd2, cd1)) {
             lua_pushboolean(L, !lua_toboolean(L, -1));
             return true;
         }
@@ -846,7 +828,7 @@ struct cdata_meta {
 #if LUA_VERSION_NUM > 501
     static int pairs(lua_State *L) {
         auto *cd = ffi::testcdata<void *>(L, 1);
-        if (unop_try_mt<ffi::METATYPE_FLAG_PAIRS>(L, cd, 3)) {
+        if (op_try_mt<ffi::METATYPE_FLAG_PAIRS>(L, cd, nullptr, 3)) {
             return 3;
         }
         luaL_error(
@@ -858,7 +840,7 @@ struct cdata_meta {
 #if LUA_VERSION_NUM == 502
     static int ipairs(lua_State *L) {
         auto *cd = ffi::testcdata<void *>(L, 1);
-        if (unop_try_mt<ffi::METATYPE_FLAG_IPAIRS>(L, cd, 3)) {
+        if (op_try_mt<ffi::METATYPE_FLAG_IPAIRS>(L, cd, nullptr, 3)) {
             return 3;
         }
         luaL_error(
@@ -873,7 +855,7 @@ struct cdata_meta {
     static int shift_bin(lua_State *L) {
         auto *cd1 = ffi::testcdata<void *>(L, 1);
         auto *cd2 = ffi::testcdata<void *>(L, 2);
-        if (binop_try_mt<mflag>(L, cd1, cd2)) {
+        if (op_try_mt<mflag>(L, cd1, cd2)) {
             return 1;
         }
         ast::c_expr_type retp;
