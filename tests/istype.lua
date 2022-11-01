@@ -36,3 +36,12 @@ assert(not ffi.istype("int &", ffi.typeof("float &")))
 -- second argument must be a cval
 assert(not ffi.istype("int", "int"))
 assert(not ffi.istype("int", true))
+
+-- types in typeof must be terminated
+local ret, msg = pcall(ffi.typeof, "long int bla")
+assert(not ret)
+assert(msg == "'<eof>' expected near '<name>'")
+
+local ret, msg = pcall(ffi.typeof, "long int int")
+assert(not ret)
+assert(msg == "'<eof>' expected near 'int'")

@@ -2677,7 +2677,7 @@ ast::c_type parse_type(
     {
         lex_state ls{L, input, iend, PARSE_MODE_NOTCDEF, paridx};
         ast::c_type tp{};
-        if (!ls.get() || !parse_type(ls, tp)) {
+        if (!ls.get() || !parse_type(ls, tp) || !check(ls, -1)) {
             if (ls.err_token() > 0) {
                 char buf[16];
                 lua_pushfstring(
