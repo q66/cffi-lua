@@ -1,3 +1,15 @@
+# 1 November 2022 - 0.2.2
+
+**Changes:**
+
+- Passing unions by value is now permitted on specific platforms:
+  - Windows (x86 and x86_64), MIPS32/64, all 32-bit ARM, PowerPC
+- Initializer fixes in `ffi.new`
+- Fixed unary metamethods on newer versions of Lua
+- Expanded architecture identifier coverage
+- CI updates
+- Various fixes and cleanups
+
 # 31 January 2021 - 0.2.1
 
 **Changes:**

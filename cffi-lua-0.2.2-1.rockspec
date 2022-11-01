@@ -1,8 +1,8 @@
 package = "cffi-lua"
-version = "0.2.1-1"
+version = "0.2.2-1"
 source = {
     url = "git+https://github.com/q66/cffi-lua",
-    tag = "v0.2.1"
+    tag = "v0.2.2"
 }
 description = {
     summary = "A portable C FFI for Lua 5.1+",
