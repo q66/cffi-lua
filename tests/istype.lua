@@ -37,6 +37,16 @@ assert(not ffi.istype("int &", ffi.typeof("float &")))
 assert(not ffi.istype("int", "int"))
 assert(not ffi.istype("int", true))
 
+-- alternative syntaxes
+assert(ffi.istype("long", ffi.typeof("long int")))
+assert(ffi.istype("unsigned long", ffi.typeof("unsigned long int")))
+assert(ffi.istype("long int", ffi.typeof("long")))
+assert(ffi.istype("unsigned long int", ffi.typeof("unsigned long")))
+assert(ffi.istype("short", ffi.typeof("short int")))
+assert(ffi.istype("unsigned short", ffi.typeof("unsigned short int")))
+assert(ffi.istype("short int", ffi.typeof("short")))
+assert(ffi.istype("unsigned short int", ffi.typeof("unsigned short")))
+
 -- types in typeof must be terminated
 local ret, msg = pcall(ffi.typeof, "long int bla")
 assert(not ret)

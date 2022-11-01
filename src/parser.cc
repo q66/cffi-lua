@@ -2181,6 +2181,9 @@ qualified:
             if (!ls.get()) {
                 return false;
             }
+            if ((ls.t.token == TOK_int) && !ls.get()) {
+                return false;
+            }
             break;
         case TOK_int:
             if (squals & TYPE_UNSIGNED) {
