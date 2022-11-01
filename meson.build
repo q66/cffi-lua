@@ -90,7 +90,7 @@ dl_lib = cxx.find_library('dl', required: false)
 
 # These are Windows only
 
-if not get_option('shared_libffi')
+if get_option('shared_libffi')
     extra_cxxflags += '-DHAVE_LIBFFI_DLLIMPORT'
 endif
 
