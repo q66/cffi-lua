@@ -160,6 +160,11 @@ if get_option('static')
         cpp_args: extra_cxxflags,
         gnu_symbol_visibility: 'hidden'
     )
+
+    cffi_dep = declare_dependency(
+        link_with: cffi,
+        include_directories: extra_inc
+    )
 else
     lua_modpath = get_option('lua_install_path')
     if lua_modpath == 'auto'
