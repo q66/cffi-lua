@@ -72,14 +72,14 @@ static inline arg_stor_t *&fdata_get_aux(fdata &fd) {
     return *u.np;
 }
 
-static inline void fdata_free_aux(lua_State *L, fdata &fd) {
+static inline void fdata_free_aux(lua_State *, fdata &fd) {
     auto &aux = fdata_get_aux(fd);
-    lua::free_mem(L, aux);
+    delete[] reinterpret_cast<unsigned char *>(aux);
     aux = nullptr;
 }
 
-static inline void fdata_new_aux(lua_State *L, fdata &fd, std::size_t sz) {
-    fdata_get_aux(fd) = reinterpret_cast<arg_stor_t *>(lua::alloc_mem(L, sz));
+static inline void fdata_new_aux(lua_State *, fdata &fd, std::size_t sz) {
+    fdata_get_aux(fd) = reinterpret_cast<arg_stor_t *>(new unsigned char[sz]);
 }
 
 static inline ffi_type **fargs_types(void *args, std::size_t nargs) {
@@ -121,9 +121,9 @@ void destroy_cdata(lua_State *L, cdata<noval> &cd) {
     cd.decl.~T();
 }
 
-void destroy_closure(lua_State *L, closure_data *cd) {
+void destroy_closure(lua_State *, closure_data *cd) {
     cd->~closure_data();
-    lua::free_mem(L, cd);
+    delete[] reinterpret_cast<unsigned char *>(cd);
 }
 
 static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
@@ -264,9 +264,9 @@ static void make_cdata_func(
             fud.val.cd = cd;
             return;
         }
-        cd = reinterpret_cast<closure_data *>(lua::alloc_mem(L,
+        cd = reinterpret_cast<closure_data *>(new unsigned char[
             sizeof(closure_data) + nargs * sizeof(ffi_type *)
-        ));
+        ]);
         new (cd) closure_data{};
         /* allocate a closure in it */
         cd->closure = static_cast<ffi_closure *>(ffi_closure_alloc(
