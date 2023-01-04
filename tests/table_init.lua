@@ -11,6 +11,12 @@ ffi.cdef [[
         double y[?];
     };
 
+    struct buf {
+        uint32_t x;
+        uint32_t y;
+        uint8_t buf[16];
+    };
+
     struct sinit {
         int x;
         float y;
@@ -117,6 +123,14 @@ x = ffi.new("struct vlaflex", 2, { x = 5, y = { 10, 15 } })
 assert(x.x == 5)
 assert(x.y[0] == 10)
 assert(x.y[1] == 15)
+
+x = ffi.new("struct buf", { x = 5, y = 10 });
+assert(x.x == 5)
+assert(x.y == 10)
+ffi.copy(x.buf, "hello world")
+assert(x.buf[0] == string.byte("h"))
+assert(x.buf[1] == string.byte("e"))
+assert(ffi.string(x.buf) == "hello world")
 
 local str = "hello world"
 x = ffi.new("union uinit", { str })

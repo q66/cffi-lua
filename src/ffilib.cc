@@ -1423,7 +1423,7 @@ converr:
                 );
                 luaL_argcheck(L, false, idx, lua_tostring(L, -1));
             }
-            return cd.val;
+            return cd.get_deref_addr();
         } else if (lua_isuserdata(L, idx)) {
             return lua_touserdata(L, idx);
         }
