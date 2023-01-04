@@ -41,6 +41,11 @@ ffi.cdef [[
     struct multi {
         int x[3][4][5];
     };
+
+    struct arr {
+        char buf[16];
+        char buf2[];
+    };
 ]]
 
 -- struct
@@ -181,3 +186,16 @@ local x = ffi.new("struct multi")
 assert(ffi.sizeof(x) == ffi.sizeof("struct multi"))
 assert(ffi.sizeof(x) == ffi.sizeof("int") * 3 * 4 * 5)
 assert(ffi.sizeof(x) == ffi.sizeof("int [3][4][5]"))
+
+-- pointer arithmetic with member arrays
+
+local x = ffi.new("struct arr", 16)
+ffi.copy(x.buf, "hello world")
+ffi.copy(x.buf2, "flex flex")
+assert(ffi.string(x.buf) == "hello world")
+assert(ffi.string(x.buf2) == "flex flex")
+assert(ffi.string(x.buf + 6) == "world")
+assert(ffi.string(x.buf2 + 5) == "flex")
+assert(x.buf[4] == (x.buf + 4)[0])
+assert(x.buf2[4] == (x.buf2 + 4)[0])
+assert(x.buf[4] == string.byte("o"))

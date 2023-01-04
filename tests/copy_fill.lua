@@ -5,6 +5,7 @@ assert(ffi.sizeof(buf) == 256)
 
 ffi.copy(buf, "hello world")
 assert(ffi.string(buf) == "hello world")
+assert(ffi.string(buf + 6) == "world")
 
 ffi.fill(buf, ffi.sizeof(buf))
 assert(ffi.string(buf) == "")

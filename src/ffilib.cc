@@ -544,9 +544,10 @@ struct cdata_meta {
                 }
                 ffi::check_arith<std::ptrdiff_t>(L, 2);
             }
-            auto *p = static_cast<unsigned char *>(cd1->val);
+            auto *p = static_cast<unsigned char *>(cd1->get_deref_addr());
+            auto tp = cd1->decl.as_type(ast::C_BUILTIN_PTR);
             auto &ret = ffi::newcdata<void *>(
-                L, cd1->decl.as_type(ast::C_BUILTIN_PTR)
+                L, tp.is_ref() ? tp.unref() : util::move(tp)
             );
             ret.val = p + d * asize;
             return 1;
@@ -565,9 +566,10 @@ struct cdata_meta {
                 }
                 ffi::check_arith<std::ptrdiff_t>(L, 1);
             }
-            auto *p = static_cast<unsigned char *>(cd2->val);
+            auto *p = static_cast<unsigned char *>(cd2->get_deref_addr());
+            auto tp = cd2->decl.as_type(ast::C_BUILTIN_PTR);
             auto &ret = ffi::newcdata<void *>(
-                L, cd2->decl.as_type(ast::C_BUILTIN_PTR)
+                L, tp.is_ref() ? tp.unref() : util::move(tp)
             );
             ret.val = d * asize + p;
             return 1;
@@ -603,8 +605,8 @@ struct cdata_meta {
                         lua_tostring(L, -2), lua_tostring(L, -1)
                     );
                 }
-                auto ret = reinterpret_cast<unsigned char *>(cd1->val)
-                         - reinterpret_cast<unsigned char *>(cd2->val);
+                auto ret = reinterpret_cast<unsigned char *>(cd1->get_deref_addr())
+                         - reinterpret_cast<unsigned char *>(cd2->get_deref_addr());
                 lua_pushinteger(L, lua_Integer(ret / asize));
                 return 1;
             }
@@ -615,7 +617,7 @@ struct cdata_meta {
                 }
                 ffi::check_arith<std::ptrdiff_t>(L, 2);
             }
-            auto *p = static_cast<unsigned char *>(cd1->val);
+            auto *p = static_cast<unsigned char *>(cd1->get_deref_addr());
             auto &ret = ffi::newcdata<void *>(L, cd1->decl);
             ret.val = p + d;
             return 1;
