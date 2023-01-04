@@ -1181,7 +1181,7 @@ static void from_lua_table_record(
                  * if we can init any other field, with structs we want
                  * to continue initializing other fields
                  */
-                return fld.unbounded();
+                return fld.flex();
             }
         } else if (ninit) {
             push_init(L, tidx, sidx++);
@@ -1191,7 +1191,7 @@ static void from_lua_table_record(
             return true;
         }
         /* flex array members */
-        if (!uni && fld.unbounded()) {
+        if (!uni && fld.flex()) {
             /* the size of the struct minus the flex member plus padding */
             std::size_t ssz = decl.alloc_size();
             /* initialize the last part as in array */
@@ -1255,7 +1255,7 @@ static void from_lua_table(
     bool base_array = (pb.type() == ast::C_BUILTIN_ARRAY);
     bool base_struct = (pb.type() == ast::C_BUILTIN_RECORD);
 
-    if (!decl.vla() && !decl.unbounded()) {
+    if (!decl.flex()) {
         if (ninit > int(nelems)) {
             luaL_error(L, "too many initializers");
             return;
@@ -1488,9 +1488,7 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
         goto definit;
     }
     if (decl.type() == ast::C_BUILTIN_ARRAY) {
-        if (decl.unbounded()) {
-            luaL_error(L, "size of C type is unknown");
-        } else if (decl.vla()) {
+        if (decl.vla()) {
             auto arrs = luaL_checkinteger(L, idx);
             if (arrs < 0) {
                 luaL_error(L, "size of C type is unknown");
@@ -1501,6 +1499,8 @@ void make_cdata(lua_State *L, ast::c_type const &decl, int rule, int idx) {
             /* see below */
             rsz = decl.ptr_base().alloc_size() * narr + sizeof(arg_stor_t);
             goto newdata;
+        } else if (decl.flex()) {
+            luaL_error(L, "size of C type is unknown");
         }
         ninits = lua_gettop(L) - iidx + 1;
         narr = decl.array_size();

@@ -619,12 +619,16 @@ struct c_type: c_object {
         return p_flags & C_TYPE_NOSIZE;
     }
 
+    bool flex() const {
+        return (unbounded() || vla());
+    }
+
     bool builtin_array() const {
         return type() == C_BUILTIN_ARRAY;
     }
 
     bool static_array() const {
-        return builtin_array() && !vla() && !unbounded();
+        return builtin_array() && !flex();
     }
 
     bool closure() const {
@@ -1045,7 +1049,7 @@ struct c_record: c_object {
         if (outt) {
             *outt = &lf.type;
         }
-        return lf.type.unbounded();
+        return lf.type.flex();
     }
 
     bool passable() const {

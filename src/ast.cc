@@ -838,7 +838,7 @@ void c_type::do_serialize(
                 out.append('[');
                 if (d.ct->vla()) {
                     out.append('?');
-                } else if (!d.ct->unbounded()) {
+                } else if (!d.ct->flex()) {
                     char buf[32];
                     util::write_u(buf, sizeof(buf), d.ct->array_size());
                     out.append(buf);
@@ -1095,7 +1095,7 @@ std::size_t c_record::iter_fields(bool (*cb)(
     std::size_t nflds = p_fields.size();
     bool flex = false;
     bool uni = is_union();
-    if (!uni && nflds && p_fields.back().type.unbounded()) {
+    if (!uni && nflds && p_fields.back().type.flex()) {
          flex = true;
          --nflds;
     }
@@ -1297,9 +1297,7 @@ void c_record::set_fields(util::vector<field> fields) {
      * when the last member is a VLA, we don't know the size, so do the
      * same thing as when flexible, but make the VLA inaccessible
      */
-    bool flex = !p_fields.empty() && (
-        p_fields.back().type.unbounded() || p_fields.back().type.vla()
-    );
+    bool flex = !p_fields.empty() && p_fields.back().type.flex();
     std::size_t nfields = p_fields.size();
     std::size_t ffields = flex ? (nfields - 1) : nfields;
 

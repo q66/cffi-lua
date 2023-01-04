@@ -1193,22 +1193,20 @@ struct ffi_module {
             lua_pushinteger(L, ffi::cdata_value_size(L, 1));
             return 1;
         }
-        auto &ct = check_ct(L, 1);
-        if (ct.vla()) {
-            std::size_t sz = 0;
+        auto get_vlasz = [L](std::size_t &sz, bool vla) -> bool {
             if (lua_isinteger(L, 2)) {
                 auto isz = lua_tointeger(L, 2);
                 if (isz < 0) {
-                    return 0;
+                    return false;
                 }
                 sz = std::size_t(isz);
             } else if (lua_isnumber(L, 2)) {
                 auto isz = lua_tonumber(L, 2);
                 if (isz < 0) {
-                    return 0;
+                    return false;
                 }
                 sz = std::size_t(isz);
-            } else {
+            } else if (ffi::iscdata(L, 2)) {
                 auto &cd = ffi::tocdata<ffi::arg_stor_t>(L, 2);
                 if (!cd.decl.integer()) {
                     luaL_checkinteger(L, 2);
@@ -1218,15 +1216,37 @@ struct ffi_module {
                 } else {
                     auto isz = ffi::check_arith<long long>(L, 2);
                     if (isz < 0) {
-                        return 0;
+                        return false;
                     }
                     sz = std::size_t(isz);
                 }
+            } else if (vla) {
+                luaL_checkinteger(L, 2);
+            } else {
+                sz = 0;
             }
-            lua_pushinteger(L, ct.ptr_base().alloc_size() * std::size_t(sz));
+            return true;
+        };
+        auto &ct = check_ct(L, 1);
+        if (ct.vla()) {
+            std::size_t sz;
+            if (!get_vlasz(sz, true)) {
+                return 0;
+            }
+            lua_pushinteger(L, ct.ptr_base().alloc_size() * sz);
             return 1;
-        } else if (ct.unbounded()) {
+        } else if (ct.flex()) {
             return 0;
+        } else if (ct.type() == ast::C_BUILTIN_RECORD) {
+            ast::c_type const *lf = nullptr;
+            if (ct.record().flexible(&lf)) {
+                std::size_t sz;
+                if (!get_vlasz(sz, lf->vla())) {
+                    return 0;
+                }
+                lua_pushinteger(L, ct.alloc_size() + lf->ptr_base().alloc_size() * sz);
+                return 1;
+            }
         }
         lua_pushinteger(L, ct.alloc_size());
         return 1;

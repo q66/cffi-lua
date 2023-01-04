@@ -1936,7 +1936,7 @@ newlevel:
                 util::move(tp), util::move(olev->argl), fflags
             ), 0, false};
         } else if (olev->arrd) {
-            if (tp.vla() || tp.unbounded()) {
+            if (tp.flex()) {
                 ls.get_buf().set(
                     "only first bound of an array may have unknown size"
                 );
@@ -2351,9 +2351,9 @@ static ast::c_record const *parse_record(lex_state &ls, bool *newst) {
                 /* nameless field declarations do nothing */
                 goto field_end;
             }
-            flexible = tp.unbounded();
+            flexible = tp.flex();
             fields.emplace_back(util::move(fpn), util::move(tp));
-            /* unbounded array must be the last in the list */
+            /* flexible array must be the last in the list */
             if (flexible) {
                 break;
             }
@@ -2362,7 +2362,7 @@ field_end:
         if (!check_next(ls, ';')) {
             return nullptr;
         }
-        /* unbounded array must be the last in the struct */
+        /* flexible array must be the last in the struct */
         if (flexible) {
             break;
         }

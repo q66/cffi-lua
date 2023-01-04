@@ -6,6 +6,11 @@ ffi.cdef [[
         double y[];
     };
 
+    struct vlaflex {
+        int x;
+        double y[?];
+    };
+
     struct sinit {
         int x;
         float y;
@@ -99,6 +104,16 @@ assert(x.y[0] == 10)
 assert(x.y[1] == 15)
 
 x = ffi.new("struct flex", 2, { x = 5, y = { 10, 15 } })
+assert(x.x == 5)
+assert(x.y[0] == 10)
+assert(x.y[1] == 15)
+
+x = ffi.new("struct vlaflex", 2, { 5, 10, 15 })
+assert(x.x == 5)
+assert(x.y[0] == 10)
+assert(x.y[1] == 15)
+
+x = ffi.new("struct vlaflex", 2, { x = 5, y = { 10, 15 } })
 assert(x.x == 5)
 assert(x.y[0] == 10)
 assert(x.y[1] == 15)
