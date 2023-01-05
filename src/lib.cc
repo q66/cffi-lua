@@ -295,31 +295,33 @@ void close(c_lib *cl, lua_State *L) {
 
 static void *get_sym(c_lib const *cl, char const *name) {
     if (cl->h != FFI_DL_DEFAULT) {
-        return reinterpret_cast<void *>(
-            GetProcAddress(static_cast<HMODULE>(cl->h), name)
-        );
+        auto paddr = GetProcAddress(static_cast<HMODULE>(cl->h), name);
+        void *ret;
+        std::memcpy(&ret, &paddr, sizeof(void *));
+        return ret;
     }
     for (std::size_t i = 0; i < FFI_DL_HANDLE_MAX; ++i) {
         if (!ffi_dl_handle[i]) {
             HMODULE h = nullptr;
+            char const *dlh = nullptr;
             switch (i) {
                 case FFI_DL_HANDLE_EXE:
                     GetModuleHandleExA(
                         GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, nullptr, &h
                     );
                     break;
+                case FFI_DL_HANDLE_CRT: {
+                    auto *p = &_fmode;
+                    std::memcpy(&dlh, &p, sizeof(dlh));
+                    goto handle_dll;
+                }
                 case FFI_DL_HANDLE_DLL:
+                    std::memcpy(&dlh, &ffi_dl_handle, sizeof(dlh));
+                handle_dll:
                     GetModuleHandleExA(
                         GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
                         GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                        reinterpret_cast<char const *>(ffi_dl_handle), &h
-                    );
-                    break;
-                case FFI_DL_HANDLE_CRT:
-                    GetModuleHandleExA(
-                        GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-                        GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                        reinterpret_cast<char const *>(&_fmode), &h
+                        dlh, &h
                     );
                     break;
                 case FFI_DL_HANDLE_KERNEL32:
@@ -340,9 +342,11 @@ static void *get_sym(c_lib const *cl, char const *name) {
             ffi_dl_handle[i] = static_cast<void *>(h);
         }
         HMODULE h = static_cast<HMODULE>(ffi_dl_handle[i]);
-        auto *p = reinterpret_cast<void *>(GetProcAddress(h, name));
-        if (p) {
-            return p;
+        auto paddr = GetProcAddress(h, name);
+        if (paddr) {
+            void *ret;
+            std::memcpy(&ret, &paddr, sizeof(void *));
+            return ret;
         }
     }
     return nullptr;

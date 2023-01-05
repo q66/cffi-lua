@@ -5,6 +5,7 @@
 #include <cstddef>
 
 #include "platform.hh"
+#include "util.hh"
 
 #if defined(FFI_DIAGNOSTIC_PRAGMA_CLANG)
 #pragma clang diagnostic push
@@ -126,21 +127,22 @@ static inline void mark_lib(lua_State *L) {
     luaL_setmetatable(L, CFFI_LIB_MT);
 }
 
-struct custom_size { std::size_t sz; };
+#if LUA_VERSION_NUM < 503
+/* 5.2 and older uses a simpler (unexposed) alignment */
+union user_align_t { void *p; double d; long l; };
+#elif LUA_VERSION_NUM < 504
+/* 5.3 does not expose this, so mirror its guts */
+union user_align_t { lua_Number n; lua_Integer i; void *p; double d; long l; };
+#else
+/* 5.4+ has the configured alignment in luaconf */
+union user_align_t { LUAI_MAXALIGN; };
+#endif
+
+static constexpr std::size_t UD_OVERALLOC = (
+    alignof(util::max_aligned_t) - alignof(user_align_t)
+);
 
 } /* namespace lua */
-
-inline void *operator new(std::size_t n, lua_State *L) {
-    return lua_newuserdata(L, n);
-}
-
-inline void *operator new(std::size_t n, lua_State *L, std::size_t extra) {
-    return lua_newuserdata(L, n + extra);
-}
-
-inline void *operator new(std::size_t, lua_State *L, lua::custom_size n) {
-    return lua_newuserdata(L, n.sz);
-}
 
 #define LUA_BUG_MSG(L, msg) \
     lua_pushfstring(L, "%s:%s: bug: %s", __FILE__, __LINE__, msg)

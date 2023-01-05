@@ -45,12 +45,15 @@ local st = ffi.new("struct test")
 
 local called, called2 = false, false
 
-st.cb = function() called = true end
-assert(not called)
-st.cb()
-assert(called)
+-- this also works, but it will leak memory!
+--st.cb = function() called = true end
+--assert(not called)
+--st.cb()
+--assert(called)
 
-st.cb = ffi.cast("void (*)()", function() called2 = true end)
+local cb3 = ffi.cast("void (*)()", function() called2 = true end)
+st.cb = cb3
 assert(not called2)
 st.cb()
 assert(called2)
+cb3:free()

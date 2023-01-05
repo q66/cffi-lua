@@ -2733,7 +2733,10 @@ lerr:
 
 void init(lua_State *L) {
     /* init parser state for each lua state */
-    auto *p = new (L) parser_state{};
+    auto *p = static_cast<parser_state *>(
+        lua_newuserdata(L, sizeof(parser_state))
+    );
+    new (p) parser_state{};
     /* make sure its destructor is invoked later */
     lua_newtable(L); /* parser_state metatable */
     lua_pushcfunction(L, [](lua_State *LL) -> int {

@@ -76,12 +76,12 @@ struct lib_meta {
  */
 struct cdata_meta {
     static int gc(lua_State *L) {
-        ffi::destroy_cdata(L, ffi::tocdata<ffi::noval>(L, 1));
+        ffi::destroy_cdata(L, ffi::tocdata(L, 1));
         return 0;
     }
 
     static int metatype_getmt(lua_State *L, int idx, int &mflags) {
-        auto &cd = ffi::tocdata<ffi::noval>(L, idx);
+        auto &cd = ffi::tocdata(L, idx);
         auto *decl = &cd.decl;
         auto tp = decl->type();
         if (tp == ast::C_BUILTIN_RECORD) {
@@ -111,7 +111,7 @@ struct cdata_meta {
             lua_call(L, 1, 1);
             return 1;
         }
-        auto &cd = ffi::tocdata<ffi::arg_stor_t>(L, 1);
+        auto &cd = ffi::tocdata(L, 1);
         if (ffi::isctype(cd)) {
 #if LUA_VERSION_NUM > 502
             if (metatype_check<ffi::METATYPE_FLAG_NAME>(L, 1)) {
@@ -141,9 +141,9 @@ struct cdata_meta {
         }
 #endif
         auto const *tp = &cd.decl;
-        ffi::arg_stor_t const *val = &cd.val;
+        void *val = cd.as_ptr();
         if (tp->is_ref()) {
-            val = cd.val.as<ffi::arg_stor_t const *>();
+            val = *static_cast<void **>(val);
         }
         /* 64-bit integers */
         /* XXX: special printing for lua builds with non-double numbers? */
@@ -152,13 +152,13 @@ struct cdata_meta {
             std::size_t written;
             if (tp->is_unsigned()) {
                 written = util::write_u(
-                    buf, sizeof(buf), val->as<unsigned long long>()
+                    buf, sizeof(buf), *static_cast<unsigned long long *>(val)
                 );
                 std::memcpy(&buf[written], "ULL", 4);
                 written += 4;
             } else {
                 written = util::write_i(
-                    buf, sizeof(buf), val->as<long long>()
+                    buf, sizeof(buf), *static_cast<long long *>(val)
                 );
                 std::memcpy(&buf[written], "LL", 3);
                 written += 3;
@@ -174,7 +174,7 @@ struct cdata_meta {
     }
 
     static int call(lua_State *L) {
-        auto &fd = ffi::tocdata<ffi::fdata>(L, 1);
+        auto &fd = ffi::tocdata(L, 1);
         if (ffi::isctype(fd)) {
             if (metatype_check<ffi::METATYPE_FLAG_NEW>(L, 1)) {
                 int nargs = lua_gettop(L) - 1;
@@ -195,7 +195,7 @@ struct cdata_meta {
             fd.decl.serialize(L);
             luaL_error(L, "'%s' is not callable", lua_tostring(L, -1));
         }
-        if (fd.decl.closure() && !fd.val.cd) {
+        if (fd.decl.closure() && !fd.as<ffi::fdata>().cd) {
             luaL_error(L, "bad callback");
         }
         return ffi::call_cif(fd, L, lua_gettop(L) - 1);
@@ -203,7 +203,7 @@ struct cdata_meta {
 
     template<bool New, typename F>
     static bool index_common(lua_State *L, F &&func) {
-        auto &cd = ffi::tocdata<void *>(L, 1);
+        auto &cd = ffi::tocdata(L, 1);
         if (ffi::isctype(cd)) {
             if (New) {
                 luaL_error(L, "'ctype' is not indexable");
@@ -212,10 +212,10 @@ struct cdata_meta {
                 return false;
             }
         }
-        void **valp = &cd.val;
+        void **valp = static_cast<void **>(cd.as_ptr());
         auto const *decl = &cd.decl;
         if (decl->is_ref()) {
-            valp = reinterpret_cast<void **>(*valp);
+            valp = static_cast<void **>(*valp);
         }
         if (
             (decl->type() == ast::C_BUILTIN_PTR) &&
@@ -227,7 +227,7 @@ struct cdata_meta {
              * underlying record, so assume that for the time being
              */
             decl = &decl->ptr_base();
-            valp = reinterpret_cast<void **>(*valp);
+            valp = static_cast<void **>(*valp);
         }
         std::size_t elsize = 0;
         unsigned char *ptr = nullptr;
@@ -251,7 +251,9 @@ struct cdata_meta {
                 if (foff < 0) {
                     return false;
                 }
-                func(*outf, &reinterpret_cast<unsigned char *>(valp)[foff]);
+                unsigned char *buf;
+                std::memcpy(&buf, &valp, sizeof(void *));
+                func(*outf, buf + foff);
                 return true;
             }
             default: {
@@ -266,32 +268,32 @@ struct cdata_meta {
     }
 
     static int cb_free(lua_State *L) {
-        auto &cd = ffi::checkcdata<ffi::fdata>(L, 1);
+        auto &cd = ffi::checkcdata(L, 1);
         luaL_argcheck(L, cd.decl.closure(), 1, "not a callback");
-        if (!cd.val.cd) {
+        if (!cd.as<ffi::fdata>().cd) {
             luaL_error(L, "bad callback");
         }
-        ffi::destroy_closure(L, cd.val.cd);
+        ffi::destroy_closure(L, cd.as<ffi::fdata>().cd);
         return 0;
     }
 
     static int cb_set(lua_State *L) {
-        auto &cd = ffi::checkcdata<ffi::fdata>(L, 1);
+        auto &cd = ffi::checkcdata(L, 1);
         luaL_argcheck(L, cd.decl.closure(), 1, "not a callback");
-        if (!cd.val.cd) {
+        if (!cd.as<ffi::fdata>().cd) {
             luaL_error(L, "bad callback");
         }
         if (!lua_isfunction(L, 2)) {
             lua::type_error(L, 2, "function");
         }
-        luaL_unref(L, LUA_REGISTRYINDEX, cd.val.cd->fref);
+        luaL_unref(L, LUA_REGISTRYINDEX, cd.as<ffi::fdata>().cd->fref);
         lua_pushvalue(L, 2);
-        cd.val.cd->fref = luaL_ref(L, LUA_REGISTRYINDEX);
+        cd.as<ffi::fdata>().cd->fref = luaL_ref(L, LUA_REGISTRYINDEX);
         return 0;
     }
 
     static int index(lua_State *L) {
-        auto &cd = ffi::tocdata<ffi::noval>(L, 1);
+        auto &cd = ffi::tocdata(L, 1);
         if (cd.decl.closure()) {
             /* callbacks have some methods */
             char const *mname = lua_tostring(L, 2);
@@ -370,7 +372,7 @@ struct cdata_meta {
             lua_call(L, 3, 0);
             return 0;
         }
-        ffi::tocdata<ffi::noval>(L, 1).decl.serialize(L);
+        ffi::tocdata(L, 1).decl.serialize(L);
         luaL_error(
             L, "'%s' has no member named '%s'",
             lua_tostring(L, -1), lua_tostring(L, 2)
@@ -380,8 +382,8 @@ struct cdata_meta {
 
     template<ffi::metatype_flag mtype>
     static inline bool op_try_mt(
-        lua_State *L, ffi::cdata<void *> const *cd1,
-        ffi::cdata<void *> const *cd2, int rvals = 1
+        lua_State *L, ffi::cdata const *cd1,
+        ffi::cdata const *cd2, int rvals = 1
     ) {
         /* custom metatypes, either operand */
         if (
@@ -396,8 +398,8 @@ struct cdata_meta {
     }
 
     static int concat(lua_State *L) {
-        auto *cd1 = ffi::testcdata<void *>(L, 1);
-        auto *cd2 = ffi::testcdata<void *>(L, 2);
+        auto *cd1 = ffi::testcdata(L, 1);
+        auto *cd2 = ffi::testcdata(L, 2);
         if (op_try_mt<ffi::METATYPE_FLAG_CONCAT>(L, cd1, cd2)) {
             return 1;
         }
@@ -409,7 +411,7 @@ struct cdata_meta {
     }
 
     static int len(lua_State *L) {
-        auto *cd = ffi::testcdata<void *>(L, 1);
+        auto *cd = ffi::testcdata(L, 1);
         if (op_try_mt<ffi::METATYPE_FLAG_LEN>(L, cd, nullptr)) {
             return 1;
         }
@@ -526,8 +528,8 @@ struct cdata_meta {
     }
 
     static int add(lua_State *L) {
-        auto *cd1 = ffi::testcdata<void *>(L, 1);
-        auto *cd2 = ffi::testcdata<void *>(L, 2);
+        auto *cd1 = ffi::testcdata(L, 1);
+        auto *cd2 = ffi::testcdata(L, 2);
         /* pointer arithmetic */
         if (cd1 && cd1->decl.ptr_like()) {
             auto asize = cd1->decl.ptr_base().alloc_size();
@@ -544,12 +546,17 @@ struct cdata_meta {
                 }
                 ffi::check_arith<std::ptrdiff_t>(L, 2);
             }
-            auto *p = static_cast<unsigned char *>(cd1->get_deref_addr());
+            /* do arithmetic on uintptr, doing it with a pointer would be UB
+             * in case of a null pointer (and we want predicable behavior)
+             */
+            std::uintptr_t p;
+            auto *dp = cd1->get_deref_addr();
+            std::memcpy(&p, &dp, sizeof(dp));
             auto tp = cd1->decl.as_type(ast::C_BUILTIN_PTR);
-            auto &ret = ffi::newcdata<void *>(
-                L, tp.is_ref() ? tp.unref() : util::move(tp)
+            auto &ret = ffi::newcdata(
+                L, tp.is_ref() ? tp.unref() : util::move(tp), sizeof(void *)
             );
-            ret.val = p + d * asize;
+            ret.as<std::uintptr_t>() = p + d * asize;
             return 1;
         } else if (cd2 && cd2->decl.ptr_like()) {
             auto asize = cd2->decl.ptr_base().alloc_size();
@@ -566,12 +573,14 @@ struct cdata_meta {
                 }
                 ffi::check_arith<std::ptrdiff_t>(L, 1);
             }
-            auto *p = static_cast<unsigned char *>(cd2->get_deref_addr());
+            std::uintptr_t p;
+            auto *dp = cd2->get_deref_addr();
+            std::memcpy(&p, &dp, sizeof(dp));
             auto tp = cd2->decl.as_type(ast::C_BUILTIN_PTR);
-            auto &ret = ffi::newcdata<void *>(
-                L, tp.is_ref() ? tp.unref() : util::move(tp)
+            auto &ret = ffi::newcdata(
+                L, tp.is_ref() ? tp.unref() : util::move(tp), sizeof(void *)
             );
-            ret.val = d * asize + p;
+            ret.as<std::uintptr_t>() = d * asize + p;
             return 1;
         }
         if (op_try_mt<ffi::METATYPE_FLAG_ADD>(L, cd1, cd2)) {
@@ -582,8 +591,8 @@ struct cdata_meta {
     }
 
     static int sub(lua_State *L) {
-        auto *cd1 = ffi::testcdata<void *>(L, 1);
-        auto *cd2 = ffi::testcdata<void *>(L, 2);
+        auto *cd1 = ffi::testcdata(L, 1);
+        auto *cd2 = ffi::testcdata(L, 2);
         /* pointer difference */
         if (cd1 && cd1->decl.ptr_like()) {
             auto asize = cd1->decl.ptr_base().alloc_size();
@@ -605,8 +614,8 @@ struct cdata_meta {
                         lua_tostring(L, -2), lua_tostring(L, -1)
                     );
                 }
-                auto ret = reinterpret_cast<unsigned char *>(cd1->get_deref_addr())
-                         - reinterpret_cast<unsigned char *>(cd2->get_deref_addr());
+                auto ret = static_cast<unsigned char *>(cd1->get_deref_addr())
+                         - static_cast<unsigned char *>(cd2->get_deref_addr());
                 lua_pushinteger(L, lua_Integer(ret / asize));
                 return 1;
             }
@@ -617,9 +626,11 @@ struct cdata_meta {
                 }
                 ffi::check_arith<std::ptrdiff_t>(L, 2);
             }
-            auto *p = static_cast<unsigned char *>(cd1->get_deref_addr());
-            auto &ret = ffi::newcdata<void *>(L, cd1->decl);
-            ret.val = p + d;
+            std::uintptr_t p;
+            auto *dp = cd1->get_deref_addr();
+            std::memcpy(&p, &dp, sizeof(dp));
+            auto &ret = ffi::newcdata(L, cd1->decl, sizeof(void *));
+            ret.as<std::uintptr_t>() = p + d;
             return 1;
         }
         if (op_try_mt<ffi::METATYPE_FLAG_SUB>(L, cd1, cd2)) {
@@ -631,8 +642,8 @@ struct cdata_meta {
 
     template<ffi::metatype_flag mflag, ast::c_expr_binop bop>
     static int arith_bin(lua_State *L) {
-        auto *cd1 = ffi::testcdata<void *>(L, 1);
-        auto *cd2 = ffi::testcdata<void *>(L, 2);
+        auto *cd1 = ffi::testcdata(L, 1);
+        auto *cd2 = ffi::testcdata(L, 2);
         if (!op_try_mt<mflag>(L, cd1, cd2)) {
             arith_64bit_bin(L, bop);
         }
@@ -659,8 +670,8 @@ struct cdata_meta {
     }
 
     static int pow(lua_State *L) {
-        auto *cd1 = ffi::testcdata<void *>(L, 1);
-        auto *cd2 = ffi::testcdata<void *>(L, 2);
+        auto *cd1 = ffi::testcdata(L, 1);
+        auto *cd2 = ffi::testcdata(L, 2);
         if (op_try_mt<ffi::METATYPE_FLAG_POW>(L, cd1, cd2)) {
             return 1;
         }
@@ -686,7 +697,7 @@ struct cdata_meta {
 
     template<ffi::metatype_flag mflag, ast::c_expr_unop uop>
     static int arith_un(lua_State *L) {
-        auto *cd = ffi::testcdata<void *>(L, 1);
+        auto *cd = ffi::testcdata(L, 1);
         if (op_try_mt<mflag>(L, cd, nullptr)) {
             return 1;
         }
@@ -709,8 +720,8 @@ struct cdata_meta {
     }
 
     static int eq(lua_State *L) {
-        auto *cd1 = ffi::testcval<void *>(L, 1);
-        auto *cd2 = ffi::testcval<void *>(L, 2);
+        auto *cd1 = ffi::testcval(L, 1);
+        auto *cd2 = ffi::testcval(L, 2);
         if (!cd1 || !cd2) {
             /* equality against non-cdata object is always false */
             lua_pushboolean(L, false);
@@ -753,7 +764,7 @@ struct cdata_meta {
     template<ffi::metatype_flag mf1, ffi::metatype_flag mf2>
     static bool cmp_base(
         lua_State *L, ast::c_expr_binop op,
-        ffi::cdata<void *> const *cd1, ffi::cdata<void *> const *cd2
+        ffi::cdata const *cd1, ffi::cdata const *cd2
     ) {
         if (!cd1 || !cd2) {
             auto *ccd = (cd1 ? cd1 : cd2);
@@ -803,8 +814,8 @@ struct cdata_meta {
     }
 
     static int lt(lua_State *L) {
-        auto *cd1 = ffi::testcdata<void *>(L, 1);
-        auto *cd2 = ffi::testcdata<void *>(L, 2);
+        auto *cd1 = ffi::testcdata(L, 1);
+        auto *cd2 = ffi::testcdata(L, 2);
         if (cmp_base<ffi::METATYPE_FLAG_LT, ffi::METATYPE_FLAG_LT>(
             L, ast::c_expr_binop::LT, cd1, cd2
         )) {
@@ -815,8 +826,8 @@ struct cdata_meta {
     }
 
     static int le(lua_State *L) {
-        auto *cd1 = ffi::testcdata<void *>(L, 1);
-        auto *cd2 = ffi::testcdata<void *>(L, 2);
+        auto *cd1 = ffi::testcdata(L, 1);
+        auto *cd2 = ffi::testcdata(L, 2);
         /* tries both (a <= b) and not (b < a), like lua */
         if (cmp_base<ffi::METATYPE_FLAG_LE, ffi::METATYPE_FLAG_LT>(
             L, ast::c_expr_binop::LE, cd1, cd2
@@ -829,7 +840,7 @@ struct cdata_meta {
 
 #if LUA_VERSION_NUM > 501
     static int pairs(lua_State *L) {
-        auto *cd = ffi::testcdata<void *>(L, 1);
+        auto *cd = ffi::testcdata(L, 1);
         if (op_try_mt<ffi::METATYPE_FLAG_PAIRS>(L, cd, nullptr, 3)) {
             return 3;
         }
@@ -841,7 +852,7 @@ struct cdata_meta {
 
 #if LUA_VERSION_NUM == 502
     static int ipairs(lua_State *L) {
-        auto *cd = ffi::testcdata<void *>(L, 1);
+        auto *cd = ffi::testcdata(L, 1);
         if (op_try_mt<ffi::METATYPE_FLAG_IPAIRS>(L, cd, nullptr, 3)) {
             return 3;
         }
@@ -855,8 +866,8 @@ struct cdata_meta {
 #if LUA_VERSION_NUM > 502
     template<ffi::metatype_flag mflag, ast::c_expr_binop bop>
     static int shift_bin(lua_State *L) {
-        auto *cd1 = ffi::testcdata<void *>(L, 1);
-        auto *cd2 = ffi::testcdata<void *>(L, 2);
+        auto *cd1 = ffi::testcdata(L, 1);
+        auto *cd2 = ffi::testcdata(L, 2);
         if (op_try_mt<mflag>(L, cd1, cd2)) {
             return 1;
         }
@@ -885,7 +896,7 @@ struct cdata_meta {
 
 #if LUA_VERSION_NUM > 503
     static int close(lua_State *L) {
-        auto *cd = ffi::testcdata<void *>(L, 1);
+        auto *cd = ffi::testcdata(L, 1);
         if (cd && metatype_check<ffi::METATYPE_FLAG_CLOSE>(L, 1)) {
             lua_insert(L, 1);
             lua_call(L, 2, 0);
@@ -1042,7 +1053,7 @@ struct ffi_module {
         lua_State *L, int idx, int paridx = -1
     ) {
         if (ffi::iscval(L, idx)) {
-            auto &cd = ffi::tocdata<ffi::noval>(L, idx);
+            auto &cd = ffi::tocdata(L, idx);
             if (ffi::isctype(cd)) {
                 return cd.decl;
             }
@@ -1149,7 +1160,10 @@ struct ffi_module {
     static int load_f(lua_State *L) {
         char const *path = luaL_checkstring(L, 1);
         bool glob = (lua_gettop(L) >= 2) && lua_toboolean(L, 2);
-        auto *c_ud = new (L) lib::c_lib{};
+        auto *c_ud = static_cast<lib::c_lib *>(
+            lua_newuserdata(L, sizeof(lib::c_lib))
+        );
+        new (c_ud) lib::c_lib{};
         lib::load(c_ud, path, L, glob);
         return 1;
     }
@@ -1164,17 +1178,18 @@ struct ffi_module {
     }
 
     static int addressof_f(lua_State *L) {
-        auto &cd = ffi::checkcdata<void *>(L, 1);
-        ffi::newcdata<void *>(L, ast::c_type{
+        auto &cd = ffi::checkcdata(L, 1);
+        auto &cds =cd.as<void *>();
+        ffi::newcdata(L, ast::c_type{
             util::make_rc<ast::c_type>(util::move(cd.decl.unref())),
             0, ast::C_BUILTIN_PTR
-        }).val =
-            cd.decl.is_ref() ? cd.val : &cd.val;
+        }, sizeof(void *)).as<void *>() =
+            cd.decl.is_ref() ? cds : &cds;
         return 1;
     }
 
     static int gc_f(lua_State *L) {
-        auto &cd = ffi::checkcdata<ffi::noval>(L, 1);
+        auto &cd = ffi::checkcdata(L, 1);
         if (lua_isnil(L, 2)) {
             /* if nil and there is an existing finalizer, unset */
             if (cd.gc_ref != LUA_REFNIL) {
@@ -1209,7 +1224,7 @@ struct ffi_module {
                 }
                 sz = std::size_t(isz);
             } else if (ffi::iscdata(L, 2)) {
-                auto &cd = ffi::tocdata<ffi::arg_stor_t>(L, 2);
+                auto &cd = ffi::tocdata(L, 2);
                 if (!cd.decl.integer()) {
                     luaL_checkinteger(L, 2);
                 }
@@ -1281,7 +1296,7 @@ struct ffi_module {
 
     static int istype_f(lua_State *L) {
         auto &ct = check_ct(L, 1);
-        auto cd = ffi::testcval<ffi::noval>(L, 2);
+        auto cd = ffi::testcval(L, 2);
         if (!cd) {
             lua_pushboolean(L, false);
             return 1;
@@ -1328,7 +1343,7 @@ struct ffi_module {
             );
             luaL_argcheck(L, false, 1, lua_tostring(L, -1));
         }
-        auto &ud = ffi::tocdata<void *>(L, 1);
+        auto &ud = ffi::tocdata(L, 1);
         /* make sure we deal with cdata */
         if (ffi::isctype(ud)) {
             luaL_argcheck(
@@ -1336,9 +1351,9 @@ struct ffi_module {
             );
         }
         /* handle potential ref case */
-        void **valp = &ud.val;
+        void **valp = static_cast<void **>(ud.as_ptr());
         if (ud.decl.is_ref()) {
-            valp = reinterpret_cast<void **>(*valp);
+            valp = static_cast<void **>(*valp);
         }
         if (lua_gettop(L) > 1) {
             /* if the length is given, special logic is used; any value can
@@ -1350,11 +1365,12 @@ struct ffi_module {
                 case ast::C_BUILTIN_ARRAY:
                     lua_pushlstring(L, static_cast<char const *>(*valp), slen);
                     return 1;
-                case ast::C_BUILTIN_RECORD:
-                    lua_pushlstring(
-                        L, reinterpret_cast<char const *>(valp), slen
-                    );
+                case ast::C_BUILTIN_RECORD: {
+                    char const *s;
+                    std::memcpy(&s, &valp, sizeof(void *));
+                    lua_pushlstring(L, s, slen);
                     return 1;
+                }
                 default:
                     break;
             }
@@ -1382,9 +1398,7 @@ struct ffi_module {
             /* static arrays are special (no need for null termination) */
             auto slen = ud.decl.alloc_size();
             /* but if an embedded zero is found, terminate at that */
-            auto *p = reinterpret_cast<char const *>(
-                std::memchr(strp, '\0', slen)
-            );
+            auto *p = static_cast<char const *>(std::memchr(strp, '\0', slen));
             if (p) {
                 slen = std::size_t(p - strp);
             }
@@ -1406,7 +1420,7 @@ converr:
     /* FIXME: type conversions (constness etc.) */
     static void *check_voidptr(lua_State *L, int idx) {
         if (ffi::iscval(L, idx)) {
-            auto &cd = ffi::tocdata<void *>(L, idx);
+            auto &cd = ffi::tocdata(L, idx);
             if (ffi::isctype(cd)) {
                 luaL_argcheck(
                     L, false, idx, "cannot convert 'ctype' to 'void *'"
@@ -1467,13 +1481,13 @@ converr:
     }
 
     static int tonumber_f(lua_State *L) {
-        auto *cd = ffi::testcdata<void *>(L, 1);
+        auto *cd = ffi::testcdata(L, 1);
         if (cd) {
             ast::c_type const *tp = &cd->decl;
-            void *val = &cd->val;
+            void *val = &cd->as<void *>();
             int btp = cd->decl.type();
             if (cd->decl.is_ref()) {
-                val = cd->val;
+                val = cd->as<void *>();
             }
             if (tp->arith()) {
                 ffi::to_lua(L, *tp, val, ffi::RULE_CONV, false, true);
@@ -1501,8 +1515,8 @@ converr:
     }
 
     static int toretval_f(lua_State *L) {
-        auto &cd = ffi::checkcdata<void *>(L, 1);
-        ffi::to_lua(L, cd.decl, &cd.val, ffi::RULE_RET, false);
+        auto &cd = ffi::checkcdata(L, 1);
+        ffi::to_lua(L, cd.decl, &cd.as<void *>(), ffi::RULE_RET, false);
         return 1;
     }
 
@@ -1633,23 +1647,26 @@ converr:
         lua_setfield(L, -2, "tonumber");
 
         /* NULL = (void *)0 */
-        ffi::newcdata<void *>(L, ast::c_type{
+        ffi::newcdata(L, ast::c_type{
             util::make_rc<ast::c_type>(ast::C_BUILTIN_VOID, 0),
             0, ast::C_BUILTIN_PTR
-        }).val = nullptr;
+        }, sizeof(void *)).as<void *>() = nullptr;
         lua_setfield(L, -2, "nullptr");
     }
 
     static void setup_dstor(lua_State *L) {
         /* our declaration storage is a userdata in the registry */
-        new (L) ast::decl_store{};
+        auto *ds = static_cast<ast::decl_store *>(
+            lua_newuserdata(L, sizeof(ast::decl_store))
+        );
+        new (ds) ast::decl_store{};
         /* stack: dstor */
         lua_newtable(L);
         /* stack: dstor, mt */
         lua_pushcfunction(L, [](lua_State *LL) -> int {
             using T = ast::decl_store;
-            auto *ds = lua::touserdata<T>(LL, 1);
-            ds->~T();
+            auto *dsp = lua::touserdata<T>(LL, 1);
+            dsp->~T();
             return 0;
         });
         /* stack: dstor, mt, __gc */
@@ -1671,7 +1688,10 @@ converr:
         setup(L); /* push table to stack */
 
         /* lib handles, needs the module table on the stack */
-        auto *c_ud = new (L) lib::c_lib{};
+        auto *c_ud = static_cast<lib::c_lib *>(
+            lua_newuserdata(L, sizeof(lib::c_lib))
+        );
+        new (c_ud) lib::c_lib{};
         lib::load(c_ud, nullptr, L, false);
         lib_meta::setup(L);
     }

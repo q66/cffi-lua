@@ -31,24 +31,9 @@
 namespace ffi {
 
 namespace detail {
-    /* these need to be adjusted if a larger type support
-     * is added, e.g. 128-bit integers/floats and so on
-     */
-    using max_aligned_t = util::conditional_t<
-        (alignof(long double) > alignof(long long)),
-        long double,
-        long long
-    >;
-
-    using biggest_t = util::conditional_t<
-        (sizeof(long double) > sizeof(long long)),
-        long double,
-        long long
-    >;
-
     struct ffi_stor {
-        alignas(alignof(detail::max_aligned_t))
-        unsigned char data[sizeof(detail::biggest_t)];
+        alignas(alignof(util::max_aligned_t))
+        unsigned char data[sizeof(util::biggest_t)];
     };
 
     template<typename T>

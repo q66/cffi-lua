@@ -119,24 +119,6 @@ static_assert((
     (util::is_float<lua_Number>::value || util::is_int<lua_Number>::value)
 ), "unsupported lua_Number type");
 
-struct arg_stor_t {
-    ffi::scalar_stor_t pad;
-
-    /* only use with types that will fit */
-    template<typename T>
-    T as() const {
-        return *reinterpret_cast<T const *>(this);
-    }
-
-    template<typename T>
-    T &as() {
-        return *reinterpret_cast<T *>(this);
-    }
-};
-
-struct noval {};
-
-template<typename T>
 struct cdata {
     ast::c_type decl;
     int gc_ref;
@@ -146,10 +128,30 @@ struct cdata {
      * prepared for here to avoid reallocating every time
      */
     int aux;
-    alignas(arg_stor_t) T val;
 
     template<typename D>
     cdata(D &&tp): decl{util::forward<D>(tp)} {}
+
+    /* we always allocate enough userdata so that after the regular fields
+     * of struct cdata, there is a data section, with enough space so that
+     * the requested type can fit aligned to maximum scalar alignment we are
+     * storing
+     *
+     * this is important, because lua_newuserdata may return misaligned pointers
+     * (it only guarantees alignment of typically 8, while we typically need 16)
+     * so we have to overallocate by a bit, then manually align the data
+     */
+    void *as_ptr() {
+        void *ret;
+        auto *src = util::ptr_align(this + 1);
+        std::memcpy(&ret, &src, sizeof(void *));
+        return ret;
+    }
+
+    template<typename T>
+    T &as() {
+        return *static_cast<T *>(as_ptr());
+    }
 
     void *get_addr() {
         if (decl.is_ref()) {
@@ -163,11 +165,9 @@ struct cdata {
             default:
                 break;
         }
-        return &val;
+        return as_ptr();
     reft:
-        union { T *op; void **np; } u;
-        u.op = &val;
-        return *u.np;
+        return *static_cast<void **>(as_ptr());
     }
 
     void *get_deref_addr() {
@@ -175,33 +175,29 @@ struct cdata {
             switch (decl.type()) {
                 case ast::C_BUILTIN_PTR:
                 case ast::C_BUILTIN_FUNC:
-                case ast::C_BUILTIN_ARRAY: {
-                    union { T *op; void ***np; } u;
-                    u.op = &val;
-                    return **u.np;
-                }
-                default: {
-                    union { T *op; void **np; } u;
-                    u.op = &val;
-                    return *u.np;
-                }
+                case ast::C_BUILTIN_ARRAY:
+                    return **static_cast<void ***>(as_ptr());
+                default:
+                    return *static_cast<void **>(as_ptr());
             }
         }
         return get_addr();
     }
 };
 
-static constexpr std::size_t cdata_value_base() {
-    /* can't use cdata directly for the offset, as it's not considered
-     * a standard layout type because of ast::c_type, but we don't care
-     * about that, we just want to know which offset val is at
-     */
-    using T = struct {
-        alignas(ast::c_type) char tpad[sizeof(ast::c_type)];
-        int pad1, pad2;
-        arg_stor_t val;
+/* get the size of cdata, without the data section, large enough to provide
+ * the start of the data section right afterwards, aligned to the largest
+ * alignment that newuserdata can guarantee us; the actual data start will
+ * typically be a bit later than that, as it needs even stricter alignment
+ */
+static constexpr std::size_t cdata_size_noval() {
+    auto cds = sizeof(cdata);
+    auto mod = cds % alignof(lua::user_align_t);
+    /* round up to alignment of data section */
+    if (mod) {
+        cds += alignof(lua::user_align_t) - mod;
     };
-    return (sizeof(T) - sizeof(arg_stor_t));
+    return cds;
 }
 
 struct ctype {
@@ -218,13 +214,6 @@ struct closure_data {
     lua_State *L = nullptr;
     ffi_closure *closure = nullptr;
 
-    /* arguments data follow this struct; it's pointer aligned so it's fine */
-    ffi_type **targs() {
-        union { ffi_type **tp; closure_data *cd; } u;
-        u.cd = this + 1;
-        return u.tp;
-    }
-
     ~closure_data() {
         if (!closure) {
             return;
@@ -239,38 +228,22 @@ struct fdata {
     void (*sym)();
     closure_data *cd; /* only for callbacks, otherwise nullptr */
     ffi_cif cif;
-    arg_stor_t rarg;
+    ffi::scalar_stor_t rarg;
 
-    arg_stor_t *args() {
-        union { arg_stor_t *av; fdata *fd; } u;
-        u.fd = this + 1;
-        return u.av;
+    ffi::scalar_stor_t *args() {
+        ffi::scalar_stor_t *ret;
+        void *src = this + 1;
+        std::memcpy(&ret, &src, sizeof(void *));
+        return ret;
     }
 };
 
-template<typename T>
-static inline cdata<T> &newcdata(
-    lua_State *L, ast::c_type &&tp, std::size_t extra = 0
-) {
-    auto *cd = new (L, extra) cdata<T>{util::move(tp)};
-    cd->gc_ref = LUA_REFNIL;
-    cd->aux = 0;
-    lua::mark_cdata(L);
-    return *cd;
-}
-
-template<typename T>
-static inline cdata<T> &newcdata(
-    lua_State *L, ast::c_type const &tp, std::size_t extra = 0
-) {
-    return newcdata<T>(L, tp.copy(), extra);
-}
-
-static inline cdata<ffi::noval> &newcdata(
+static inline cdata &newcdata(
     lua_State *L, ast::c_type const &tp, std::size_t vals
 ) {
-    auto ssz = vals + cdata_value_base();
-    auto *cd = new (L, lua::custom_size{ssz}) cdata<ffi::noval>{tp.copy()};
+    auto ssz = vals + cdata_size_noval() + lua::UD_OVERALLOC;
+    auto *cd = static_cast<cdata *>(lua_newuserdata(L, ssz));
+    new (cd) cdata{tp.copy()};
     cd->gc_ref = LUA_REFNIL;
     cd->aux = 0;
     lua::mark_cdata(L);
@@ -279,7 +252,8 @@ static inline cdata<ffi::noval> &newcdata(
 
 template<typename ...A>
 static inline ctype &newctype(lua_State *L, A &&...args) {
-    auto *cd = new (L) ctype{ast::c_type{util::forward<A>(args)...}};
+    auto *cd = static_cast<ctype *>(lua_newuserdata(L, sizeof(ctype)));
+    new (cd) ctype{ast::c_type{util::forward<A>(args)...}};
     cd->ct_tag = lua::CFFI_CTYPE_TAG;
     lua::mark_cdata(L);
     return *cd;
@@ -299,14 +273,12 @@ static inline bool iscval(lua_State *L, int idx) {
     return luaL_testudata(L, idx, lua::CFFI_CDATA_MT);
 }
 
-template<typename T>
-static inline bool isctype(cdata<T> const &cd) {
+static inline bool isctype(cdata const &cd) {
     return cd.gc_ref == lua::CFFI_CTYPE_TAG;
 }
 
-template<typename T>
-static inline cdata<T> &checkcdata(lua_State *L, int idx) {
-    auto ret = static_cast<cdata<T> *>(
+static inline cdata &checkcdata(lua_State *L, int idx) {
+    auto ret = static_cast<cdata *>(
         luaL_checkudata(L, idx, lua::CFFI_CDATA_MT)
     );
     if (isctype(*ret)) {
@@ -315,16 +287,14 @@ static inline cdata<T> &checkcdata(lua_State *L, int idx) {
     return *ret;
 }
 
-template<typename T>
-static inline cdata<T> *testcval(lua_State *L, int idx) {
-    return static_cast<cdata<T> *>(
+static inline cdata *testcval(lua_State *L, int idx) {
+    return static_cast<cdata *>(
         luaL_testudata(L, idx, lua::CFFI_CDATA_MT)
     );
 }
 
-template<typename T>
-static inline cdata<T> *testcdata(lua_State *L, int idx) {
-    auto ret = static_cast<cdata<T> *>(
+static inline cdata *testcdata(lua_State *L, int idx) {
+    auto ret = static_cast<cdata *>(
         luaL_testudata(L, idx, lua::CFFI_CDATA_MT)
     );
     if (!ret || isctype(*ret)) {
@@ -333,29 +303,40 @@ static inline cdata<T> *testcdata(lua_State *L, int idx) {
     return ret;
 }
 
-template<typename T>
-static inline cdata<T> &tocdata(lua_State *L, int idx) {
-    return *lua::touserdata<ffi::cdata<T>>(L, idx);
+static inline cdata &tocdata(lua_State *L, int idx) {
+    return *lua::touserdata<ffi::cdata>(L, idx);
 }
 
 /* careful with this; use only if you're sure you have cdata at the index */
 static inline std::size_t cdata_value_size(lua_State *L, int idx) {
-    auto &cd = tocdata<void *>(L, idx);
+    auto &cd = tocdata(L, idx);
     if (cd.decl.vla()) {
         /* VLAs only exist on lua side, they are always allocated by us, so
          * we can be sure they are contained within the lua-allocated block
+         *
+         * the VLA memory consists of the following:
+         * - the cdata sequence, rounded up for lua alignment
+         * - the overallocated bytes for 16-byte alignment
+         * - the section where the pointer to data is stored
+         * - and finally the VLA memory itself
+         *
+         * that means we take the length of the userdata and remove everything
+         * that is not the raw array data, and that is our final length
          */
-        return lua_rawlen(L, idx) - cdata_value_base() - sizeof(arg_stor_t);
+        return (
+            lua_rawlen(L, idx) - cdata_size_noval() -
+            lua::UD_OVERALLOC - sizeof(ffi::scalar_stor_t)
+        );
     } else {
         /* otherwise the size is known, so fall back to that */
         return cd.decl.alloc_size();
     }
 }
 
-void destroy_cdata(lua_State *L, cdata<ffi::noval> &cd);
+void destroy_cdata(lua_State *L, cdata &cd);
 void destroy_closure(lua_State *L, closure_data *cd);
 
-int call_cif(cdata<fdata> &fud, lua_State *L, std::size_t largs);
+int call_cif(cdata &fud, lua_State *L, std::size_t largs);
 
 enum conv_rule {
     RULE_CONV = 0,
@@ -406,7 +387,7 @@ static inline bool metatype_getfield(lua_State *L, int mt, char const *fname) {
 
 template<typename T>
 static inline bool test_arith(lua_State *L, int idx, T &out) {
-    auto *cd = testcdata<arg_stor_t>(L, idx);
+    auto *cd = testcdata(L, idx);
     if (!cd) {
         if (util::is_int<T>::value) {
             if (lua_type(L, idx) == LUA_TNUMBER) {
@@ -422,41 +403,41 @@ static inline bool test_arith(lua_State *L, int idx, T &out) {
         }
         return false;
     }
-    auto gf = [](int itp, arg_stor_t const &av, T &rv) {
+    auto gf = [](int itp, void *av, T &rv) {
         switch (itp) {
             case ast::C_BUILTIN_ENUM:
                 /* TODO: large enums */
-                rv = T(av.as<int>()); break;
+                rv = T(*static_cast<int *>(av)); break;
             case ast::C_BUILTIN_BOOL:
-                rv = T(av.as<bool>()); break;
+                rv = T(*static_cast<bool *>(av)); break;
             case ast::C_BUILTIN_CHAR:
-                rv = T(av.as<char>()); break;
+                rv = T(*static_cast<char *>(av)); break;
             case ast::C_BUILTIN_SCHAR:
-                rv = T(av.as<signed char>()); break;
+                rv = T(*static_cast<signed char *>(av)); break;
             case ast::C_BUILTIN_UCHAR:
-                rv = T(av.as<unsigned char>()); break;
+                rv = T(*static_cast<unsigned char *>(av)); break;
             case ast::C_BUILTIN_SHORT:
-                rv = T(av.as<short>()); break;
+                rv = T(*static_cast<short *>(av)); break;
             case ast::C_BUILTIN_USHORT:
-                rv = T(av.as<unsigned short>()); break;
+                rv = T(*static_cast<unsigned short *>(av)); break;
             case ast::C_BUILTIN_INT:
-                rv = T(av.as<int>()); break;
+                rv = T(*static_cast<int *>(av)); break;
             case ast::C_BUILTIN_UINT:
-                rv = T(av.as<unsigned int>()); break;
+                rv = T(*static_cast<unsigned int *>(av)); break;
             case ast::C_BUILTIN_LONG:
-                rv = T(av.as<long>()); break;
+                rv = T(*static_cast<long *>(av)); break;
             case ast::C_BUILTIN_ULONG:
-                rv = T(av.as<unsigned long>()); break;
+                rv = T(*static_cast<unsigned long *>(av)); break;
             case ast::C_BUILTIN_LLONG:
-                rv = T(av.as<long long>()); break;
+                rv = T(*static_cast<long long *>(av)); break;
             case ast::C_BUILTIN_ULLONG:
-                rv = T(av.as<unsigned long long>()); break;
+                rv = T(*static_cast<unsigned long long *>(av)); break;
             case ast::C_BUILTIN_FLOAT:
-                rv = T(av.as<float>()); break;
+                rv = T(*static_cast<float *>(av)); break;
             case ast::C_BUILTIN_DOUBLE:
-                rv = T(av.as<double>()); break;
+                rv = T(*static_cast<double *>(av)); break;
             case ast::C_BUILTIN_LDOUBLE:
-                rv = T(av.as<long double>()); break;
+                rv = T(*static_cast<long double *>(av)); break;
             default:
                 return false;
         }
@@ -464,10 +445,10 @@ static inline bool test_arith(lua_State *L, int idx, T &out) {
     };
     int tp = cd->decl.type();
     if (cd->decl.is_ref()) {
-        if (gf(tp, *cd->val.as<arg_stor_t *>(), out)) {
+        if (gf(tp, *static_cast<void **>(cd->as_ptr()), out)) {
             return true;
         }
-    } else if (gf(tp, cd->val, out)) {
+    } else if (gf(tp, cd->as_ptr(), out)) {
         return true;
     }
     return false;
@@ -487,7 +468,7 @@ static inline T check_arith(lua_State *L, int idx) {
 static inline ast::c_expr_type check_arith_expr(
     lua_State *L, int idx, ast::c_value &iv
 ) {
-    auto *cd = testcdata<arg_stor_t>(L, idx);
+    auto *cd = testcdata(L, idx);
     if (!cd) {
         /* some logic for conversions of lua numbers into cexprs */
 #if LUA_VERSION_NUM >= 503
@@ -571,56 +552,56 @@ static inline ast::c_expr_type check_arith_expr(
         iv.ld = LD(n);
         return ast::c_expr_type::LDOUBLE;
     }
-    auto gf = [](int itp, arg_stor_t const &av, ast::c_value &v) {
+    auto gf = [](int itp, void *av, ast::c_value &v) {
         switch (itp) {
             case ast::C_BUILTIN_ENUM:
                 /* TODO: large enums */
-                v.i = av.as<int>();
+                v.i = *static_cast<int *>(av);
                 return ast::c_expr_type::INT;
             case ast::C_BUILTIN_BOOL:
-                v.i = av.as<bool>();
+                v.i = *static_cast<bool *>(av);
                 return ast::c_expr_type::INT;
             case ast::C_BUILTIN_CHAR:
-                v.i = av.as<char>();
+                v.i = *static_cast<char *>(av);
                 return ast::c_expr_type::INT;
             case ast::C_BUILTIN_SCHAR:
-                v.i = av.as<signed char>();
+                v.i = *static_cast<signed char *>(av);
                 return ast::c_expr_type::INT;
             case ast::C_BUILTIN_UCHAR:
-                v.i = av.as<unsigned char>();
+                v.i = *static_cast<unsigned char *>(av);
                 return ast::c_expr_type::INT;
             case ast::C_BUILTIN_SHORT:
-                v.i = av.as<short>();
+                v.i = *static_cast<short *>(av);
                 return ast::c_expr_type::INT;
             case ast::C_BUILTIN_USHORT:
-                v.i = av.as<unsigned short>();
+                v.i = *static_cast<unsigned short *>(av);
                 return ast::c_expr_type::INT;
             case ast::C_BUILTIN_INT:
-                v.i = av.as<int>();
+                v.i = *static_cast<int *>(av);
                 return ast::c_expr_type::INT;
             case ast::C_BUILTIN_UINT:
-                v.u = av.as<unsigned int>();
+                v.u = *static_cast<unsigned int *>(av);
                 return ast::c_expr_type::UINT;
             case ast::C_BUILTIN_LONG:
-                v.l = av.as<long>();
+                v.l = *static_cast<long *>(av);
                 return ast::c_expr_type::LONG;
             case ast::C_BUILTIN_ULONG:
-                v.ul = av.as<unsigned long>();
+                v.ul = *static_cast<unsigned long *>(av);
                 return ast::c_expr_type::ULONG;
             case ast::C_BUILTIN_LLONG:
-                v.ll = av.as<long long>();
+                v.ll = *static_cast<long long *>(av);
                 return ast::c_expr_type::LLONG;
             case ast::C_BUILTIN_ULLONG:
-                v.ull = av.as<unsigned long long>();
+                v.ull = *static_cast<unsigned long long *>(av);
                 return ast::c_expr_type::ULLONG;
             case ast::C_BUILTIN_FLOAT:
-                v.f = av.as<float>();
+                v.f = *static_cast<float *>(av);
                 return ast::c_expr_type::FLOAT;
             case ast::C_BUILTIN_DOUBLE:
-                v.d = av.as<double>();
+                v.d = *static_cast<double *>(av);
                 return ast::c_expr_type::DOUBLE;
             case ast::C_BUILTIN_LDOUBLE:
-                v.ld = av.as<long double>();
+                v.ld = *static_cast<long double *>(av);
                 return ast::c_expr_type::LDOUBLE;
             default:
                 return ast::c_expr_type::INVALID;
@@ -629,9 +610,9 @@ static inline ast::c_expr_type check_arith_expr(
     ast::c_expr_type ret;
     int tp = cd->decl.type();
     if (cd->decl.is_ref()) {
-        ret = gf(tp, *cd->val.as<arg_stor_t *>(), iv);
+        ret = gf(tp, *static_cast<void **>(cd->as_ptr()), iv);
     } else {
-        ret = gf(tp, cd->val, iv);
+        ret = gf(tp, cd->as_ptr(), iv);
     }
     if (ret == ast::c_expr_type::INVALID) {
         luaL_checknumber(L, idx);
@@ -640,7 +621,7 @@ static inline ast::c_expr_type check_arith_expr(
     return ret;
 }
 
-static inline cdata<arg_stor_t> &make_cdata_arith(
+static inline cdata &make_cdata_arith(
     lua_State *L, ast::c_expr_type et, ast::c_value const &cv
 ) {
     auto bt = ast::to_builtin_type(et);
@@ -650,12 +631,12 @@ static inline cdata<arg_stor_t> &make_cdata_arith(
     auto tp = ast::c_type{bt, 0};
     auto as = tp.alloc_size();
     auto &cd = newcdata(L, util::move(tp), as);
-    std::memcpy(&cd.val, &cv, as);
-    return *reinterpret_cast<cdata<arg_stor_t> *>(&cd);
+    std::memcpy(cd.as_ptr(), &cv, as);
+    return cd;
 }
 
 static inline char const *lua_serialize(lua_State *L, int idx) {
-    auto *cd = testcdata<noval>(L, idx);
+    auto *cd = testcdata(L, idx);
     if (cd) {
         /* it's ok to mess up the lua stack, this is only used for errors */
         cd->decl.serialize(L);

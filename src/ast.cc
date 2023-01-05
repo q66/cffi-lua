@@ -1501,7 +1501,7 @@ c_type from_lua_type(lua_State *L, int index) {
                 0, C_BUILTIN_PTR
             };
         case LUA_TUSERDATA: {
-            auto *cd = ffi::testcdata<ffi::noval>(L, index);
+            auto *cd = ffi::testcdata(L, index);
             if (!cd) {
                 return c_type{
                     util::make_rc<c_type>(C_BUILTIN_VOID, 0),
