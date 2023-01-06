@@ -153,6 +153,8 @@ if [ -n "$SANITIZE" ]; then
     # is covered by -fsanitize=function (included in undefined)
     export CXXFLAGS="-fsanitize=undefined -fsanitize=address -fsanitize=cfi -fno-sanitize=cfi-icall -fvisibility=hidden -flto=thin"
     export LDFLAGS="${CXXFLAGS} -fuse-ld=lld $(clang -print-file-name=libclang_rt.ubsan_standalone-x86_64.a)"
+    # only test the most recent lua version
+    LUA_VERSIONS=${LUA_VERSIONS%% *}
 fi
 
 echo ">> Building lua..."
