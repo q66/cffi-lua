@@ -39,7 +39,8 @@ jobs:
           # notably returning a struct with a single float inside by value
           # this is not our bug, a standalone testcase reproduces it
           - { target: mips-linux-gnu, cc: gcc, buildtype: debugoptimized }
-          - { target: m68k-linux-gnu, cc: gcc, buildtype: debug }
+          # m68k qemu segfaults on 22.04
+          #- { target: m68k-linux-gnu, cc: gcc, buildtype: debug }
           # x86_64 windows cross, release mode
           - { target: x86_64-w64-mingw32, cc: gcc, buildtype: release }
 
