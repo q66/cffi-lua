@@ -251,7 +251,7 @@ EOF
 
     meson .. -Dlua_version=vendor -Dlibffi=vendor -Dtests_cross=true \
         -Ddeps_dir=${deps_dir} -Dlua_path="${lua_path}" ${args} || exit 1
-    ninja all || exit 1
+    ninja all --verbose || exit 1
     ninja test || exit 1
     cd ..
 done
