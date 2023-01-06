@@ -12,6 +12,7 @@ jobs:
       LUA_VERSIONS: '5.4.2 5.3.6 5.2.4 5.1.5'
       CC: '${{ matrix.config.cc }}'
       BUILDTYPE: '${{ matrix.config.buildtype }}'
+      SANITIZE: '${{ matrix.config.sanitize }}'
 
     strategy:
       matrix:
@@ -20,6 +21,7 @@ jobs:
           - { target: x86_64-linux-gnu, cc: gcc, buildtype: debugoptimized }
           - { target: x86_64-linux-gnu, cc: gcc, buildtype: release }
           - { target: x86_64-linux-gnu, cc: clang, buildtype: debugoptimized }
+          - { target: x86_64-linux-gnu, cc: clang, buildtype: debugoptimized, sanitize: 1 }
           # 32-bit x86
           - { target: i686-linux-gnu, cc: gcc, buildtype: debugoptimized }
           # all powerpc

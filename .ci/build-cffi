@@ -145,6 +145,16 @@ CFLAGS="${extra_cflags}" ../libffi/configure --prefix=/ --libdir=/lib \
 make -j4 || exit 1
 cd ..
 
+# sanitizer setup, need asan-instrumented lua, ubsan runtime is linked in the module
+if [ -n "$SANITIZE" ]; then
+    extra_cflags="${extra_cflags} -fsanitize=address"
+    extra_ldflags="${extra_ldflags} -fsanitize=address -fuse-ld=lld"
+    # cfi-icall is buggy with the clang on CI, also the same functionality
+    # is covered by -fsanitize=function (included in undefined)
+    export CXXFLAGS="-fsanitize=undefined -fsanitize=address -fsanitize=cfi -fno-sanitize=cfi-icall -fvisibility=hidden -flto=thin"
+    export LDFLAGS="${CXXFLAGS} -fuse-ld=lld $(clang -print-file-name=libclang_rt.ubsan_standalone-x86_64.a)"
+fi
+
 echo ">> Building lua..."
 
 lua_plat=linux
@@ -166,7 +176,7 @@ for luaver in ${LUA_VERSIONS}; do
         sed -i 's/-lhistory//g' src/Makefile
         sed -i 's/-lncurses//g' src/Makefile
     fi
-    make -j8 PLAT=${lua_plat} MYCFLAGS="${extra_cflags}" CC="$CC" AR="$AR rcu" || exit 1
+    make -j8 PLAT=${lua_plat} MYCFLAGS="${extra_cflags}" MYLDFLAGS="${extra_ldflags}" CC="$CC" AR="$AR rcu" || exit 1
     cp src/lua*.h* ../${deps_dir}/include || exit 1
     cp src/lauxlib.h ../${deps_dir}/include || exit 1
     if [ "${meson_system}" = "windows" ]; then
@@ -231,6 +241,10 @@ EOF
     fi
     if [ -n "$BUILDTYPE" ]; then
         args="${args} --buildtype=$BUILDTYPE"
+    fi
+    # needed for CFI and -fsanitize=function
+    if [ -n "$SANITIZE" ]; then
+        args="${args} -Db_lto=true -Dcpp_rtti=true"
     fi
 
     meson .. -Dlua_version=vendor -Dlibffi=vendor -Dtests_cross=true \
