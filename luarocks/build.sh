@@ -18,8 +18,9 @@ export CXXFLAGS="$CFLAGS"
 case "$1" in
     build)
         rm -rf build && mkdir build && cd build
-        meson .. -Dbuildtype=release -Dlua_version=custom -Dlibffi=custom \
-            -Dtests=false -Dlua_install_path="$LIBDIR"
+        meson .. -Dbuildtype=release -Dlua_version=custom \
+            -Dtests=false -Dlua_install_path="$LIBDIR" \
+            --force-fallback-for=libffi
         ninja all
         ;;
     install)

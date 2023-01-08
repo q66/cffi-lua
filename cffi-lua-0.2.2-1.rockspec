@@ -24,21 +24,18 @@ dependencies = {
 }
 external_dependencies = {
     MESON = { program = "meson" },
-    FFI = { library = "ffi" }
 }
 build = {
     type = "command",
     build_command = [[\
         LUA="$(LUA)" CC="$(CC)" LD="$(LD)" \
-        CFLAGS='$(CFLAGS) -I$(LUA_INCDIR) -I$(FFI_INCDIR)' \
-        LDFLAGS='-L$(FFI_LIBDIR) -lffi' \
+        CFLAGS='$(CFLAGS) -I$(LUA_INCDIR)' \
         PREFIX="$(PREFIX)" LIBDIR="$(LIBDIR)" \
         sh ./luarocks/build.sh build
     ]],
     install_command = [[\
         LUA="$(LUA)" CC="$(CC)" LD="$(LD)" \
-        CFLAGS='$(CFLAGS) -I$(LUA_INCDIR) -I$(FFI_INCDIR)' \
-        LDFLAGS='-L$(FFI_LIBDIR) -lffi' \
+        CFLAGS='$(CFLAGS) -I$(LUA_INCDIR)' \
         PREFIX="$(PREFIX)" LIBDIR="$(LIBDIR)" \
         sh ./luarocks/build.sh install
     ]],
