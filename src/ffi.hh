@@ -179,14 +179,22 @@ struct ctype {
     ctype(D &&tp): decl{util::forward<D>(tp)} {}
 };
 
-/* helper structure for allocation size */
-struct cdata_pad {
-    cdata data;
-    /* space for data alignment */
-    alignas(lua::user_align_t) char align_pad[
-        alignof(util::max_aligned_t) - alignof(lua::user_align_t)
-    ];
-};
+inline constexpr std::size_t cdata_pad_size() {
+    auto csz = sizeof(cdata);
+    auto mod = (csz % alignof(lua::user_align_t));
+    /* size in multiples of lua userdata alignment */
+    if (mod) {
+        csz += alignof(lua::user_align_t) - mod;
+    }
+    /* this should typically not happen, unless configured that way */
+    if (alignof(lua::user_align_t) >= alignof(util::max_aligned_t)) {
+        return csz;
+    }
+    /* add the difference for internal alignment */
+    csz += (alignof(util::max_aligned_t) - alignof(lua::user_align_t));
+    /* this is what we will allocate, plus the data size */
+    return csz;
+}
 
 struct closure_data {
     ffi_cif cif; /* closure data needs its own cif */
@@ -218,7 +226,7 @@ struct fdata {
 static inline cdata &newcdata(
     lua_State *L, ast::c_type const &tp, std::size_t vals
 ) {
-    auto ssz = sizeof(cdata_pad) + vals;
+    auto ssz = cdata_pad_size() + vals;
     auto *cd = static_cast<cdata *>(lua_newuserdata(L, ssz));
     new (cd) cdata{tp.copy()};
     cd->gc_ref = LUA_REFNIL;
@@ -300,7 +308,7 @@ static inline std::size_t cdata_value_size(lua_State *L, int idx) {
          * that is not the raw array data, and that is our final length
          */
         return (
-            lua_rawlen(L, idx) - sizeof(cdata_pad) - sizeof(ffi::scalar_stor_t)
+            lua_rawlen(L, idx) - cdata_pad_size() - sizeof(ffi::scalar_stor_t)
         );
     } else {
         /* otherwise the size is known, so fall back to that */
