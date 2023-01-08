@@ -51,7 +51,7 @@ The dependencies are kept intentionally minimal.
 
 - A C++ compiler supporting the right subset of C++14
 - Lua 5.1 or newer (tested up to and including 5.4) or equivalent (e.g. LuaJIT)
-- `libffi`
+- `libffi` (built with `meson` subproject if missing)
 - `meson`
 
 Optional dependencies:
@@ -78,8 +78,8 @@ encounter any issues on yours, please send patches or at least report them
 so they can be fixed.
 
 The `pkg-config` tool is optional when using `-Dlua_version=custom` and
-`-Dlibffi=custom` (or `vendor`). However, for `custom`, you will need to
-manually specify what to include and link.
+vendored `libffi` (through build options or subproject). However, for
+`custom` libffi, you will need to manually specify what to include and link.
 
 ## Building
 
@@ -132,10 +132,14 @@ When using `homebrew` on macOS, its `libffi` is not installed globally.
 Therefore, you will need to set your `PKG_CONFIG_PATH` so that `pkg-config`
 can find its `.pc` file.
 
-You can also use `-Dlibffi=custom` if you have a system that does not provide
-a `.pc` file for `libffi`. In that case you will need to provide the right
-include path in `CXXFLAGS` so that either `<ffi.h>` or `<ffi/ffi.h>` can be
-included, plus linkage in `LDFLAGS`.
+You can also use `-Dlibffi=custom` if you wish to completely override what
+`libffi` is used. In that case you will need to provide the right include
+path in `CXXFLAGS` so that either `<ffi.h>` or `<ffi/ffi.h>` can be included,
+plus linkage in `LDFLAGS`.
+
+When `libffi` cannot be found in the system and you have not overridden how
+it is supplied, a Meson subproject will be automatically used (and `libffi`
+will be statically linked into the module).
 
 It is also possible to pass `-Dlua_install_path=...` to override where the
 Lua module will be installed. See below for that.
@@ -148,20 +152,21 @@ possible to autodetect. Usually, you should be using static libffi on Windows.
 
 ### Windows and MSVC style environment
 
-To build on Windows with an MSVC-style toolchain, first get yourself a binary
-distribution of `libffi` and the right version of Lua. They must be compatible
-with the runtime you're targeting.
+To build on Windows with an MSVC-style toolchain, first get yourself the right
+version of Lua and optionally a binary distribution of `libffi`. They must be
+compatible with the runtime you're targeting.
 
-Drop the `.lib` files (import lib for Lua, static lib for `libffi`, unless you
-link `libffi` dynamically) of `libffi` and `lua` in the `deps` directory (either
-in the source root or the directory you are running `meson` from). The naming
-is up to you, `meson` will accept library names with or without `lib` prefix,
-and the build system accepts both unversioned and versioned to cover all
-environments. Usually, for Lua you will have something like `lua53.lib`.
-Also, drop the include files for `libffi` (`ffi.h` and `ffitarget.h`) into
-`deps/include`, same with the Lua include files.
+Drop the `.lib` files (import lib for Lua, optionally static or import lib for
+`libffi`) in the `deps` directory (either in the source root or the directory
+you are running `meson` from). The naming is up to you, `meson` will accept
+library names with or without `lib` prefix, and the build system accepts both
+unversioned and versioned to cover all environments. Usually, for Lua you will
+have something like `lua53.lib`. Also, if providing your own `libffi`, drop the
+include files (`ffi.h` and `ffitarget.h`) into `deps/include`, same with the Lua
+include files.
 
-It is recommended that you always use a static library for `libffi`.
+It is recommended that you always use a static library for `libffi` if providing
+one.
 
 Drop any `.dll` files in the `deps` directory also. This would be the Lua
 dll file typically (e.g. `lua53.dll`).
@@ -173,8 +178,10 @@ you don't do that, you will need to pass `-Dtests=false` to `meson` as well.
 Afterwards, run `meson` from the `build` directory (create it), like this:
 
 ```
-meson .. -Dlua_version=vendor -Dlibffi=vendor
+meson .. -Dlua_version=vendor
 ```
+
+Add `-Dlibffi=vendor` if providing a `libffi`.
 
 Then proceed with the usual:
 
@@ -194,18 +201,17 @@ would on Linux. In an MSYS2 environment, this would be something like:
 ```
 pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-pkg-config
 pacman -S mingw-w64-x86_64-meson
-pacman -S mingw-w64-x86_64-libffi mingw-w64-x86_64-lua
+pacman -S mingw-w64-x86_64-lua
 ```
 
 Particularly for MSYS2, you should use dependencies from just one repo,
 as e.g. `meson` installed from the MSYS2 repo won't detect `mingw-w64`
 libraries and so on.
 
-After that, proceed as you would on Linux, except use `shared_libffi`
-appropriately. By default, libffi is shared in the MSYS2 environment.
+After that, proceed as you would on Linux:
 
 ```
-meson .. -Dlua_version=5.3 -Dshared_libffi=true
+meson .. -Dlua_version=5.3
 ```
 
 You might also want to provide `-static-libgcc -static-libstdc++` in `LDFLAGS`
@@ -219,10 +225,8 @@ ninja all
 ninja test
 ```
 
-If you have just a plain MinGW compiler and no package manager environment
-with it, you will need to set it up manually and use `vendor` or `custom`
-for `lua_version` and `libffi`. Keep in mind that you don't need import
-libraries for the MinGW compiler, you can link against DLLs directly.
+For plain MinGW, this will be similar, except you will need to manually provide
+your the dependencies.
 
 ## Installing
 

@@ -1,7 +1,5 @@
 #!/bin/bash
 
-ffi_build="vs16_x64"
-
 unset CC CXX CC_FOR_BUILD CXX_FOR_BUILD
 
 export PATH="$(pwd)/host_tools:$PATH"

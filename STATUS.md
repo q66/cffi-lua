@@ -119,9 +119,10 @@ The CI matrix currently includes the following:
 | `mips`       | 32        | big        | Linux   | `gcc`    | `debugoptimized` |
 | `ppc`        | 32        | big        | Linux   | `gcc`    | `debugoptimized` |
 | `armv6l`     | 32        | little     | Linux   | `gcc`    | `debugoptimized` |
-| `m68k`       | 32        | big        | Linux   | `gcc`    | `debug`          |
 
 Note: `ppc64` is ABIv1.
+
+Clang CI builds on `x86_64` Linux also build with sanitizers (ASan, UBSan, CFI).
 
 This is not an exhaustive list of supported targets but rather just a limited
 list intended to cover everything (64-bit systems, 32-bit systems, little and
