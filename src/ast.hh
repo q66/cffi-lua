@@ -677,8 +677,15 @@ struct c_type: c_object {
     }
 
     bool ptr_like() const {
-        auto tp = type();
-        return ((tp == C_BUILTIN_PTR) || (tp == C_BUILTIN_ARRAY));
+        switch (type()) {
+            case C_BUILTIN_PTR:
+            case C_BUILTIN_ARRAY:
+            case C_BUILTIN_FUNC:
+                return true;
+            default:
+                break;
+        }
+        return false;
     }
 
     bool is_ref() const {

@@ -153,7 +153,7 @@ struct cdata {
 
     void *as_deref_ptr() {
         if (decl.is_ref()) {
-            return *static_cast<void **>(as_ptr());
+            return as<void *>();
         }
         return as_ptr();
     }
@@ -163,21 +163,11 @@ struct cdata {
         return *static_cast<T *>(as_deref_ptr());
     }
 
-    void *get_addr() {
-        if (decl.is_ref()) {
-            goto reft;
+    void *address_of() {
+        if (decl.ptr_like()) {
+            return as<void *>();
         }
-        switch (decl.type()) {
-            case ast::C_BUILTIN_PTR:
-            case ast::C_BUILTIN_FUNC:
-            case ast::C_BUILTIN_ARRAY:
-                goto reft;
-            default:
-                break;
-        }
-        return as_ptr();
-    reft:
-        return *static_cast<void **>(as_ptr());
+        return as_deref_ptr();
     }
 };
 

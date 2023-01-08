@@ -133,7 +133,7 @@ struct cdata_meta {
 #if LUA_VERSION_NUM > 502
         if (metatype_check<ffi::METATYPE_FLAG_NAME>(L, 1)) {
             if (lua_type(L, -1) == LUA_TSTRING) {
-                lua_pushfstring(L, ": %p", cd.get_addr());
+                lua_pushfstring(L, ": %p", cd.address_of());
                 lua_concat(L, 2);
                 return 1;
             }
@@ -165,7 +165,7 @@ struct cdata_meta {
         }
         lua_pushliteral(L, "cdata<");
         cd.decl.serialize(L);
-        lua_pushfstring(L, ">: %p", cd.get_addr());
+        lua_pushfstring(L, ">: %p", cd.address_of());
         lua_concat(L, 3);
         return 1;
     }
@@ -708,7 +708,7 @@ struct cdata_meta {
         if (cd->decl.ptr_like()) {
             return cd->as_deref<void *>();
         }
-        return cd->get_addr();
+        return cd->as_deref_ptr();
     }
 
     static int eq(lua_State *L) {
@@ -1174,7 +1174,7 @@ struct ffi_module {
         ffi::newcdata(L, ast::c_type{
             util::make_rc<ast::c_type>(util::move(cd.decl.unref())),
             0, ast::C_BUILTIN_PTR
-        }, sizeof(void *)).as<void *>() = cd.get_addr();
+        }, sizeof(void *)).as<void *>() = cd.address_of();
         return 1;
     }
 
@@ -1410,7 +1410,7 @@ converr:
                     L, false, idx, "cannot convert 'ctype' to 'void *'"
                 );
             }
-            if (cd.decl.ptr_like() || (cd.decl.type() == ast::C_BUILTIN_FUNC)) {
+            if (cd.decl.ptr_like()) {
                 return cd.as_deref<void *>();
             }
             if (cd.decl.is_ref()) {
