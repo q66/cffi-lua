@@ -214,6 +214,15 @@ inline T max(T a, T b) {
     return (a > b) ? a : b;
 }
 
+/* safe punning */
+
+template<typename T, typename U>
+inline T pun(U val) {
+    T ret;
+    std::memcpy(&ret, &val, sizeof(ret));
+    return ret;
+}
+
 /* basic limits interface */
 
 namespace detail {
@@ -354,9 +363,7 @@ std::size_t write_u(char *buf, std::size_t bufsize, unsigned long long v);
 
 inline void *ptr_align(void *p) {
     auto *up = static_cast<unsigned char *>(p);
-    std::uintptr_t us;
-    std::memcpy(&us, &up, sizeof(up));
-    auto mod = us % alignof(max_aligned_t);
+    auto mod = pun<std::uintptr_t>(up) % alignof(max_aligned_t);
     if (mod) {
         up += alignof(max_aligned_t) - mod;
     }
@@ -375,12 +382,10 @@ struct rc_obj {
     rc_obj(construct, A &&...cargs) {
         auto *np = new unsigned char[sizeof(T) + get_rc_size()];
         /* initial acquire */
-        std::size_t *cnt;
-        std::memcpy(&cnt, &np, sizeof(void *));
-        *cnt = 1;
+        *pun<std::size_t *>(np) = 1;
         /* store */
         np += get_rc_size();
-        std::memcpy(&p_ptr, &np, sizeof(void *));
+        p_ptr = pun<T *>(np);
         /* construct */
         new (p_ptr) T(util::forward<A>(cargs)...);
     }
@@ -437,12 +442,7 @@ private:
     }
 
     std::size_t *counter() const {
-        unsigned char *buf;
-        std::memcpy(&buf, &p_ptr, sizeof(void *));
-        buf -= get_rc_size();
-        std::size_t *cnt;
-        std::memcpy(&cnt, &buf, sizeof(void *));
-        return cnt;
+        return pun<std::size_t *>(pun<unsigned char *>(p_ptr) - get_rc_size());
     }
 
     void incr() {
@@ -453,9 +453,7 @@ private:
         auto *ptr = counter();
         if (!--*ptr) {
             p_ptr->~T();
-            unsigned char *buf;
-            std::memcpy(&buf, &ptr, sizeof(void *));
-            delete[] buf;
+            delete[] pun<unsigned char *>(ptr);
         }
     }
 
@@ -526,17 +524,13 @@ struct vector {
         if (n < MIN_SIZE) {
             n = MIN_SIZE;
         }
-        T *np;
-        auto *buf = new unsigned char[n * sizeof(T)];
-        std::memcpy(&np, &buf, sizeof(void *));
+        T *np = pun<T *>(new unsigned char[n * sizeof(T)]);
         if (p_cap) {
             for (std::size_t i = 0; i < p_size; ++i) {
                 new (&np[i]) T(util::move(p_buf[i]));
                 p_buf[i].~T();
             }
-            unsigned char *obuf;
-            std::memcpy(&obuf, &p_buf, sizeof(void *));
-            delete[] obuf;
+            delete[] pun<unsigned char *>(p_buf);
         }
         p_buf = np;
         p_cap = n;
@@ -615,9 +609,7 @@ struct vector {
 private:
     void drop() {
         shrink(0);
-        unsigned char *obuf;
-        std::memcpy(&obuf, &p_buf, sizeof(void *));
-        delete[] obuf;
+        delete[] pun<unsigned char *>(p_buf);
     }
 
     T *p_buf = nullptr;
@@ -971,8 +963,7 @@ struct pearson {
     std::size_t operator()(char const *data) const {
         std::size_t slen = std::strlen(data);
         std::size_t hash = 0;
-        unsigned char const *udata;
-        std::memcpy(&udata, &data, sizeof(void *));
+        auto *udata = pun<unsigned char const *>(data);
         for (std::size_t j = 0; j < sizeof(std::size_t); ++j) {
             auto h = ph_lt[(udata[0] + j) % 256];
             for (std::size_t i = 1; i < slen; ++i) {

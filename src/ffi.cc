@@ -67,43 +67,29 @@ static inline void *fdata_retval(fdata &fd) {
 }
 
 static inline ffi::scalar_stor_t *&fdata_get_aux(fdata &fd) {
-    ffi::scalar_stor_t **ret;
-    ffi::scalar_stor_t *args = fd.args();
-    std::memcpy(&ret, &args, sizeof(void *));
-    return *ret;
+    return *util::pun<ffi::scalar_stor_t **>(fd.args());
 }
 
 static inline void fdata_free_aux(lua_State *, fdata &fd) {
     auto &ptr = fdata_get_aux(fd);
-    unsigned char *buf;
-    std::memcpy(&buf, &ptr, sizeof(void *));
-    delete[] buf;
+    delete[] util::pun<unsigned char *>(ptr);
     ptr = nullptr;
 }
 
 static inline void fdata_new_aux(lua_State *, fdata &fd, std::size_t sz) {
-    auto *buf = new unsigned char[sz];
-    ffi::scalar_stor_t *ptr;
-    std::memcpy(&ptr, &buf, sizeof(void *));
-    fdata_get_aux(fd) = ptr;
+    fdata_get_aux(fd) = util::pun<ffi::scalar_stor_t *>(new unsigned char[sz]);
 }
 
 static inline ffi_type **fargs_types(ffi::scalar_stor_t *args, std::size_t nargs) {
     /* see memory layout comment below; this accesses the beginning
      * of the ffi_type section within the fdata structure
      */
-    auto *pargs = args + nargs;
-    ffi_type **ret;
-    std::memcpy(&ret, &pargs, sizeof(void *));
-    return ret;
+    return util::pun<ffi_type **>(args + nargs);
 }
 
 static inline void **fargs_values(ffi::scalar_stor_t *args, std::size_t nargs) {
     /* this accesses the value pointers that follow the ffi_type pointers */
-    auto *targs = fargs_types(args, nargs) + nargs;
-    void **ret;
-    std::memcpy(&ret, &targs, sizeof(void *));
-    return ret;
+    return util::pun<void **>(fargs_types(args, nargs) + nargs);
 }
 
 void destroy_cdata(lua_State *L, cdata &cd) {
@@ -137,9 +123,7 @@ void destroy_cdata(lua_State *L, cdata &cd) {
 
 void destroy_closure(lua_State *, closure_data *cd) {
     cd->~closure_data();
-    unsigned char *buf;
-    std::memcpy(&buf, &cd, sizeof(void *));
-    delete[] buf;
+    delete[] util::pun<unsigned char *>(cd);
 }
 
 static void cb_bind(ffi_cif *, void *ret, void *args[], void *data) {
@@ -281,10 +265,9 @@ static void make_cdata_func(
             fud.as<fdata>().cd = cd;
             return;
         }
-        auto *bufp = new unsigned char[
+        cd = util::pun<closure_data *>(new unsigned char[
             sizeof(closure_data) + nargs * sizeof(ffi_type *)
-        ];
-        std::memcpy(&cd, &bufp, sizeof(void *));
+        ]);
         new (cd) closure_data{};
         /* allocate a closure in it */
         void *symp;
@@ -300,12 +283,8 @@ static void make_cdata_func(
                 lua_tostring(L, -1)
             );
         }
-        ffi_type **targs;
-        {
-            /* arg pointers follow closure data struct, as allocated above */
-            auto *targp = cd + 1;
-            std::memcpy(&targs, &targp, sizeof(void *));
-        }
+        /* arg pointers follow closure data struct, as allocated above */
+        auto **targs = util::pun<ffi_type **>(cd + 1);
         if (!prepare_cif(fud.decl.function(), cd->cif, targs, nargs)) {
             destroy_closure(L, cd);
             luaL_error(L, "unexpected failure setting up '%s'", func->name());
@@ -455,9 +434,10 @@ int to_lua(
         /* dereference regardless */
         auto *dval = *static_cast<void * const *>(value);
         if (tp.type() == ast::C_BUILTIN_FUNC) {
-            void (*symp)();
-            std::memcpy(&symp, &dval, sizeof(void *));
-            make_cdata_func(L, symp, tp.function(), rule != RULE_CONV, nullptr);
+            make_cdata_func(
+                L, util::pun<void (*)()>(dval), tp.function(),
+                rule != RULE_CONV, nullptr
+            );
             return 1;
         }
         if (rule == RULE_CONV) {
@@ -526,10 +506,10 @@ int to_lua(
             return 1;
 
         case ast::C_BUILTIN_FUNC: {
-            auto *dval = *static_cast<void * const *>(value);
-            void (*symp)();
-            std::memcpy(&symp, &dval, sizeof(void *));
-            make_cdata_func(L, symp, tp.function(), true, nullptr);
+            make_cdata_func(
+                L, util::pun<void (*)()>(*static_cast<void * const *>(value)),
+                tp.function(), true, nullptr
+            );
             return 1;
         }
 
@@ -608,10 +588,9 @@ static void from_lua_num(
 ) {
     if (tp.is_ref() && (rule == RULE_CAST)) {
         dsz = sizeof(void *);
-        auto paddr = std::size_t(lua_tointeger(L, index));
-        void *addrp;
-        std::memcpy(&addrp, &paddr, sizeof(void *));
-        *static_cast<void **>(stor) = addrp;
+        *static_cast<void **>(stor) = util::pun<void *>(
+            std::size_t(lua_tointeger(L, index))
+        );
         return;
     }
 
@@ -672,10 +651,9 @@ static void from_lua_num(
         case ast::C_BUILTIN_PTR:
             if (rule == RULE_CAST) {
                 dsz = sizeof(void *);
-                auto paddr = std::size_t(lua_tointeger(L, index));
-                void *addrp;
-                std::memcpy(&addrp, &paddr, sizeof(void *));
-                *static_cast<void **>(stor) = addrp;
+                *static_cast<void **>(stor) = util::pun<void *>(
+                    std::size_t(lua_tointeger(L, index))
+                );
                 return;
             }
             goto converr;
@@ -870,10 +848,9 @@ ptr_ref:
         return;
     }
     dsz = sizeof(void *);
-    auto paddr = std::size_t(*static_cast<T *>(sval));
-    void *addrp;
-    std::memcpy(&addrp, &paddr, sizeof(void *));
-    *static_cast<void **>(stor) = addrp;
+    *static_cast<void **>(stor) = util::pun<void *>(
+        std::size_t(*static_cast<T *>(sval))
+    );
 }
 
 static void *from_lua_cdata(
@@ -1430,11 +1407,7 @@ static bool from_lua_aggreg(
             (cd.decl.array_size() == decl.array_size())
         )) {
             /* exact copy by value */
-            void **valp = static_cast<void **>(cd.as_ptr());
-            if (cd.decl.is_ref()) {
-                valp = static_cast<void **>(*valp);
-            }
-            std::memcpy(stor, *valp, msz);
+            std::memcpy(stor, *static_cast<void **>(cd.as_deref_ptr()), msz);
             return true;
         }
     }
@@ -1459,9 +1432,7 @@ void from_lua(lua_State *L, ast::c_type const &decl, void *stor, int idx) {
                 decl.type() == ast::C_BUILTIN_PTR, nullptr
             );
             auto &fd = tocdata(L, -1);
-            int svv;
-            std::memcpy(&svv, &sv, sizeof(int));
-            fd.as<fdata>().cd->fref = svv;
+            fd.as<fdata>().cd->fref = util::pun<int>(sv);
             *static_cast<void (**)()>(stor) = fd.as<fdata>().sym;
             lua_pop(L, 1);
         } else {
@@ -1484,9 +1455,10 @@ void get_global(lua_State *L, lib::c_lib const *dl, const char *sname) {
             auto &var = decl->as<ast::c_variable>();
             void *symp = lib::get_sym(dl, L, var.sym());
             if (var.type().type() == ast::C_BUILTIN_FUNC) {
-                void (*fsym)();
-                std::memcpy(&fsym, &symp, sizeof(void *));
-                make_cdata_func(L, fsym, var.type().function(), false, nullptr);
+                make_cdata_func(
+                    L, util::pun<void (*)()>(symp), var.type().function(),
+                    false, nullptr
+                );
             } else {
                 to_lua(L, var.type(), symp, RULE_RET, false);
             }
@@ -1611,9 +1583,7 @@ newdata:
             L, symp, decl.function(), decl.type() == ast::C_BUILTIN_PTR, cd
         );
         if (!cdp && !cd) {
-            int fr;
-            std::memcpy(&fr, &stor, sizeof(int));
-            tocdata(L, -1).as<fdata>().cd->fref = fr;
+            tocdata(L, -1).as<fdata>().cd->fref = util::pun<int>(stor);
         }
     } else {
         auto &cd = newcdata(L, decl, rsz);

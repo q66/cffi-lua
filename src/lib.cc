@@ -295,10 +295,9 @@ void close(c_lib *cl, lua_State *L) {
 
 static void *get_sym(c_lib const *cl, char const *name) {
     if (cl->h != FFI_DL_DEFAULT) {
-        auto paddr = GetProcAddress(static_cast<HMODULE>(cl->h), name);
-        void *ret;
-        std::memcpy(&ret, &paddr, sizeof(void *));
-        return ret;
+        return util::pun<void *>(
+            GetProcAddress(static_cast<HMODULE>(cl->h), name)
+        );
     }
     for (std::size_t i = 0; i < FFI_DL_HANDLE_MAX; ++i) {
         if (!ffi_dl_handle[i]) {
@@ -311,12 +310,11 @@ static void *get_sym(c_lib const *cl, char const *name) {
                     );
                     break;
                 case FFI_DL_HANDLE_CRT: {
-                    auto *p = &_fmode;
-                    std::memcpy(&dlh, &p, sizeof(dlh));
+                    dlh = util::pun<char const *>(&_fmode);
                     goto handle_dll;
                 }
                 case FFI_DL_HANDLE_DLL:
-                    std::memcpy(&dlh, &ffi_dl_handle, sizeof(dlh));
+                    dlh = util::pun<char const *>(ffi_dl_handle);
                 handle_dll:
                     GetModuleHandleExA(
                         GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
@@ -344,9 +342,7 @@ static void *get_sym(c_lib const *cl, char const *name) {
         HMODULE h = static_cast<HMODULE>(ffi_dl_handle[i]);
         auto paddr = GetProcAddress(h, name);
         if (paddr) {
-            void *ret;
-            std::memcpy(&ret, &paddr, sizeof(void *));
-            return ret;
+            return util::pun<void *>(paddr);
         }
     }
     return nullptr;

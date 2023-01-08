@@ -2,6 +2,7 @@
 #define FFI_HH
 
 #include <cstring>
+#include <cstddef>
 
 #include "libffi.hh"
 
@@ -142,15 +143,24 @@ struct cdata {
      * so we have to overallocate by a bit, then manually align the data
      */
     void *as_ptr() {
-        void *ret;
-        auto *src = util::ptr_align(this + 1);
-        std::memcpy(&ret, &src, sizeof(void *));
-        return ret;
+        return util::ptr_align(this + 1);
     }
 
     template<typename T>
     T &as() {
         return *static_cast<T *>(as_ptr());
+    }
+
+    void *as_deref_ptr() {
+        if (decl.is_ref()) {
+            return *static_cast<void **>(as_ptr());
+        }
+        return as_ptr();
+    }
+
+    template<typename T>
+    T &as_deref() {
+        return *static_cast<T *>(as_deref_ptr());
     }
 
     void *get_addr() {
@@ -185,27 +195,21 @@ struct cdata {
     }
 };
 
-/* get the size of cdata, without the data section, large enough to provide
- * the start of the data section right afterwards, aligned to the largest
- * alignment that newuserdata can guarantee us; the actual data start will
- * typically be a bit later than that, as it needs even stricter alignment
- */
-static constexpr std::size_t cdata_size_noval() {
-    auto cds = sizeof(cdata);
-    auto mod = cds % alignof(lua::user_align_t);
-    /* round up to alignment of data section */
-    if (mod) {
-        cds += alignof(lua::user_align_t) - mod;
-    };
-    return cds;
-}
-
 struct ctype {
     ast::c_type decl;
     int ct_tag;
 
     template<typename D>
     ctype(D &&tp): decl{util::forward<D>(tp)} {}
+};
+
+/* helper structure for allocation size */
+struct cdata_pad {
+    cdata data;
+    /* space for data alignment */
+    alignas(lua::user_align_t) char align_pad[
+        alignof(util::max_aligned_t) - alignof(lua::user_align_t)
+    ];
 };
 
 struct closure_data {
@@ -231,17 +235,14 @@ struct fdata {
     ffi::scalar_stor_t rarg;
 
     ffi::scalar_stor_t *args() {
-        ffi::scalar_stor_t *ret;
-        void *src = this + 1;
-        std::memcpy(&ret, &src, sizeof(void *));
-        return ret;
+        return util::pun<ffi::scalar_stor_t *>(this + 1);
     }
 };
 
 static inline cdata &newcdata(
     lua_State *L, ast::c_type const &tp, std::size_t vals
 ) {
-    auto ssz = vals + cdata_size_noval() + lua::UD_OVERALLOC;
+    auto ssz = sizeof(cdata_pad) + vals;
     auto *cd = static_cast<cdata *>(lua_newuserdata(L, ssz));
     new (cd) cdata{tp.copy()};
     cd->gc_ref = LUA_REFNIL;
@@ -315,8 +316,7 @@ static inline std::size_t cdata_value_size(lua_State *L, int idx) {
          * we can be sure they are contained within the lua-allocated block
          *
          * the VLA memory consists of the following:
-         * - the cdata sequence, rounded up for lua alignment
-         * - the overallocated bytes for 16-byte alignment
+         * - the cdata sequence with overallocation padding
          * - the section where the pointer to data is stored
          * - and finally the VLA memory itself
          *
@@ -324,8 +324,7 @@ static inline std::size_t cdata_value_size(lua_State *L, int idx) {
          * that is not the raw array data, and that is our final length
          */
         return (
-            lua_rawlen(L, idx) - cdata_size_noval() -
-            lua::UD_OVERALLOC - sizeof(ffi::scalar_stor_t)
+            lua_rawlen(L, idx) - sizeof(cdata_pad) - sizeof(ffi::scalar_stor_t)
         );
     } else {
         /* otherwise the size is known, so fall back to that */

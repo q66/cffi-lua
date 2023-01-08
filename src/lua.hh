@@ -138,10 +138,6 @@ union user_align_t { lua_Number n; lua_Integer i; void *p; double d; long l; };
 union user_align_t { LUAI_MAXALIGN; };
 #endif
 
-static constexpr std::size_t UD_OVERALLOC = (
-    alignof(util::max_aligned_t) - alignof(user_align_t)
-);
-
 } /* namespace lua */
 
 #define LUA_BUG_MSG(L, msg) \

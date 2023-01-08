@@ -687,7 +687,7 @@ struct c_type: c_object {
 
     c_type unref() const {
         auto ret = copy();
-        ret.p_flags ^= C_TYPE_REF;
+        ret.p_flags &= ~C_TYPE_REF;
         return ret;
     }
 

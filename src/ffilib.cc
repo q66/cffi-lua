@@ -141,10 +141,7 @@ struct cdata_meta {
         }
 #endif
         auto const *tp = &cd.decl;
-        void *val = cd.as_ptr();
-        if (tp->is_ref()) {
-            val = *static_cast<void **>(val);
-        }
+        void *val = cd.as_deref_ptr();
         /* 64-bit integers */
         /* XXX: special printing for lua builds with non-double numbers? */
         if (tp->integer() && (tp->alloc_size() == 8)) {
@@ -212,11 +209,8 @@ struct cdata_meta {
                 return false;
             }
         }
-        void **valp = static_cast<void **>(cd.as_ptr());
+        void **valp = static_cast<void **>(cd.as_deref_ptr());
         auto const *decl = &cd.decl;
-        if (decl->is_ref()) {
-            valp = static_cast<void **>(*valp);
-        }
         if (
             (decl->type() == ast::C_BUILTIN_PTR) &&
             (lua_type(L, 2) == LUA_TSTRING)
@@ -251,9 +245,7 @@ struct cdata_meta {
                 if (foff < 0) {
                     return false;
                 }
-                unsigned char *buf;
-                std::memcpy(&buf, &valp, sizeof(void *));
-                func(*outf, buf + foff);
+                func(*outf, util::pun<unsigned char *>(valp) + foff);
                 return true;
             }
             default: {
@@ -549,13 +541,9 @@ struct cdata_meta {
             /* do arithmetic on uintptr, doing it with a pointer would be UB
              * in case of a null pointer (and we want predicable behavior)
              */
-            std::uintptr_t p;
-            auto *dp = cd1->get_deref_addr();
-            std::memcpy(&p, &dp, sizeof(dp));
+            auto p = util::pun<std::uintptr_t>(cd1->get_deref_addr());
             auto tp = cd1->decl.as_type(ast::C_BUILTIN_PTR);
-            auto &ret = ffi::newcdata(
-                L, tp.is_ref() ? tp.unref() : util::move(tp), sizeof(void *)
-            );
+            auto &ret = ffi::newcdata(L,  tp.unref(), sizeof(void *));
             ret.as<std::uintptr_t>() = p + d * asize;
             return 1;
         } else if (cd2 && cd2->decl.ptr_like()) {
@@ -573,13 +561,9 @@ struct cdata_meta {
                 }
                 ffi::check_arith<std::ptrdiff_t>(L, 1);
             }
-            std::uintptr_t p;
-            auto *dp = cd2->get_deref_addr();
-            std::memcpy(&p, &dp, sizeof(dp));
+            auto p = util::pun<std::uintptr_t>(cd2->get_deref_addr());
             auto tp = cd2->decl.as_type(ast::C_BUILTIN_PTR);
-            auto &ret = ffi::newcdata(
-                L, tp.is_ref() ? tp.unref() : util::move(tp), sizeof(void *)
-            );
+            auto &ret = ffi::newcdata(L, tp.unref(), sizeof(void *));
             ret.as<std::uintptr_t>() = d * asize + p;
             return 1;
         }
@@ -626,9 +610,7 @@ struct cdata_meta {
                 }
                 ffi::check_arith<std::ptrdiff_t>(L, 2);
             }
-            std::uintptr_t p;
-            auto *dp = cd1->get_deref_addr();
-            std::memcpy(&p, &dp, sizeof(dp));
+            auto p = util::pun<std::uintptr_t>(cd1->get_deref_addr());
             auto &ret = ffi::newcdata(L, cd1->decl, sizeof(void *));
             ret.as<std::uintptr_t>() = p + d;
             return 1;
@@ -1179,12 +1161,10 @@ struct ffi_module {
 
     static int addressof_f(lua_State *L) {
         auto &cd = ffi::checkcdata(L, 1);
-        auto &cds =cd.as<void *>();
         ffi::newcdata(L, ast::c_type{
             util::make_rc<ast::c_type>(util::move(cd.decl.unref())),
             0, ast::C_BUILTIN_PTR
-        }, sizeof(void *)).as<void *>() =
-            cd.decl.is_ref() ? cds : &cds;
+        }, sizeof(void *)).as<void *>() = cd.get_addr();
         return 1;
     }
 
@@ -1351,10 +1331,7 @@ struct ffi_module {
             );
         }
         /* handle potential ref case */
-        void **valp = static_cast<void **>(ud.as_ptr());
-        if (ud.decl.is_ref()) {
-            valp = static_cast<void **>(*valp);
-        }
+        void **valp = static_cast<void **>(ud.as_deref_ptr());
         if (lua_gettop(L) > 1) {
             /* if the length is given, special logic is used; any value can
              * be serialized here (addresses will be taken automatically)
@@ -1365,12 +1342,9 @@ struct ffi_module {
                 case ast::C_BUILTIN_ARRAY:
                     lua_pushlstring(L, static_cast<char const *>(*valp), slen);
                     return 1;
-                case ast::C_BUILTIN_RECORD: {
-                    char const *s;
-                    std::memcpy(&s, &valp, sizeof(void *));
-                    lua_pushlstring(L, s, slen);
+                case ast::C_BUILTIN_RECORD:
+                    lua_pushlstring(L, util::pun<char const *>(valp), slen);
                     return 1;
-                }
                 default:
                     break;
             }
@@ -1483,17 +1457,13 @@ converr:
     static int tonumber_f(lua_State *L) {
         auto *cd = ffi::testcdata(L, 1);
         if (cd) {
-            ast::c_type const *tp = &cd->decl;
-            void *val = &cd->as<void *>();
-            int btp = cd->decl.type();
-            if (cd->decl.is_ref()) {
-                val = cd->as<void *>();
-            }
-            if (tp->arith()) {
-                ffi::to_lua(L, *tp, val, ffi::RULE_CONV, false, true);
+            if (cd->decl.arith()) {
+                ffi::to_lua(
+                    L, cd->decl, cd->as_deref_ptr(), ffi::RULE_CONV, false, true
+                );
                 return 1;
             }
-            switch (btp) {
+            switch (cd->decl.type()) {
                 case ast::C_BUILTIN_PTR:
                 case ast::C_BUILTIN_RECORD:
                 case ast::C_BUILTIN_ARRAY:
