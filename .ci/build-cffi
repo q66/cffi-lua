@@ -130,21 +130,6 @@ if [ -n "$qemu_cpu" -a -n "$cross" ]; then
     sudo touch /usr/${expected_triplet}/etc/ld.so.cache
 fi
 
-echo ">> Building libffi..."
-
-mkdir -p libffi_build || exit 1
-
-ffi_args=""
-if [ -n "$cross" ]; then
-    ffi_args="${ffi_args} --host=${expected_triplet}"
-fi
-
-cd libffi_build
-CFLAGS="${extra_cflags}" ../libffi/configure --prefix=/ --libdir=/lib \
-    --disable-shared --disable-docs ${ffi_args} || exit 1
-make -j4 || exit 1
-cd ..
-
 # sanitizer setup, need asan-instrumented lua
 if [ -n "$SANITIZE" ]; then
     extra_cflags="${extra_cflags} -fsanitize=address"
@@ -211,9 +196,6 @@ EOF
         cp src/lua ../${deps_dir} || exit 1
     fi
     cd ..
-    # also copy libffi files to each deps dir
-    cp libffi_build/include/*.h ${deps_dir}/include || exit 1
-    cp libffi_build/.libs/libffi.a ${deps_dir} || exit 1
 done
 
 echo ">> Building and testing cffi..."
@@ -249,7 +231,7 @@ EOF
         args="${args} -Db_lto=true -Dcpp_rtti=true"
     fi
 
-    meson .. -Dlua_version=vendor -Dlibffi=vendor -Dtests_cross=true \
+    meson .. -Dlua_version=vendor -Dtests_cross=true \
         -Ddeps_dir=${deps_dir} -Dlua_path="${lua_path}" ${args} || exit 1
     ninja all --verbose || exit 1
     ninja test || exit 1
