@@ -541,7 +541,7 @@ struct cdata_meta {
             /* do arithmetic on uintptr, doing it with a pointer would be UB
              * in case of a null pointer (and we want predicable behavior)
              */
-            auto p = util::pun<std::uintptr_t>(cd1->get_deref_addr());
+            auto p = cd1->as_deref<std::uintptr_t>();
             auto tp = cd1->decl.as_type(ast::C_BUILTIN_PTR);
             auto &ret = ffi::newcdata(L,  tp.unref(), sizeof(void *));
             ret.as<std::uintptr_t>() = p + d * asize;
@@ -561,7 +561,7 @@ struct cdata_meta {
                 }
                 ffi::check_arith<std::ptrdiff_t>(L, 1);
             }
-            auto p = util::pun<std::uintptr_t>(cd2->get_deref_addr());
+            auto p = cd2->as_deref<std::uintptr_t>();
             auto tp = cd2->decl.as_type(ast::C_BUILTIN_PTR);
             auto &ret = ffi::newcdata(L, tp.unref(), sizeof(void *));
             ret.as<std::uintptr_t>() = d * asize + p;
@@ -598,8 +598,11 @@ struct cdata_meta {
                         lua_tostring(L, -2), lua_tostring(L, -1)
                     );
                 }
-                auto ret = static_cast<unsigned char *>(cd1->get_deref_addr())
-                         - static_cast<unsigned char *>(cd2->get_deref_addr());
+                /* use intptrs to prevent UB with potential nulls; signed so
+                 * we can get a potential negative result in a safe way
+                 */
+                auto ret = cd1->as_deref<std::intptr_t>()
+                         - cd2->as_deref<std::intptr_t>();
                 lua_pushinteger(L, lua_Integer(ret / asize));
                 return 1;
             }
@@ -610,7 +613,7 @@ struct cdata_meta {
                 }
                 ffi::check_arith<std::ptrdiff_t>(L, 2);
             }
-            auto p = util::pun<std::uintptr_t>(cd1->get_deref_addr());
+            auto p = cd1->as_deref<std::uintptr_t>();
             auto &ret = ffi::newcdata(L, cd1->decl, sizeof(void *));
             ret.as<std::uintptr_t>() = p + d;
             return 1;
@@ -701,6 +704,13 @@ struct cdata_meta {
         return 1;
     }
 
+    static void *cmp_addr(ffi::cdata *cd) {
+        if (cd->decl.ptr_like()) {
+            return cd->as_deref<void *>();
+        }
+        return cd->get_addr();
+    }
+
     static int eq(lua_State *L) {
         auto *cd1 = ffi::testcval(L, 1);
         auto *cd2 = ffi::testcval(L, 2);
@@ -724,7 +734,7 @@ struct cdata_meta {
         if (!cd1->decl.arith() || !cd2->decl.arith()) {
             if (cd1->decl.ptr_like() && cd2->decl.ptr_like()) {
                 lua_pushboolean(
-                    L, cd1->get_deref_addr() == cd2->get_deref_addr()
+                    L, cd1->as_deref<void *>() == cd2->as_deref<void *>()
                 );
                 return 1;
             }
@@ -732,7 +742,7 @@ struct cdata_meta {
                 return 1;
             }
             /* if any operand is non-arithmetic, compare by address */
-            lua_pushboolean(L, cd1->get_deref_addr() == cd2->get_deref_addr());
+            lua_pushboolean(L, cmp_addr(cd1) == cmp_addr(cd2));
             return 1;
         }
         if (op_try_mt<ffi::METATYPE_FLAG_EQ>(L, cd1, cd2)) {
@@ -803,7 +813,7 @@ struct cdata_meta {
         )) {
             return 1;
         }
-        lua_pushboolean(L, cd1->get_deref_addr() < cd2->get_deref_addr());
+        lua_pushboolean(L, cmp_addr(cd1) < cmp_addr(cd2));
         return 1;
     }
 
@@ -816,7 +826,7 @@ struct cdata_meta {
         )) {
             return 1;
         }
-        lua_pushboolean(L, cd1->get_deref_addr() <= cd2->get_deref_addr());
+        lua_pushboolean(L, cmp_addr(cd1) <= cmp_addr(cd2));
         return 1;
     }
 
@@ -1400,20 +1410,18 @@ converr:
                     L, false, idx, "cannot convert 'ctype' to 'void *'"
                 );
             }
-            auto ctp = cd.decl.type();
-            if (
-                (ctp != ast::C_BUILTIN_PTR) &&
-                (ctp != ast::C_BUILTIN_ARRAY) &&
-                !cd.decl.is_ref()
-            ) {
-                cd.decl.serialize(L);
-                lua_pushfstring(
-                    L, "cannot convert '%s' to 'void *'",
-                    lua_tostring(L, -1)
-                );
-                luaL_argcheck(L, false, idx, lua_tostring(L, -1));
+            if (cd.decl.ptr_like() || (cd.decl.type() == ast::C_BUILTIN_FUNC)) {
+                return cd.as_deref<void *>();
             }
-            return cd.get_deref_addr();
+            if (cd.decl.is_ref()) {
+                return cd.as_ptr();
+            }
+            cd.decl.serialize(L);
+            lua_pushfstring(
+                L, "cannot convert '%s' to 'void *'",
+                lua_tostring(L, -1)
+            );
+            goto argcheck;
         } else if (lua_isuserdata(L, idx)) {
             return lua_touserdata(L, idx);
         }
@@ -1421,6 +1429,7 @@ converr:
             L, "cannot convert '%s' to 'void *'",
             luaL_typename(L, 1)
         );
+argcheck:
         luaL_argcheck(L, false, idx, lua_tostring(L, -1));
         return nullptr;
     }

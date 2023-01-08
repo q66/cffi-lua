@@ -179,20 +179,6 @@ struct cdata {
     reft:
         return *static_cast<void **>(as_ptr());
     }
-
-    void *get_deref_addr() {
-        if (decl.is_ref()) {
-            switch (decl.type()) {
-                case ast::C_BUILTIN_PTR:
-                case ast::C_BUILTIN_FUNC:
-                case ast::C_BUILTIN_ARRAY:
-                    return **static_cast<void ***>(as_ptr());
-                default:
-                    return *static_cast<void **>(as_ptr());
-            }
-        }
-        return get_addr();
-    }
 };
 
 struct ctype {
