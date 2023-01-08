@@ -82,7 +82,9 @@ elif ffiver == 'vendor'
     extra_inc += include_directories(join_paths(deps_path, 'include'))
 else
     # use static lib if subproject
-    ffi_dep = dependency('libffi', default_options: ['default_library=static'])
+    ffi_dep = dependency('libffi',
+        default_options: ['default_library=static', 'tests=false']
+    )
 endif
 
 # Needed on Linux
