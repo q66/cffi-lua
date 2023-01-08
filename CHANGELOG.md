@@ -1,3 +1,15 @@
+# 8 January 2023 - 0.2.3
+
+**Changes:**
+
+- Fixed initialization and sizeof for flexible structs
+- Fixed handling of pointer arithmetic with reference types
+- Fixed handling of references in cffi.copy and other places
+- Reworked module memory management to respect type alignment
+- Added a Clang build with sanitizers (UBSan, ASan, CFI) in CI
+  - Fixed issues found by sanitized build
+- Updated CI to Ubuntu 22.04
+
 # 1 November 2022 - 0.2.2
 
 **Changes:**

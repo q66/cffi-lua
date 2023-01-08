@@ -24,11 +24,11 @@ case "$1" in
         ninja all
         ;;
     install)
-        cd build
-        ninja install
+        # we want just the module, no subproject stuff
+        mkdir -p "$LIBDIR"
+        cp build/cffi.so "$LIBDIR"
         mkdir -p "${PREFIX}"/doc
-        cp -a ../docs/* "${PREFIX}"/doc
-        cd ..
+        cp -a docs/* "${PREFIX}"/doc
         rm -rf build
         ;;
     *) exit 1 ;;
