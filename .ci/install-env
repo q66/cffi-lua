@@ -62,6 +62,11 @@ fi
 ensure_tool meson
 ensure_tool ninja
 
+echo ">> Getting libffi..."
+
+wget "https://ftp.octaforge.org/q66/random/libffi.tar.gz" || exit 1
+tar xf libffi.tar.gz || exit 1
+
 echo ">> Getting lua..."
 
 for luaver in ${LUA_VERSIONS}; do
