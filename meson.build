@@ -81,7 +81,8 @@ elif ffiver == 'vendor'
     ffi_dep = cxx.find_library('ffi', dirs: deps_libs)
     extra_inc += include_directories(join_paths(deps_path, 'include'))
 else
-    ffi_dep = dependency('libffi')
+    # use static lib if subproject
+    ffi_dep = dependency('libffi', default_options: ['default_library=static'])
 endif
 
 # Needed on Linux
