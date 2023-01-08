@@ -28,18 +28,18 @@ external_dependencies = {
 }
 build = {
     type = "command",
-    build_command = [[env \
+    build_command = [[\
         LUA="$(LUA)" CC="$(CC)" LD="$(LD)" \
         CFLAGS='$(CFLAGS) -I$(LUA_INCDIR) -I$(FFI_INCDIR)' \
         LDFLAGS='-L$(FFI_LIBDIR) -lffi' \
         PREFIX="$(PREFIX)" LIBDIR="$(LIBDIR)" \
-        ./luarocks/build.sh build
+        sh ./luarocks/build.sh build
     ]],
-    install_command = [[env \
+    install_command = [[\
         LUA="$(LUA)" CC="$(CC)" LD="$(LD)" \
         CFLAGS='$(CFLAGS) -I$(LUA_INCDIR) -I$(FFI_INCDIR)' \
         LDFLAGS='-L$(FFI_LIBDIR) -lffi' \
         PREFIX="$(PREFIX)" LIBDIR="$(LIBDIR)" \
-        ./luarocks/build.sh install
+        sh ./luarocks/build.sh install
     ]],
 }
