@@ -1,6 +1,5 @@
 #!/bin/bash
 
-libffi_version=3.3
 ninja_version=1.10.2
 
 echo ">> Installing meson..."
@@ -12,12 +11,6 @@ curl -L -o ninja.zip https://github.com/ninja-build/ninja/releases/download/v${n
 mv ninja.exe host_tools
 
 pip3 install meson
-
-echo ">> Getting libffi..."
-
-curl -L -o libffi.zip https://github.com/winlibs/libffi/archive/libffi-${libffi_version}.zip || exit 1
-7z x libffi.zip || exit 1
-mv libffi-libffi-${libffi_version} libffi
 
 echo ">> Getting lua..."
 
