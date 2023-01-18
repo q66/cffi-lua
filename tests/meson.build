@@ -37,7 +37,7 @@ test_cases = [
 
 penv = environment()
 penv.append('PATH', deps_path)
-penv.append('CFFI_PATH', meson.build_root())
+penv.append('CFFI_PATH', meson.project_build_root())
 penv.append('TESTS_PATH', meson.current_source_dir())
 penv.append('TESTLIB_PATH', testlib.full_path())
 

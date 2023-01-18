@@ -6,7 +6,7 @@ project('cffi-lua', ['cpp'],
         'buildtype=debugoptimized', 'b_ndebug=if-release', 'cpp_std=c++14',
         'warning_level=3', 'cpp_rtti=false', 'cpp_eh=none'
     ],
-    meson_version: '>=0.50'
+    meson_version: '>=0.56'
 )
 
 # Extra compiler warnings for gcc/clang
@@ -36,8 +36,8 @@ endif
 
 deps_path = get_option('deps_dir')
 deps_libs = [
-    join_paths(meson.source_root(), deps_path),
-    join_paths(meson.build_root(), deps_path)
+    join_paths(meson.project_source_root(), deps_path),
+    join_paths(meson.project_build_root(), deps_path)
 ]
 extra_inc = []
 
