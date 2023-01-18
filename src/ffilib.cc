@@ -1228,7 +1228,8 @@ struct ffi_module {
                     sz = std::size_t(isz);
                 }
             } else if (vla) {
-                luaL_checkinteger(L, 2);
+                luaL_checkinteger(L, 2); /* this will longjmp */
+                return false;
             } else {
                 sz = 0;
             }
@@ -1236,7 +1237,7 @@ struct ffi_module {
         };
         auto &ct = check_ct(L, 1);
         if (ct.vla()) {
-            std::size_t sz;
+            std::size_t sz = 0;
             if (!get_vlasz(sz, true)) {
                 return 0;
             }
@@ -1247,7 +1248,7 @@ struct ffi_module {
         } else if (ct.type() == ast::C_BUILTIN_RECORD) {
             ast::c_type const *lf = nullptr;
             if (ct.record().flexible(&lf)) {
-                std::size_t sz;
+                std::size_t sz = 0;
                 if (!get_vlasz(sz, lf->vla())) {
                     return 0;
                 }
