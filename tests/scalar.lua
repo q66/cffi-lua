@@ -63,3 +63,17 @@ assert(ffi.cast("int", 150) == ffi.cast("int", 150))
 assert(ffi.cast("int", 200) ~= ffi.cast("int", 150))
 -- different from luajit
 assert(ffi.cast("int", 150) ~= 150)
+
+-- typdefs
+
+ffi.cdef [[
+    typedef int type1_t;
+    typedef unsigned long type2_t;
+    typedef signed type3_t;
+    typedef time_t type4_t;
+]]
+
+assert(ffi.cast("int", 150) == ffi.cast("type1_t", 150))
+assert(ffi.cast("unsigned long", 150) == ffi.cast("type2_t", 150))
+assert(ffi.cast("signed", 150) == ffi.cast("type3_t", 150))
+assert(ffi.cast("time_t", 150) == ffi.cast("type4_t", 150))
