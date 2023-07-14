@@ -71,6 +71,8 @@ ffi.cdef [[
     typedef unsigned long type2_t;
     typedef signed type3_t;
     typedef time_t type4_t;
+    /* redeclarations should be ignored */
+    typedef long time_t;
 ]]
 
 assert(ffi.cast("int", 150) == ffi.cast("type1_t", 150))

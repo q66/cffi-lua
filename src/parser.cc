@@ -1576,7 +1576,8 @@ static bool parse_array(lex_state &ls, std::size_t &ret, int &flags) {
  * below is described how it works:
  */
 static bool parse_type_ptr(
-    lex_state &ls, ast::c_type &tp, util::strbuf *fpname, bool needn
+    lex_state &ls, ast::c_type &tp, util::strbuf *fpname, bool needn,
+    bool tdef, bool &tdef_bltin
 ) {
     /* our input is the left-side qualified type; that means constructs such
      * as 'const int' or 'unsigned long int const'
@@ -1762,11 +1763,42 @@ newlevel:
         if (!ls.param_maybe_name()) {
             return false;
         }
-        if (needn || (ls.t.token == TOK_NAME)) {
+        bool check_kw = (ls.t.token == TOK_NAME);
+        if (tdef) {
+            /* builtins can be "redefined", but the definitions
+             * are ignored, matching luajit fuzzy behavior
+             */
+            switch (ls.t.token) {
+                case TOK_int8_t:
+                case TOK_int16_t:
+                case TOK_int32_t:
+                case TOK_int64_t:
+                case TOK_uint8_t:
+                case TOK_uint16_t:
+                case TOK_uint32_t:
+                case TOK_uint64_t:
+                case TOK_uintptr_t:
+                case TOK_intptr_t:
+                case TOK_ptrdiff_t:
+                case TOK_ssize_t:
+                case TOK_size_t:
+                case TOK_va_list:
+                case TOK___builtin_va_list:
+                case TOK___gnuc_va_list:
+                case TOK_time_t:
+                case TOK_wchar_t:
+                    check_kw = true;
+                    tdef_bltin = true;
+                    break;
+                default:
+                    break;
+            }
+        }
+        if (needn || check_kw) {
             /* we're in a context where name can be provided, e.g. if
              * parsing a typedef or a prototype, this will be the name
              */
-            if (!check(ls, TOK_NAME)) {
+            if (!check_kw && !check(ls, TOK_NAME)) {
                 return false;
             }
             *fpname = ls.get_buf();
@@ -2255,7 +2287,10 @@ static bool parse_typebase(
 }
 
 static bool parse_type(lex_state &ls, ast::c_type &ret, util::strbuf *fpn) {
-    return (parse_typebase(ls, ret) && parse_type_ptr(ls, ret, fpn, false));
+    bool tdef_bltin = false;
+    return (parse_typebase(ls, ret) && parse_type_ptr(
+        ls, ret, fpn, false, false, tdef_bltin
+    ));
 }
 
 static ast::c_record const *parse_record(lex_state &ls, bool *newst) {
@@ -2344,7 +2379,8 @@ static ast::c_record const *parse_record(lex_state &ls, bool *newst) {
         do {
             util::strbuf fpn;
             auto tp = tpb.copy();
-            if (!parse_type_ptr(ls, tp, &fpn, false)) {
+            bool tdef_bltin = false;
+            if (!parse_type_ptr(ls, tp, &fpn, false, false, tdef_bltin)) {
                 return nullptr;
             }
             if (fpn[0] == '?') {
@@ -2556,7 +2592,8 @@ static bool parse_decl(lex_state &ls) {
             oldmode = ls.mode(PARSE_MODE_TYPEDEF);
         }
         auto tp = tpb.copy();
-        if (!parse_type_ptr(ls, tp, &dname, !first)) {
+        bool tdef_bltin = false;
+        if (!parse_type_ptr(ls, tp, &dname, !first, tdef, tdef_bltin)) {
             return false;
         }
         first = false;
@@ -2573,6 +2610,10 @@ static bool parse_decl(lex_state &ls) {
         if (tdef) {
             ls.mode(oldmode);
             if (dname[0] != '?') {
+                /* redefinition of builtin, skip */
+                if (tdef_bltin) {
+                    continue;
+                }
                 /* store if the name is non-empty, if it's empty there is no
                  * way to access the type and it'd be unique either way
                  */
