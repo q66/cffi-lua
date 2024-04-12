@@ -1108,6 +1108,7 @@ struct ffi_module {
         FIELD_CHECK("index", INDEX)
         FIELD_CHECK("newindex", NEWINDEX)
         FIELD_CHECK("call", CALL)
+        FIELD_CHECK("new", NEW)
         FIELD_CHECK("gc", GC)
         FIELD_CHECK("tostring", TOSTRING)
 
