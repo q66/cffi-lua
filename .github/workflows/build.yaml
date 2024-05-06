@@ -77,7 +77,7 @@ jobs:
 
   mac:
     name: MacOS
-    runs-on: macos-10.15
+    runs-on: macos-latest
 
     env:
       TARGET: 'darwin'
