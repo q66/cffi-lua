@@ -51,9 +51,9 @@ else
 fi
 
 if [ -n "$(command -v pip3)" ]; then
-    sudo pip3 install meson || exit 1
+    sudo pip3 --break-system-packages install meson || exit 1
 elif [ -n "$(command -v pip)" ]; then
-    sudo pip install meson || exit 1
+    sudo pip --break-system-packages  install meson || exit 1
 else
     echo "ERROR: pip not found"
     exit 1
