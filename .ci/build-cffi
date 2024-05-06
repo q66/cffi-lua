@@ -136,7 +136,7 @@ if [ -n "$SANITIZE" ]; then
     extra_ldflags="${extra_ldflags} -fsanitize=address -fuse-ld=lld"
     # cfi-icall is buggy with the clang on CI, also the same functionality
     # is covered by -fsanitize=function (included in undefined)
-    export CXXFLAGS="-fsanitize=undefined -fsanitize-trap=undefined -fsanitize=address -fsanitize=cfi -fno-sanitize=cfi-icall,leak -fvisibility=hidden -flto=thin"
+    export CXXFLAGS="-fsanitize=undefined -fsanitize-trap=undefined -fsanitize=address -fsanitize=cfi -fno-sanitize=cfi-icall -fvisibility=hidden -flto=thin"
     export LDFLAGS="${CXXFLAGS} -fuse-ld=lld"
     # only test the most recent lua version
     LUA_VERSIONS=${LUA_VERSIONS%% *}
@@ -199,6 +199,9 @@ EOF
 done
 
 echo ">> Building and testing cffi..."
+
+# lsan seems broken in the ci env?
+export LSAN_OPTIONS=detect_leaks=0
 
 for luaver in ${LUA_VERSIONS}; do
     deps_dir="deps-${luaver}-${expected_triplet}"
