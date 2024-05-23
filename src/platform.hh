@@ -192,7 +192,7 @@
 #  endif
 #elif defined(__OR1K__)
 #  define FFI_ARCH FFI_ARCH_OR1K
-#  define FFO_ARCH_NAME "or1k"
+#  define FFI_ARCH_NAME "or1k"
 #elif defined(__riscv) || defined(__riscv__)
 #  if __riscv_xlen == 32
 #    define FFI_ARCH FFI_ARCH_RV32
