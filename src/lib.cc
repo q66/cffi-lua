@@ -285,7 +285,7 @@ void close(c_lib *cl, lua_State *L) {
             void *p = ffi_dl_handle[i];
             if (p) {
                 ffi_dl_handle[i] = nullptr;
-                FreeLibrary(static_cast<HMODULE>(cl->h));
+                FreeLibrary(static_cast<HMODULE>(p));
             }
         }
     } else if (cl->h) {
