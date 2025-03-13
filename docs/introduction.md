@@ -24,7 +24,7 @@ local cffi = require("cffi")
 cffi.cdef [[
     int printf(char const *fmt, ...);
 ]]
-ffi.C.printf("hello %s\n", "world")
+cffi.C.printf("hello %s\n", "world")
 ```
 
 Note how this is pretty much identical to the example on the LuaJIT website.
