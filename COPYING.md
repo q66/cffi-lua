@@ -1,6 +1,6 @@
 # The MIT License
 
-Copyright (c) 2020 Daniel "q66" Kolesa
+Copyright (c) 2020-2025 q66 <q66@octaforge.org>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
