@@ -48,12 +48,6 @@ if tl_path and (#tl_path > 0) then
     end
 end
 
--- set up luajit compatibility
-
-if jit then
-    package.preload["cffi"] = package.preload["ffi"]
-end
-
 -- test lib
 
 skip_test = function()
