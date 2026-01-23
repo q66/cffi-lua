@@ -890,8 +890,15 @@ struct cdata_meta {
     static int close(lua_State *L) {
         auto *cd = ffi::testcdata(L, 1);
         if (cd && metatype_check<ffi::METATYPE_FLAG_CLOSE>(L, 1)) {
-            lua_insert(L, 1);
-            lua_call(L, 2, 0);
+            // Get the __close method from the metatable
+            int mflags = 0;
+            int mtp = metatype_getmt(L, 1, mflags);
+            if (ffi::metatype_getfield(L, mtp, "__close")) {
+                // Stack: object, err, __close function
+                lua_insert(L, -3);  // Move __close to position 1
+                // Stack: __close, object, err
+                lua_call(L, 2, 0);  // Call __close(object, err)
+            }
         }
         return 0;
     }
