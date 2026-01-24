@@ -9,7 +9,7 @@ jobs:
 
     env:
       TARGET: '${{ matrix.config.target }}'
-      LUA_VERSIONS: '5.4.4 5.3.6 5.2.4 5.1.5'
+      LUA_VERSIONS: '5.5.0 5.4.4 5.3.6 5.2.4 5.1.5'
       CC: '${{ matrix.config.cc }}'
       BUILDTYPE: '${{ matrix.config.buildtype }}'
       SANITIZE: '${{ matrix.config.sanitize }}'

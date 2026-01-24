@@ -891,7 +891,10 @@ struct cdata_meta {
         auto *cd = ffi::testcdata(L, 1);
         if (cd && metatype_check<ffi::METATYPE_FLAG_CLOSE>(L, 1)) {
             lua_insert(L, 1);
-            lua_call(L, 2, 0);
+            /* 5.5 caveat: the number of arguments is variable, with the
+             * error argument possibly not being passed at all
+             */
+            lua_call(L, lua_gettop(L) - 1, 0);
         }
         return 0;
     }
