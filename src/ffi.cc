@@ -109,7 +109,8 @@ void destroy_cdata(lua_State *L, cdata &cd) {
             goto free_aux;
         free_aux:
         case ast::C_BUILTIN_FUNC: {
-            if (!cd.decl.function()->variadic()) {
+            /* ctypes don't have any aux data! */
+            if (!cd.decl.function()->variadic() || isctype(cd)) {
                 break;
             }
             fdata_free_aux(L, cd.as<fdata>());
