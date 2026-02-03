@@ -42,7 +42,6 @@ this includes:
 
 - 32-bit x86 (all)
 - 64-bit x86 (Windows)
-- 32-bit ARM (all)
 - 32-bit PowerPC
 - MIPS(64) (all)
 

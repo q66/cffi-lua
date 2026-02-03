@@ -15,8 +15,8 @@ numeric type representations), though this is not tested or guaranteed
 to work (patches welcome if broken).
 
 Unlike LuaJIT's `ffi` module or other efforts such as `luaffifb`, it works
-with every common version of the reference Lua implementation (currently 5.1,
-5.2, 5.3 and 5.4, 5.0 could be supported but wasn't considered worth it) as
+with every common version of the reference Lua implementation (currently 5.1
+to 5.5 incusive, 5.0 could be supported but wasn't considered worth it) as
 well as compatible non-reference ones (like LuaJIT). Functionality from newer
 Lua versions is also supported, when used with that version (e.g. with 5.3+
 you will get seamless integer and bit-op support, with 5.4 you will get
@@ -50,7 +50,7 @@ semantics. Use `cffi.nullptr` instead. The other limitations are caused by
 The dependencies are kept intentionally minimal.
 
 - A C++ compiler supporting the right subset of C++14
-- Lua 5.1 or newer (tested up to and including 5.4) or equivalent (e.g. LuaJIT)
+- Lua 5.1 or newer (tested up to and including 5.5) or equivalent (e.g. LuaJIT)
 - `libffi` (built with `meson` subproject if missing)
 - `meson`
 
