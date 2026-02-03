@@ -265,7 +265,10 @@ struct cdata_meta {
         if (!cd.as<ffi::fdata>().cd) {
             luaL_error(L, "bad callback");
         }
-        ffi::destroy_closure(L, cd.as<ffi::fdata>().cd);
+        auto &fd = cd.as<ffi::fdata>();
+        ffi::destroy_closure(L, fd.cd);
+        /* prevent it from being set again, it's deleted anyway */
+        fd.cd = nullptr;
         return 0;
     }
 
