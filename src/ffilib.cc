@@ -262,10 +262,10 @@ struct cdata_meta {
     static int cb_free(lua_State *L) {
         auto &cd = ffi::checkcdata(L, 1);
         luaL_argcheck(L, cd.decl.closure(), 1, "not a callback");
-        if (!cd.as<ffi::fdata>().cd) {
+        auto &fd = cd.as<ffi::fdata>();
+        if (!fd.cd) {
             luaL_error(L, "bad callback");
         }
-        auto &fd = cd.as<ffi::fdata>();
         ffi::destroy_closure(L, fd.cd);
         /* prevent it from being set again, it's deleted anyway */
         fd.cd = nullptr;
