@@ -104,6 +104,16 @@ x = ffi.new("struct dsinit", {{5}, {10}})
 assert(x.a.x == 5)
 assert(x.b.x == 10)
 
+x = ffi.new("struct sstr[3]", {[0] = {x = 5}})
+assert(x[0].x == 5)
+assert(x[1].x == 5)
+assert(x[2].x == 5)
+
+x = ffi.new("struct sstr[3]", {{x = 5}})
+assert(x[0].x == 5)
+assert(x[1].x == 5)
+assert(x[2].x == 5)
+
 x = ffi.new("struct flex", 2, { 5, 10, 15 })
 assert(x.x == 5)
 assert(x.y[0] == 10)

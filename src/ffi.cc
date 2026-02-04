@@ -1150,9 +1150,7 @@ static void from_lua_table(
 );
 
 static void from_lua_str(
-    lua_State *L, ast::c_type const &decl,
-    void *stor, std::size_t dsz, int idx, std::size_t nelems = 1,
-    std::size_t bsize = 0
+    lua_State *L, ast::c_type const &decl, void *stor, std::size_t dsz, int idx
 ) {
     std::size_t vsz;
     ffi::scalar_stor_t sv{};
@@ -1173,16 +1171,11 @@ static void from_lua_str(
     /* char-like array, string value */
     vp = lua_tolstring(L, idx, &vsz);
     /* add 1 because of null terminator, but use at most the given space */
-    vsz = util::min(vsz + 1, dsz);
-    goto cloop;
+    std::memcpy(val, vp, util::min(vsz + 1, dsz));
+    return;
 fallback:
     vp = from_lua(L, decl, &sv, idx, vsz, RULE_CONV);
-cloop:
-    while (nelems) {
-        std::memcpy(val, vp, vsz);
-        val += bsize;
-        --nelems;
-    }
+    std::memcpy(val, vp, vsz);
 }
 
 static void from_lua_table_record(
@@ -1275,37 +1268,41 @@ static void from_lua_table(
     }
 
     auto *val = static_cast<unsigned char *>(stor);
+    auto *oval = val;
     auto &pb = decl.ptr_base();
     auto bsize = pb.alloc_size();
     auto nelems = rsz / bsize;
+    auto flex = decl.flex();
 
     bool base_array = (pb.type() == ast::C_BUILTIN_ARRAY);
     bool base_struct = (pb.type() == ast::C_BUILTIN_RECORD);
 
-    if (!decl.flex()) {
-        if (ninit > int(nelems)) {
-            luaL_error(L, "too many initializers");
-            return;
-        } else if (ninit == 1) {
-            /* special case: initialize aggregate with a single value */
-            push_init(L, tidx, sidx);
-            from_lua_str(L, pb, val, bsize, -1, nelems, bsize);
-            lua_pop(L, 1);
-            return;
-        }
+    if (!flex && (ninit > int(nelems))) {
+        luaL_error(L, "too many initializers");
+        return;
     }
 
     for (int rinit = ninit; rinit; --rinit) {
+        push_init(L, tidx, sidx++);
         if ((base_array || base_struct) && lua_istable(L, -1)) {
-            from_lua_table(L, pb, val, bsize, lua_gettop(L));
+            from_lua_table(L, pb, val, bsize, -1);
         } else {
-            push_init(L, tidx, sidx++);
             from_lua_str(L, pb, val, bsize, -1);
         }
         val += bsize;
         lua_pop(L, 1);
     }
-    if (ninit < int(nelems)) {
+    if (!flex && (ninit == 1)) {
+        /* special case: initialize aggregate with a single value
+         *
+         * initialize the first element in the memory space and then
+         * replicate across the rest evenly until the end of it
+         */
+        while (nelems-- > 1) {
+            std::memcpy(val, oval, bsize);
+            val += bsize;
+        }
+    } else if (ninit < int(nelems)) {
         /* fill possible remaining space with zeroes */
         std::memset(val, 0, bsize * (nelems - ninit));
     }
