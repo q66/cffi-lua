@@ -1,3 +1,15 @@
+# 4 February 2026 - 0.2.4
+
+**Changes:**
+
+- Lua 5.5 support
+- Change typedef behavior to match LuaJIT
+- Handle `__new` metamethod correctly
+- Fixed `:free()` on callbacks
+- Disabled passing unions by value on 32-bit ARM
+- Refactored table initializer support to init structs in arrays
+- A large amount of bug fixes
+
 # 8 January 2023 - 0.2.3
 
 **Changes:**
