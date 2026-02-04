@@ -1422,7 +1422,7 @@ converr:
                 return cd.as_deref<void *>();
             }
             if (cd.decl.is_ref()) {
-                return cd.as_ptr();
+                return cd.address_of();
             }
             cd.decl.serialize(L);
             lua_pushfstring(
