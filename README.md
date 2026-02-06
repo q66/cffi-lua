@@ -15,12 +15,16 @@ numeric type representations), though this is not tested or guaranteed
 to work (patches welcome if broken).
 
 Unlike LuaJIT's `ffi` module or other efforts such as `luaffifb`, it works
-with every common version of the reference Lua implementation (currently 5.1
-to 5.5 incusive, 5.0 could be supported but wasn't considered worth it) as
-well as compatible non-reference ones (like LuaJIT). Functionality from newer
-Lua versions is also supported, when used with that version (e.g. with 5.3+
-you will get seamless integer and bit-op support, with 5.4 you will get
-metatype support for to-be-closed variables, and so on).
+with every common version of the reference Lua implementation, currently
+5.1 to 5.5 inclusive. Version-specific functionality is supported when
+used with that version, e.g. seamless integers, bit-ops, to-be-closed
+variable support in metatypes, and so on.
+
+Lua 5.1 was chosen as the minimum viable version, due to 5.0 lacking
+support for module loading via `require()` and significant gaps in the
+C API that would require significant workarounds. It is the intention to
+support newer versions as they are released, while keeping backwards
+compatibility.
 
 Since it's written from scratch, having 1:1 bug-for-bug C parser compatibility
 is a non-goal. The parser is meant to comply with C11, plus a number of
