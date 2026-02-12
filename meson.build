@@ -101,7 +101,7 @@ endif
 
 luaver_maj = '5'
 luaver_num = cxx.compute_int(
-    'LUA_VERSION_NUM', prefix: '#include <lua.hpp>',
+    'LUA_VERSION_NUM', prefix: '#include <lua.h>',
     dependencies: lua_dep, include_directories: extra_inc
 )
 luaver_min = luaver_num - 500

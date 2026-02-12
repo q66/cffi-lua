@@ -20,7 +20,10 @@
 #define LUA_BUILD_AS_DLL
 #endif
 
-#include <lua.hpp>
+extern "C" {
+#include <lua.h>
+#include <lauxlib.h>
+}
 
 #if defined(FFI_DIAGNOSTIC_PRAGMA_CLANG)
 #pragma clang diagnostic pop
