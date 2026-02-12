@@ -22,6 +22,7 @@
 
 extern "C" {
 #include <lua.h>
+#include <lualib.h> /* for LUA_FILEHANDLE on older versions */
 #include <lauxlib.h>
 }
 
